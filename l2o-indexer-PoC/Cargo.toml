@@ -1,0 +1,24 @@
+[package]
+name = "l2o-indexer"
+version = "0.1.0"
+edition = "2021"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+ark-groth16 = "0.4.0"
+hex = "0.4.3"
+serde = {version = "1.0.193", features = ["derive"] }
+serde_with = { version = "3.4.0", features = ["hex"] }
+serde_json = "1.0"
+ark-serialize = {version = "0.4.2", features = ["derive"] }
+ark-bn254 = "0.4.0"
+ark-snark = "0.4.0"
+ark-ec = "0.4.2"
+hyper = { version = "1", features = ["full"] }
+tokio = { version = "1", features = ["full"] }
+http-body-util = "0.1"
+hyper-util = { version = "0.1", features = ["full"] }
+bytes = "1"
+pretty_env_logger = "0.1.1"
+chainhook-sdk = "0.11.0"

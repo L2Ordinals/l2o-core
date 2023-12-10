@@ -1,0 +1,12 @@
+[workspace]
+
+members = [
+    "l2o_common",
+    "kvq",
+    "l2o_crypto",
+    "l2o_store",
+    "l2o_store_leveldb",
+    "l2o_indexer"
+, "l2o_indexer_ordhook"]
+
+resolver = "2"
