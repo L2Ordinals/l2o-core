@@ -1,10 +1,6 @@
 use kvq::{adapters::standard::KVQStandardAdapter, memory::simple::KVQSimpleMemoryBackingStore};
-use l2o_common::common::data::hash::Hash256;
 use l2o_crypto::hash::{
-    hash_functions::{
-        poseidon_goldilocks::{PoseidonGoldilocksHasher, PoseidonHasher},
-        sha256::Sha256Hasher,
-    },
+    hash_functions::poseidon_goldilocks::PoseidonHasher,
     merkle::store::{key::KVQMerkleNodeKey, model::KVQMerkleTreeModel},
 };
 use plonky2::{
