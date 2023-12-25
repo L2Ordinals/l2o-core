@@ -46,7 +46,7 @@ impl L2OBlockHasher for PoseidonHasher {
     fn get_l2_block_hash(block: &L2OBlockInscriptionV1) -> Hash256 {
         let payload_a = HashOut {
             elements: [
-                GoldilocksField::from_canonical_u32(block.l2id),
+                GoldilocksField::from_canonical_u64(block.l2id),
                 GoldilocksField::from_noncanonical_u64(block.l2_block_number),
                 GoldilocksField::from_noncanonical_u64(block.bitcoin_block_number),
                 GoldilocksField::ZERO,
@@ -86,7 +86,7 @@ pub fn get_block_payload_goldilocks_hash_u32_mode(
     block: &L2OBlockInscriptionV1,
 ) -> Vec<GoldilocksField> {
     let mut payload_bytes: Vec<GoldilocksField> = Vec::new();
-    payload_bytes.push(GoldilocksField::from_canonical_u32(block.l2id));
+    payload_bytes.push(GoldilocksField::from_canonical_u64(block.l2id));
     payload_bytes.push(GoldilocksField::from_noncanonical_u64(
         block.l2_block_number,
     ));
@@ -110,3 +110,4 @@ pub fn get_block_payload_goldilocks_hash_u32_mode(
 
     payload_bytes
 }
+

@@ -12,3 +12,4 @@ serde_with = { version = "3.4.0", features = ["hex"] }
 serde_json = "1.0"
 anyhow = "1.0.75"
 kvq = { path = "../kvq" }
+rand = "0.8"

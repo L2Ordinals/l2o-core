@@ -31,6 +31,7 @@ impl<T> From<T> for Wrapper<T> {
 
 pub type WHashOut<F> = Wrapper<HashOut<F>>;
 pub type GoldilocksHashOut = WHashOut<GoldilocksField>;
+pub type GHashOut = HashOut<GoldilocksField>;
 
 impl<F: Field> Default for WHashOut<F> {
     fn default() -> Self {

@@ -1,6 +1,5 @@
 use kvq::traits::KVQSerializable;
 use serde::{Serialize, Deserialize};
-use core::hash::Hash;
 use crate::common::data::{hash::Hash256, signature::{L2OSignature512, L2OCompactPublicKey}};
 
 
@@ -13,13 +12,17 @@ fn default_op() -> String {
 
 
 #[derive(Clone, PartialEq, Serialize, Deserialize)]
-pub struct L2OBlockInscription<Proof> {
+#[serde(bound = "Proof: Serialize, for<'de2> Proof: Deserialize<'de2>")]
+pub struct L2OBlockInscription<Proof> 
+where
+Proof: Serialize,
+    for<'de2> Proof: Deserialize<'de2> {
     #[serde(default = "default_p")]
     pub p: String,
     #[serde(default = "default_op")]
     pub op: String,
 
-    pub l2id: u32,
+    pub l2id: u64,
     pub l2_block_number: u64,
 
     pub bitcoin_block_number: u64,
@@ -42,4 +45,18 @@ pub struct L2OBlockInscription<Proof> {
     pub superchain_root: Hash256,
 
     pub signature: L2OSignature512,
+}
+
+
+impl<V: Serialize + Clone + PartialEq> KVQSerializable for L2OBlockInscription<V>
+where
+    for<'de2> V: Deserialize<'de2>,
+{
+    fn to_bytes(&self) -> Vec<u8> {
+        serde_json::to_vec(self).unwrap()
+    }
+
+    fn from_bytes(bytes: &[u8]) -> Self {
+        serde_json::from_slice(bytes).unwrap()
+    }
 }

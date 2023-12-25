@@ -25,7 +25,7 @@ pub fn get_block_payload_bytes(block: &L2OBlockInscriptionV1) -> Vec<u8> {
 
 pub fn get_block_payload_goldilocks_hash_u32_mode(block: &L2OBlockInscriptionV1) -> Vec<GoldilocksField> {
   let mut payload_bytes: Vec<GoldilocksField> = Vec::new();
-  payload_bytes.push(GoldilocksField::from_canonical_u32(block.l2id));
+  payload_bytes.push(GoldilocksField::from_canonical_u64(block.l2id));
   payload_bytes.push(GoldilocksField::from_noncanonical_u64(block.l2_block_number));
   payload_bytes.push(GoldilocksField::from_noncanonical_u64(block.bitcoin_block_number));
 
