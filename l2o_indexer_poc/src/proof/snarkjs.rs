@@ -1,9 +1,20 @@
-use ark_bn254::{Bn254, Fq, Fq2, Fr, G1Affine, G1Projective, G2Affine, G2Projective};
-use ark_ec::pairing::Pairing;
-use ark_groth16::{Proof, VerifyingKey};
-use ark_serialize::{CanonicalDeserialize, CanonicalSerialize};
-use serde::{Deserialize, Serialize};
 use std::str::FromStr;
+
+use ark_bn254::Bn254;
+use ark_bn254::Fq;
+use ark_bn254::Fq2;
+use ark_bn254::Fr;
+use ark_bn254::G1Affine;
+use ark_bn254::G1Projective;
+use ark_bn254::G2Affine;
+use ark_bn254::G2Projective;
+use ark_ec::pairing::Pairing;
+use ark_groth16::Proof;
+use ark_groth16::VerifyingKey;
+use ark_serialize::CanonicalDeserialize;
+use ark_serialize::CanonicalSerialize;
+use serde::Deserialize;
+use serde::Serialize;
 
 /// A proof in the Groth16 SNARK.
 #[derive(Clone, Debug, PartialEq, CanonicalSerialize, CanonicalDeserialize)]
@@ -164,11 +175,13 @@ pub fn str_to_fr(s: &str) -> Fr {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
     use ark_bn254::Bn254;
-    use ark_groth16::{Groth16, VerifyingKey};
+    use ark_groth16::Groth16;
+    use ark_groth16::VerifyingKey;
     use ark_serialize::CanonicalSerialize;
     use ark_snark::SNARK;
+
+    use super::*;
 
     #[test]
     fn test_serialize_verify() {

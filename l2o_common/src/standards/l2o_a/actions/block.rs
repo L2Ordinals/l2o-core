@@ -1,22 +1,25 @@
 use kvq::traits::KVQSerializable;
-use serde::{Serialize, Deserialize};
-use crate::common::data::{hash::Hash256, signature::{L2OSignature512, L2OCompactPublicKey}};
+use serde::Deserialize;
+use serde::Serialize;
 
+use crate::common::data::hash::Hash256;
+use crate::common::data::signature::L2OCompactPublicKey;
+use crate::common::data::signature::L2OSignature512;
 
 fn default_p() -> String {
-  "l2o-a".to_string()
+    "l2o-a".to_string()
 }
 fn default_op() -> String {
-  "Block".to_string()
+    "Block".to_string()
 }
-
 
 #[derive(Clone, PartialEq, Serialize, Deserialize)]
 #[serde(bound = "Proof: Serialize, for<'de2> Proof: Deserialize<'de2>")]
-pub struct L2OBlockInscription<Proof> 
+pub struct L2OBlockInscription<Proof>
 where
-Proof: Serialize,
-    for<'de2> Proof: Deserialize<'de2> {
+    Proof: Serialize,
+    for<'de2> Proof: Deserialize<'de2>,
+{
     #[serde(default = "default_p")]
     pub p: String,
     #[serde(default = "default_op")]
@@ -28,7 +31,6 @@ Proof: Serialize,
     pub bitcoin_block_number: u64,
     pub bitcoin_block_hash: Hash256,
 
-    
     pub public_key: L2OCompactPublicKey,
 
     pub start_state_root: Hash256,
@@ -46,7 +48,6 @@ Proof: Serialize,
 
     pub signature: L2OSignature512,
 }
-
 
 impl<V: Serialize + Clone + PartialEq> KVQSerializable for L2OBlockInscription<V>
 where

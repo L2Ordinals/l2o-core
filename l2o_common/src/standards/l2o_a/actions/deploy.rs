@@ -1,13 +1,12 @@
 use kvq::traits::KVQSerializable;
-use serde::{Deserialize, Serialize};
+use serde::Deserialize;
+use serde::Serialize;
 
-use crate::{
-    common::data::{
-        hash::Hash256,
-        signature::{L2OCompactPublicKey, L2OSignature512},
-    },
-    standards::l2o_a::supported_crypto::{L2OAHashFunction, L2OAProofType},
-};
+use crate::common::data::hash::Hash256;
+use crate::common::data::signature::L2OCompactPublicKey;
+use crate::common::data::signature::L2OSignature512;
+use crate::standards::l2o_a::supported_crypto::L2OAHashFunction;
+use crate::standards::l2o_a::supported_crypto::L2OAProofType;
 
 /*
 fn default_p() -> String {

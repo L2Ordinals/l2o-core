@@ -1,10 +1,14 @@
 use std::marker::PhantomData;
 
-use kvq::traits::{KVQBinaryStore, KVQStoreAdapter, KVQSerializable, KVQPair};
-
-use crate::hash::merkle::{traits::MerkleZeroHasherWithMarkedLeaf, core::{MerkleProofCore, DeltaMerkleProofCore}};
+use kvq::traits::KVQBinaryStore;
+use kvq::traits::KVQPair;
+use kvq::traits::KVQSerializable;
+use kvq::traits::KVQStoreAdapter;
 
 use super::key::KVQMerkleNodeKey;
+use crate::hash::merkle::core::DeltaMerkleProofCore;
+use crate::hash::merkle::core::MerkleProofCore;
+use crate::hash::merkle::traits::MerkleZeroHasherWithMarkedLeaf;
 
 const CHECKPOINT_SIZE: usize = 8;
 pub struct KVQMerkleTreeModel<
@@ -14,7 +18,6 @@ pub struct KVQMerkleTreeModel<
     KVA: KVQStoreAdapter<S, KVQMerkleNodeKey<TABLE_TYPE>, Hash>,
     Hash: Copy + PartialEq + KVQSerializable,
     Hasher: MerkleZeroHasherWithMarkedLeaf<Hash>,
-
 > {
     _hasher: PhantomData<Hasher>,
     _hash: PhantomData<Hash>,
@@ -45,16 +48,22 @@ impl<
     ) -> anyhow::Result<Option<KVQPair<KVQMerkleNodeKey<TABLE_TYPE>, Hash>>> {
         KVA::get_leq_kv(store, key, CHECKPOINT_SIZE)
     }
-    pub fn get_node(store: &S, tree_height: usize, key: &KVQMerkleNodeKey<TABLE_TYPE>) -> anyhow::Result<Hash> {
+    pub fn get_node(
+        store: &S,
+        tree_height: usize,
+        key: &KVQMerkleNodeKey<TABLE_TYPE>,
+    ) -> anyhow::Result<Hash> {
         match KVA::get_leq(store, key, CHECKPOINT_SIZE)? {
             Some(v) => Ok(v),
             None => {
                 if MARK_LEAVES {
-                    return Ok(Hasher::get_zero_hash_marked(tree_height-(key.level as usize)));
-                }else{
-                    Ok(Hasher::get_zero_hash(tree_height-(key.level as usize)))
+                    return Ok(Hasher::get_zero_hash_marked(
+                        tree_height - (key.level as usize),
+                    ));
+                } else {
+                    Ok(Hasher::get_zero_hash(tree_height - (key.level as usize)))
                 }
-            },
+            }
         }
     }
     pub fn get_nodes(
@@ -68,7 +77,7 @@ impl<
             .enumerate()
             .map(|(i, v)| match v {
                 Some(v) => *v,
-                None => Hasher::get_zero_hash(tree_height-(keys[i].level as usize)),
+                None => Hasher::get_zero_hash(tree_height - (keys[i].level as usize)),
             })
             .collect())
     }
@@ -139,20 +148,19 @@ impl<
                 value: current_value,
             });
             current_value = if index & 1 == 0 {
-                if MARK_LEAVES{
+                if MARK_LEAVES {
                     Hasher::two_to_one_marked_leaf(&current_value, &old_proof.siblings[0])
-                }else{
+                } else {
                     Hasher::two_to_one(&current_value, &old_proof.siblings[0])
                 }
             } else {
-                if MARK_LEAVES{
+                if MARK_LEAVES {
                     Hasher::two_to_one_marked_leaf(&old_proof.siblings[0], &current_value)
-                }else{
+                } else {
                     Hasher::two_to_one(&old_proof.siblings[0], &current_value)
                 }
             };
             current_key = new_key;
-
         }
         for i in 1..height {
             let new_key = current_key.parent();

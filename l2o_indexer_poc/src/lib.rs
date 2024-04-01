@@ -1,23 +1,33 @@
-
 use std::net::SocketAddr;
 
-use bytes::{Buf, Bytes};
-use chainhook_sdk::chainhooks::bitcoin::BitcoinChainhookOccurrencePayload;
-use chainhook_sdk::types::{OrdinalOperation, BitcoinBlockData, BlockIdentifier, BitcoinBlockMetadata, Operation, TransactionIdentifier};
-use http_body_util::{BodyExt, Full};
+use bytes::Buf;
+use bytes::Bytes;
+use chainhook_sdk::types::BitcoinBlockMetadata;
+use chainhook_sdk::types::BlockIdentifier;
+use chainhook_sdk::types::OrdinalOperation;
+use chainhook_sdk::types::TransactionIdentifier;
+use http_body_util::BodyExt;
+use http_body_util::Full;
+use hyper::body::Incoming as IncomingBody;
+use hyper::header;
 use hyper::server::conn::http1;
 use hyper::service::service_fn;
-use hyper::{body::Incoming as IncomingBody, header, Method, Request, Response, StatusCode};
+use hyper::Method;
+use hyper::Request;
+use hyper::Response;
+use hyper::StatusCode;
 use hyper_util::rt::TokioIo;
 use l2o::inscription::L2OInscription;
-use serde::{Serialize, Deserialize};
-use tokio::net::{TcpListener, TcpStream};
+use serde::Deserialize;
+use serde::Serialize;
+use tokio::net::TcpListener;
+use tokio::net::TcpStream;
 
 type GenericError = Box<dyn std::error::Error + Send + Sync>;
 type Result<T> = std::result::Result<T, GenericError>;
 type BoxBody = http_body_util::combinators::BoxBody<Bytes, hyper::Error>;
-pub mod proof;
 pub mod l2o;
+pub mod proof;
 pub mod store;
 static INDEX: &[u8] = b"<a href=\"test.html\">test.html</a>";
 static INTERNAL_SERVER_ERROR: &[u8] = b"Internal Server Error";
@@ -86,64 +96,59 @@ pub struct BitcoinBlockDataV2 {
     pub metadata: BitcoinBlockMetadata,
 }
 
-
-
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct BitcoinChainhookOccurrencePayloadV2 {
     pub apply: Vec<BitcoinBlockDataV2>,
-    pub rollback: Vec<BitcoinBlockDataV2>
+    pub rollback: Vec<BitcoinBlockDataV2>,
 }
-
 
 fn process_l2o_inscription(inscription: L2OInscription) -> Result<()> {
     match inscription {
         L2OInscription::Deploy(deploy) => {
             println!("Deploy: {:?}", deploy);
             Ok(())
-        },
+        }
         L2OInscription::Block(block) => {
             println!("Block: {:?}", block);
             Ok(())
-        },
+        }
     }
 }
 fn process_ordinal_ops(payload: &BitcoinChainhookOccurrencePayloadV2) -> Result<()> {
     for apply in payload.apply.iter() {
-            for transaction in apply.transactions.iter() {
-                for ordinal_operation in transaction.metadata.ordinal_operations.iter() {
-                    match ordinal_operation {
-                        OrdinalOperation::InscriptionRevealed(revealed) => {
-                            println!("{:?}",revealed);
-                            if revealed.content_type == "text/plain;charset=utf-8" {
-                                let decoded = hex::decode(&revealed.content_bytes[2..])?;
-                                println!("{}",String::from_utf8(decoded.clone()).unwrap());
-                                let inscription = serde_json::from_slice::<L2OInscription>(&decoded)?;
-                                println!(" in transaction {}",transaction.transaction_identifier.hash);
-                                process_l2o_inscription(inscription)?;
-
-
-
-                            }
-
-                        },
-                        OrdinalOperation::InscriptionTransferred(_) => {
-                            println!("xfer")
-                        },
+        for transaction in apply.transactions.iter() {
+            for ordinal_operation in transaction.metadata.ordinal_operations.iter() {
+                match ordinal_operation {
+                    OrdinalOperation::InscriptionRevealed(revealed) => {
+                        println!("{:?}", revealed);
+                        if revealed.content_type == "text/plain;charset=utf-8" {
+                            let decoded = hex::decode(&revealed.content_bytes[2..])?;
+                            println!("{}", String::from_utf8(decoded.clone()).unwrap());
+                            let inscription = serde_json::from_slice::<L2OInscription>(&decoded)?;
+                            println!(
+                                " in transaction {}",
+                                transaction.transaction_identifier.hash
+                            );
+                            process_l2o_inscription(inscription)?;
+                        }
+                    }
+                    OrdinalOperation::InscriptionTransferred(_) => {
+                        println!("xfer")
                     }
                 }
             }
-    
+        }
     }
     Ok(())
-
 }
 async fn api_post_response(req: Request<IncomingBody>) -> Result<Response<BoxBody>> {
     // Aggregate the body...
     let whole_body = req.collect().await?.aggregate();
     // Decode as JSON...
-    let data = serde_json::from_reader::<_, BitcoinChainhookOccurrencePayloadV2>(whole_body.reader())?;
+    let data =
+        serde_json::from_reader::<_, BitcoinChainhookOccurrencePayloadV2>(whole_body.reader())?;
     process_ordinal_ops(&data)?;
-    
+
     let response = Response::builder()
         .status(StatusCode::OK)
         .header(header::CONTENT_TYPE, "application/json")
@@ -188,8 +193,7 @@ fn full<T: Into<Bytes>>(chunk: T) -> BoxBody {
         .boxed()
 }
 
-#[tokio::main]
-async fn main() -> Result<()> {
+pub async fn listen() -> Result<()> {
     pretty_env_logger::init();
 
     let addr: SocketAddr = "127.0.0.1:1337".parse().unwrap();

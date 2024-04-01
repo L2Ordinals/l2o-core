@@ -1,4 +1,4 @@
-pub mod traits;
-pub mod tables;
 pub mod store;
 pub mod table_key;
+pub mod tables;
+pub mod traits;

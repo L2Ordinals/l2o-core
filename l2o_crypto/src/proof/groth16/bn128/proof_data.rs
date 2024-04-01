@@ -1,10 +1,20 @@
-use ark_bn254::{Bn254, Fq2, Fr, G1Affine, G1Projective, G2Affine, G2Projective};
-
+use ark_bn254::Bn254;
+use ark_bn254::Fq2;
+use ark_bn254::Fr;
+use ark_bn254::G1Affine;
+use ark_bn254::G1Projective;
+use ark_bn254::G2Affine;
+use ark_bn254::G2Projective;
 use ark_groth16::Proof;
-use ark_serialize::{CanonicalDeserialize, CanonicalSerialize};
-use serde::{Deserialize, Deserializer, Serialize, Serializer};
+use ark_serialize::CanonicalDeserialize;
+use ark_serialize::CanonicalSerialize;
+use serde::Deserialize;
+use serde::Deserializer;
+use serde::Serialize;
+use serde::Serializer;
 
-use super::verifier_data::{str_to_fq, str_to_fr};
+use super::verifier_data::str_to_fq;
+use super::verifier_data::str_to_fr;
 
 #[derive(Clone, Debug, PartialEq, CanonicalSerialize, CanonicalDeserialize)]
 pub struct Groth16BN128ProofData {

@@ -1,45 +1,42 @@
-use serde::{Serialize, Deserialize};
+use serde::Deserialize;
+use serde::Serialize;
 
-use crate::proof::snarkjs::{VerifyingKeyJson, ProofJson};
+use crate::proof::snarkjs::ProofJson;
+use crate::proof::snarkjs::VerifyingKeyJson;
 
 #[derive(Serialize, Deserialize, Clone, PartialEq, Debug)]
 #[serde(tag = "op")]
 pub enum L2OInscription {
-  Deploy(L2OInscriptionDeploy),
-  Block(L2OInscriptionBlock),
+    Deploy(L2OInscriptionDeploy),
+    Block(L2OInscriptionBlock),
 }
 
 #[derive(Serialize, Deserialize, Clone, PartialEq, Debug)]
-
 pub struct L2OInscriptionDeploy {
-  pub p: String,
-  pub l2id: u32,
-  pub start_state_root: String,
-  pub public_key: String,
-  pub vk: VerifyingKeyJson,
-  pub hash_function: String,
+    pub p: String,
+    pub l2id: u32,
+    pub start_state_root: String,
+    pub public_key: String,
+    pub vk: VerifyingKeyJson,
+    pub hash_function: String,
 }
 
 #[derive(Serialize, Deserialize, Clone, PartialEq, Debug)]
-
 pub struct L2OInscriptionBlockParameters {
-  pub state_root: String,
-  pub public_key: String,
-  pub deposits_root: String,
-  pub withdrawals_root: String,
-  pub block_number: u32,
+    pub state_root: String,
+    pub public_key: String,
+    pub deposits_root: String,
+    pub withdrawals_root: String,
+    pub block_number: u32,
 }
 
 #[derive(Serialize, Deserialize, Clone, PartialEq, Debug)]
-
 pub struct L2OInscriptionBlock {
-  pub p: String,
-  pub l2id: u32,
-  pub block_parameters: L2OInscriptionBlockParameters,
-  pub proof: ProofJson,
+    pub p: String,
+    pub l2id: u32,
+    pub block_parameters: L2OInscriptionBlockParameters,
+    pub proof: ProofJson,
 }
-
-
 
 #[cfg(test)]
 mod tests {

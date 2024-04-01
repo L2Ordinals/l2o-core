@@ -2,7 +2,8 @@ use std::fmt::Display;
 
 use kvq::traits::KVQSerializable;
 use rand::RngCore;
-use serde::{Serialize, Deserialize};
+use serde::Deserialize;
+use serde::Serialize;
 use serde_with::serde_as;
 
 #[serde_as]
@@ -17,8 +18,6 @@ pub struct MerkleProofCommonHash256 {
     pub siblings: Vec<Hash256>,
 }
 
-
-
 impl Hash256 {
     pub fn from_str(s: &str) -> Result<Self, ()> {
         let bytes = hex::decode(s).unwrap();
@@ -28,12 +27,11 @@ impl Hash256 {
         Ok(Self(array))
     }
     pub fn rand() -> Self {
-        let mut data = [0u8;32];
+        let mut data = [0u8; 32];
         rand::thread_rng().fill_bytes(&mut data);
         Self(data)
     }
 }
-
 
 impl Display for Hash256 {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
@@ -41,11 +39,10 @@ impl Display for Hash256 {
     }
 }
 
-pub trait L2OHash: Sized + Copy + Clone  + PartialEq + Serialize + for<'a> Deserialize<'a> {
+pub trait L2OHash: Sized + Copy + Clone + PartialEq + Serialize + for<'a> Deserialize<'a> {
     fn from_bytes(bytes: &[u8]) -> Self;
     fn to_bytes(&self) -> Vec<u8>;
     fn zero() -> Self;
-    
 }
 
 impl L2OHash for Hash256 {
@@ -68,7 +65,12 @@ impl Into<[u32; 8]> for &Hash256 {
     fn into(self) -> [u32; 8] {
         let mut result = [0u32; 8];
         for i in 0..8 {
-            result[7-i] = u32::from_be_bytes([self.0[i * 4], self.0[i * 4 + 1], self.0[i * 4 + 2], self.0[i * 4 + 3]]);
+            result[7 - i] = u32::from_be_bytes([
+                self.0[i * 4],
+                self.0[i * 4 + 1],
+                self.0[i * 4 + 2],
+                self.0[i * 4 + 3],
+            ]);
         }
         result
     }
@@ -78,7 +80,16 @@ impl Into<[u64; 4]> for &Hash256 {
     fn into(self) -> [u64; 4] {
         let mut result = [0u64; 4];
         for i in 0..4 {
-            result[7-i] = u64::from_be_bytes([self.0[i * 4], self.0[i * 4 + 1], self.0[i * 4 + 2], self.0[i * 4 + 3], self.0[i * 4 + 4], self.0[i * 4 + 5], self.0[i * 4 + 6], self.0[i * 4 + 7]]);
+            result[7 - i] = u64::from_be_bytes([
+                self.0[i * 4],
+                self.0[i * 4 + 1],
+                self.0[i * 4 + 2],
+                self.0[i * 4 + 3],
+                self.0[i * 4 + 4],
+                self.0[i * 4 + 5],
+                self.0[i * 4 + 6],
+                self.0[i * 4 + 7],
+            ]);
         }
         result
     }

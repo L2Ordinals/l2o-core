@@ -1,18 +1,19 @@
 [package]
-name = "l2o_store"
-version = "0.1.0"
 edition = "2021"
+name    = "l2o_store"
+version = "0.1.0"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
 hex = "0.4.3"
 
-serde = {version = "1.0.193", features = ["derive"] }
-serde_with = { version = "3.4.0", features = ["hex"] }
+anyhow     = "1.0.75"
+serde      = { version = "1.0.193", features = ["derive"] }
 serde_json = "1.0"
-anyhow = "1.0.75"
+serde_with = { version = "3.4.0", features = ["hex"] }
 
+kvq        = { path = "../kvq" }
 l2o_common = { path = "../l2o_common" }
 l2o_crypto = { path = "../l2o_crypto" }
-kvq = { path = "../kvq" }
+

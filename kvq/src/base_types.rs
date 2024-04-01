@@ -1,4 +1,6 @@
-use plonky2::{field::{goldilocks_field::GoldilocksField, types::Field}, hash::hash_types::HashOut};
+use plonky2::field::goldilocks_field::GoldilocksField;
+use plonky2::field::types::Field;
+use plonky2::hash::hash_types::HashOut;
 
 use super::traits::KVQSerializable;
 
@@ -40,7 +42,6 @@ impl<const SIZE: usize> KVQSerializable for [u64; SIZE] {
     }
 }
 
-
 impl<const SIZE: usize> KVQSerializable for [u32; SIZE] {
     fn to_bytes(&self) -> Vec<u8> {
         let mut result = Vec::with_capacity(SIZE * 4);
@@ -60,10 +61,8 @@ impl<const SIZE: usize> KVQSerializable for [u32; SIZE] {
     }
 }
 
-
 impl KVQSerializable for HashOut<GoldilocksField> {
     fn to_bytes(&self) -> Vec<u8> {
-
         let mut result = Vec::with_capacity(32);
         result.extend_from_slice(&self.elements[3].0.to_be_bytes());
         result.extend_from_slice(&self.elements[2].0.to_be_bytes());
@@ -82,8 +81,8 @@ impl KVQSerializable for HashOut<GoldilocksField> {
         let c = GoldilocksField::from_noncanonical_u64(u64::from_be_bytes(buf));
         buf.copy_from_slice(&bytes[24..32]);
         let d = GoldilocksField::from_noncanonical_u64(u64::from_be_bytes(buf));
-        HashOut{
-          elements: [d,c,b,a]
+        HashOut {
+            elements: [d, c, b, a],
         }
     }
 }

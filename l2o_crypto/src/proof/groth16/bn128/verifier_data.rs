@@ -1,8 +1,18 @@
 use std::str::FromStr;
 
-use ark_bn254::{Bn254, Fq, Fq2, Fr, G1Affine, G1Projective, G2Affine, G2Projective};
+use ark_bn254::Bn254;
+use ark_bn254::Fq;
+use ark_bn254::Fq2;
+use ark_bn254::Fr;
+use ark_bn254::G1Affine;
+use ark_bn254::G1Projective;
+use ark_bn254::G2Affine;
+use ark_bn254::G2Projective;
 use ark_groth16::VerifyingKey;
-use serde::{Deserialize, Deserializer, Serialize, Serializer};
+use serde::Deserialize;
+use serde::Deserializer;
+use serde::Serialize;
+use serde::Serializer;
 
 #[derive(Clone, PartialEq, Debug)]
 pub struct Groth16BN128VerifierData(pub VerifyingKey<Bn254>);
@@ -115,13 +125,12 @@ impl Groth16VerifierDataSerializable {
 
         let mut gamma_abc_g1: Vec<G1Affine> = Vec::new();
         for coords in self.ic.iter() {
-
-          let c = G1Affine::from(G1Projective::new(
-              str_to_fq(&coords[0])?,
-              str_to_fq(&coords[1])?,
-              str_to_fq(&coords[2])?,
-          ));
-          gamma_abc_g1.push(c);
+            let c = G1Affine::from(G1Projective::new(
+                str_to_fq(&coords[0])?,
+                str_to_fq(&coords[1])?,
+                str_to_fq(&coords[2])?,
+            ));
+            gamma_abc_g1.push(c);
         }
 
         Ok(VerifyingKey::<Bn254> {
@@ -206,9 +215,6 @@ impl Groth16VerifierDataSerializable {
         }
     }
 }
-
-
-
 
 #[derive(Serialize, Deserialize, Clone, PartialEq, Debug)]
 struct Groth16ProofSerializable {

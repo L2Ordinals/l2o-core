@@ -1,7 +1,6 @@
 <!-- Improved compatibility of back to top link: See: https://github.com/othneildrew/Best-README-Template/pull/73 -->
+
 <a name="readme-top"></a>
-
-
 
 <!-- PROJECT LOGO -->
 <br />
@@ -32,11 +31,8 @@
 
 </div>
 
-
-
 <h4>This repo is a work in progress!</h4>
 Code from the early proof of concept is being migrated to build out a full reference implementation of L2O.
-
 
 <hr />
 <h4>License</h4>
