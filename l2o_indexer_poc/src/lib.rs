@@ -196,7 +196,7 @@ fn full<T: Into<Bytes>>(chunk: T) -> BoxBody {
 pub async fn listen() -> Result<()> {
     pretty_env_logger::init();
 
-    let addr: SocketAddr = "127.0.0.1:1337".parse().unwrap();
+    let addr: SocketAddr = "0.0.0.0:1337".parse().unwrap();
 
     let listener = TcpListener::bind(&addr).await?;
     println!("Listening on http://{}", addr);

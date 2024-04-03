@@ -40,4 +40,4 @@ coverage.json
 
 logs/
 chaindata/
-ordhook/
+ordhook-data/

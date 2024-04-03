@@ -25,6 +25,7 @@ launch:
 	@docker-compose \
 		-f docker-compose.yml \
 		up \
+		--build \
 		-d \
 		--remove-orphans
 
@@ -35,9 +36,9 @@ shutdown:
 		down \
 		--remove-orphans > /dev/null 2>&1 || true
 	@sudo rm -fr chaindata || true
+	@sudo rm -fr ordhook-data
 	@rm -fr ~/.local/share/ord
 	@rm -fr ~/.bitcoin
-	@rm -fr ordhook
 
 .PHONY: bitcoin-advance-block
 bitcoin-advance-block:
@@ -88,3 +89,15 @@ run-indexer:
 .PHONY: run-indexer-poc
 run-indexer-poc:
 	@cargo run --package l2o-cli -- indexer-poc
+
+.PHONY: run-ordhook
+run-ordhook:
+	@ordhook service start --post-to=http://localhost:1337/api/events --config-path=./Ordhook.toml
+
+.PHONY: image
+image:
+	docker build \
+		--build-arg PROFILE=debug \
+		-c 512 \
+		-t l2orinals/l2o:latest \
+		-f Dockerfile .

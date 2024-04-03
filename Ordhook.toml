@@ -1,5 +1,5 @@
 [storage]
-working_dir = "ordhook"
+working_dir = "ordhook-data"
 
 # The Http Api allows you to register / deregister
 # dynamically predicates.
@@ -10,14 +10,14 @@ working_dir = "ordhook"
 
 [network]
 mode = "devnet"
-bitcoind_rpc_url = "http://127.0.0.1:18443"
+bitcoind_rpc_url = "http://172.16.238.11:18443"
 bitcoind_rpc_username = "devnet"
 bitcoind_rpc_password = "devnet"
 # Bitcoin block events can be received by Chainhook
 # either through a Bitcoin node's ZeroMQ interface,
 # or through the Stacks node. Zmq is being
 # used by default:
-bitcoind_zmq_url = "tcp://127.0.0.1:30001"
+bitcoind_zmq_url = "tcp://172.16.238.11:30001"
 # but stacks can also be used:
 # stacks_node_rpc_url = "http://0.0.0.0:20443"
 
