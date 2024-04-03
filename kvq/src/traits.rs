@@ -127,11 +127,11 @@ pub trait KVQStoreAdapterWithHelpers<S, K: KVQSerializable, V: KVQSerializable>:
 // KVQStoreAdapter<KVQBinaryStore, K, V>;
 
 pub trait KVQBinaryStore {
-    fn get_exact(&self, key: &Vec<u8>) -> anyhow::Result<&Vec<u8>>;
-    fn get_many_exact(&self, keys: &[Vec<u8>]) -> anyhow::Result<Vec<&Vec<u8>>>;
+    fn get_exact(&self, key: &Vec<u8>) -> anyhow::Result<Vec<u8>>;
+    fn get_many_exact(&self, keys: &[Vec<u8>]) -> anyhow::Result<Vec<Vec<u8>>>;
 
     fn set(&mut self, key: Vec<u8>, value: Vec<u8>) -> anyhow::Result<()>;
-    fn set_ptr(&mut self, key: &Vec<u8>, value: &Vec<u8>) -> anyhow::Result<()>;
+    fn set_ref(&mut self, key: &Vec<u8>, value: &Vec<u8>) -> anyhow::Result<()>;
     fn set_many_ref<'a>(
         &mut self,
         items: &[KVQPair<&'a Vec<u8>, &'a Vec<u8>>],
@@ -141,47 +141,43 @@ pub trait KVQBinaryStore {
     fn delete(&mut self, key: &Vec<u8>) -> anyhow::Result<bool>;
     fn delete_many(&mut self, keys: &[Vec<u8>]) -> anyhow::Result<Vec<bool>>;
 
-    fn get_leq(&self, key: &Vec<u8>, fuzzy_bytes: usize) -> anyhow::Result<Option<&Vec<u8>>>;
+    fn get_leq(&self, key: &Vec<u8>, fuzzy_bytes: usize) -> anyhow::Result<Option<Vec<u8>>>;
     fn get_leq_kv(
         &self,
         key: &Vec<u8>,
         fuzzy_bytes: usize,
-    ) -> anyhow::Result<Option<KVQPair<&Vec<u8>, &Vec<u8>>>>;
+    ) -> anyhow::Result<Option<KVQPair<Vec<u8>, Vec<u8>>>>;
 
     fn get_many_leq(
         &self,
         keys: &[Vec<u8>],
         fuzzy_bytes: usize,
-    ) -> anyhow::Result<Vec<Option<&Vec<u8>>>>;
+    ) -> anyhow::Result<Vec<Option<Vec<u8>>>>;
     fn get_many_leq_kv(
         &self,
         keys: &[Vec<u8>],
         fuzzy_bytes: usize,
-    ) -> anyhow::Result<Vec<Option<KVQPair<&Vec<u8>, &Vec<u8>>>>>;
+    ) -> anyhow::Result<Vec<Option<KVQPair<Vec<u8>, Vec<u8>>>>>;
 
-    fn get_leq_u(&self, key: &Vec<u8>, fuzzy_bytes: usize) -> anyhow::Result<&Vec<u8>> {
+    fn get_leq_u(&self, key: &Vec<u8>, fuzzy_bytes: usize) -> anyhow::Result<Vec<u8>> {
         unwrap_kv_result(self.get_leq(key, fuzzy_bytes)?)
     }
     fn get_leq_kv_u(
         &self,
         key: &Vec<u8>,
         fuzzy_bytes: usize,
-    ) -> anyhow::Result<KVQPair<&Vec<u8>, &Vec<u8>>> {
+    ) -> anyhow::Result<KVQPair<Vec<u8>, Vec<u8>>> {
         unwrap_kv_result(self.get_leq_kv(key, fuzzy_bytes)?)
     }
 
-    fn get_many_leq_u(
-        &self,
-        keys: &[Vec<u8>],
-        fuzzy_bytes: usize,
-    ) -> anyhow::Result<Vec<&Vec<u8>>> {
+    fn get_many_leq_u(&self, keys: &[Vec<u8>], fuzzy_bytes: usize) -> anyhow::Result<Vec<Vec<u8>>> {
         unwrap_kv_vec_result(self.get_many_leq(keys, fuzzy_bytes)?)
     }
     fn get_many_leq_kv_u(
         &self,
         keys: &[Vec<u8>],
         fuzzy_bytes: usize,
-    ) -> anyhow::Result<Vec<KVQPair<&Vec<u8>, &Vec<u8>>>> {
+    ) -> anyhow::Result<Vec<KVQPair<Vec<u8>, Vec<u8>>>> {
         unwrap_kv_vec_result(self.get_many_leq_kv(keys, fuzzy_bytes)?)
     }
 }

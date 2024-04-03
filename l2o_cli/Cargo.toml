@@ -11,7 +11,7 @@ bitcoin            = "0.31.1"
 clap               = { version = "4.4.6", features = ["derive", "env"] }
 dotenv             = "0.15.0"
 l2o_indexer        = { path = "../l2o_indexer" }
-l2o-indexer-poc    = { path = "../l2o_indexer_poc" }
+l2o-indexer-ordhook    = { path = "../l2o_indexer_ordhook" }
 l2o_utils          = { path = "../l2o_utils" }
 thiserror          = "1.0.50"
 tokio              = { version = "1.0", features = ["rt-multi-thread", "macros"] }

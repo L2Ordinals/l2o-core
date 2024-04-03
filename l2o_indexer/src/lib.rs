@@ -5,14 +5,7 @@ pub mod store;
 use std::sync::Arc;
 
 use actix_cors::Cors;
-use actix_web::middleware::Logger;
 use actix_web::web;
-use actix_web::App;
-use actix_web::HttpResponse;
-use actix_web::HttpServer;
-use async_channel::Receiver;
-use bitcoincore_rpc::bitcoin::Transaction;
-use indexer_sdk::client::drect::DirectClient;
 use indexer_sdk::client::event::ClientEvent;
 use indexer_sdk::client::Client;
 use indexer_sdk::configuration::base::IndexerConfiguration;
@@ -20,22 +13,18 @@ use indexer_sdk::configuration::base::NetConfiguration;
 use indexer_sdk::configuration::base::ZMQConfiguration;
 use indexer_sdk::event::TxIdType;
 use indexer_sdk::factory::common::async_create_and_start_processor;
-use indexer_sdk::storage::StorageProcessor;
-use indexer_sdk::types::delta::TransactionDelta;
-use indexer_sdk::types::response::GetDataResponse;
 use tokio::runtime::Runtime;
 use tokio::sync::watch;
-use tokio::task::JoinHandle;
 use tokio::time::sleep;
 use tokio::time::Duration;
 
 use crate::error::Result;
 
 pub async fn listen() -> Result<()> {
-    let (tx, rx) = watch::channel(());
+    let (_tx, rx) = watch::channel(());
     let rt = Arc::new(Runtime::new()?);
     let mut handlers = vec![];
-    println!("{}", 1);
+    tracing::info!("{}", 1);
     let (client, tasks) = async_create_and_start_processor(
         rx,
         IndexerConfiguration {
@@ -67,12 +56,12 @@ pub async fn listen() -> Result<()> {
             let ctx = client.rx();
             loop {
                 let data = ctx.recv().await;
-                if let Err(e) = data {
-                    println!("{}", 2);
+                if let Err(_e) = data {
+                    tracing::info!("{}", 2);
                     sleep(Duration::from_secs(1)).await;
                     continue;
                 }
-                println!("{:?}", data);
+                tracing::info!("{:?}", data);
                 let transaction = data.unwrap();
                 tx.send(transaction).await.expect("unreachable")
             }
@@ -84,11 +73,11 @@ pub async fn listen() -> Result<()> {
     handlers.push(tokio::spawn(async move {
         loop {
             let data = rx.recv().await;
-            if let Err(e) = data {
+            if let Err(_e) = data {
                 sleep(Duration::from_secs(1)).await;
                 continue;
             }
-            println!("{:?}", data);
+            tracing::info!("{:?}", data);
             let event = data.unwrap();
 
             match event {
@@ -151,4 +140,4 @@ fn cors() -> Cors {
         .max_age(86400)
 }
 
-pub fn route(cfg: &mut web::ServiceConfig) {}
+pub fn route(_cfg: &mut web::ServiceConfig) {}

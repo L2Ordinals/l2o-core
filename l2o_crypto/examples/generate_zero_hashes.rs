@@ -155,7 +155,7 @@ pub fn print_goldilocks_zero_hashes() {
         HashOut<GoldilocksField>,
         PoseidonHasher,
     >(ZERO_HASH_CACHE_SIZE));
-    println!("{}", result);
+    tracing::info!("{}", result);
 }
 pub fn print_hash256_zero_hashes() {
     let mut result = "".to_string();
@@ -178,7 +178,7 @@ pub fn print_hash256_zero_hashes() {
         Hash256,
         Keccack256Hasher,
     >(ZERO_HASH_CACHE_SIZE));
-    println!("{}", result);
+    tracing::info!("{}", result);
 }
 
 fn main() {

@@ -46,6 +46,6 @@ mod tests {
     fn test_serialize_verify() {
         let deploy_json = include_str!("../../assets/deploy.json");
         let p = serde_json::from_str::<L2OInscription>(deploy_json).unwrap();
-        println!("{:?}", p);
+        tracing::info!("{:?}", p);
     }
 }

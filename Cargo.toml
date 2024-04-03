@@ -5,10 +5,9 @@ members = [
   "kvq",
   "l2o_crypto",
   "l2o_store",
-  "l2o_store_leveldb",
+  "l2o_store_rocksdb",
   "l2o_indexer",
   "l2o_indexer_ordhook",
-  "l2o_indexer_poc",
   "l2o_cli",
   "l2o_utils"
 ]

@@ -52,7 +52,7 @@ async fn client_request_response() -> Result<Response<BoxBody>> {
 
     tokio::task::spawn(async move {
         if let Err(err) = conn.await {
-            println!("Connection error: {:?}", err);
+            tracing::info!("Connection error: {:?}", err);
         }
     });
 
@@ -104,12 +104,9 @@ pub struct BitcoinChainhookOccurrencePayloadV2 {
 
 fn process_l2o_inscription(inscription: L2OInscription) -> Result<()> {
     match inscription {
-        L2OInscription::Deploy(deploy) => {
-            println!("Deploy: {:?}", deploy);
-            Ok(())
-        }
+        L2OInscription::Deploy(_deploy) => Ok(()),
         L2OInscription::Block(block) => {
-            println!("Block: {:?}", block);
+            tracing::info!("Block: {:?}", block);
             Ok(())
         }
     }
@@ -120,12 +117,12 @@ fn process_ordinal_ops(payload: &BitcoinChainhookOccurrencePayloadV2) -> Result<
             for ordinal_operation in transaction.metadata.ordinal_operations.iter() {
                 match ordinal_operation {
                     OrdinalOperation::InscriptionRevealed(revealed) => {
-                        println!("{:?}", revealed);
+                        tracing::info!("{:?}", revealed);
                         if revealed.content_type == "text/plain;charset=utf-8" {
                             let decoded = hex::decode(&revealed.content_bytes[2..])?;
-                            println!("{}", String::from_utf8(decoded.clone()).unwrap());
+                            tracing::info!("{}", String::from_utf8(decoded.clone()).unwrap());
                             let inscription = serde_json::from_slice::<L2OInscription>(&decoded)?;
-                            println!(
+                            tracing::info!(
                                 " in transaction {}",
                                 transaction.transaction_identifier.hash
                             );
@@ -133,7 +130,7 @@ fn process_ordinal_ops(payload: &BitcoinChainhookOccurrencePayloadV2) -> Result<
                         }
                     }
                     OrdinalOperation::InscriptionTransferred(_) => {
-                        println!("xfer")
+                        tracing::info!("xfer")
                     }
                 }
             }
@@ -194,12 +191,10 @@ fn full<T: Into<Bytes>>(chunk: T) -> BoxBody {
 }
 
 pub async fn listen() -> Result<()> {
-    pretty_env_logger::init();
-
     let addr: SocketAddr = "0.0.0.0:1337".parse().unwrap();
 
     let listener = TcpListener::bind(&addr).await?;
-    println!("Listening on http://{}", addr);
+    tracing::info!("Listening on http://{}", addr);
     loop {
         let (stream, _) = listener.accept().await?;
         let io = TokioIo::new(stream);
@@ -208,7 +203,7 @@ pub async fn listen() -> Result<()> {
             let service = service_fn(move |req| response_examples(req));
 
             if let Err(err) = http1::Builder::new().serve_connection(io, service).await {
-                println!("Failed to serve connection: {:?}", err);
+                tracing::info!("Failed to serve connection: {:?}", err);
             }
         });
     }

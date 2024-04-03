@@ -38,7 +38,7 @@ fn main() {
         HashOut::rand(),
     )
     .unwrap();
-    println!("verify: {}", r.verify::<PoseidonHasher>());
+    tracing::info!("verify: {}", r.verify::<PoseidonHasher>());
 
-    println!("delta: {}", serde_json::to_string(&r).unwrap());
+    tracing::info!("delta: {}", serde_json::to_string(&r).unwrap());
 }

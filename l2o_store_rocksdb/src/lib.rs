@@ -1,23 +1,25 @@
-use std::collections::BTreeMap;
+use std::path::Path;
 
-use crate::traits::KVQBinaryStore;
-use crate::traits::KVQPair;
+use kvq::traits::KVQBinaryStore;
+use kvq::traits::KVQPair;
+use rocksdb::ErrorKind;
+use rocksdb::TransactionDB;
 
-pub struct KVQSimpleMemoryBackingStore {
-    map: BTreeMap<Vec<u8>, Vec<u8>>,
+pub struct KVQRocksDBStore {
+    db: TransactionDB,
 }
-impl KVQSimpleMemoryBackingStore {
-    pub fn new() -> Self {
-        Self {
-            map: BTreeMap::new(),
-        }
+impl KVQRocksDBStore {
+    pub fn new<P: AsRef<Path>>(path: P) -> anyhow::Result<Self> {
+        Ok(Self {
+            db: TransactionDB::open_default(path)?,
+        })
     }
 }
 
-impl KVQBinaryStore for KVQSimpleMemoryBackingStore {
+impl KVQBinaryStore for KVQRocksDBStore {
     fn get_exact(&self, key: &Vec<u8>) -> anyhow::Result<Vec<u8>> {
-        match self.map.get(key) {
-            Some(v) => Ok(v.to_owned()),
+        match self.db.get(key)? {
+            Some(v) => Ok(v),
             None => anyhow::bail!("Key not found"),
         }
     }
@@ -32,12 +34,12 @@ impl KVQBinaryStore for KVQSimpleMemoryBackingStore {
     }
 
     fn set(&mut self, key: Vec<u8>, value: Vec<u8>) -> anyhow::Result<()> {
-        self.map.insert(key, value);
+        self.db.put(key, value)?;
         Ok(())
     }
 
     fn set_ref(&mut self, key: &Vec<u8>, value: &Vec<u8>) -> anyhow::Result<()> {
-        self.map.insert(key.clone(), value.clone());
+        self.db.put(key.clone(), value.clone())?;
         Ok(())
     }
 
@@ -45,23 +47,26 @@ impl KVQBinaryStore for KVQSimpleMemoryBackingStore {
         &mut self,
         items: &[KVQPair<&'a Vec<u8>, &'a Vec<u8>>],
     ) -> anyhow::Result<()> {
+        let txn = self.db.transaction();
         for item in items {
-            self.map.insert(item.key.clone(), item.value.clone());
+            txn.put(item.key.clone(), item.value.clone())?;
         }
-        Ok(())
+        Ok(txn.commit()?)
     }
 
     fn set_many_vec(&mut self, items: Vec<KVQPair<Vec<u8>, Vec<u8>>>) -> anyhow::Result<()> {
+        let txn = self.db.transaction();
         for item in items {
-            self.map.insert(item.key.clone(), item.value.clone());
+            txn.put(item.key, item.value)?;
         }
-        Ok(())
+        Ok(txn.commit()?)
     }
 
     fn delete(&mut self, key: &Vec<u8>) -> anyhow::Result<bool> {
-        match self.map.remove(key) {
-            Some(_) => Ok(true),
-            None => Ok(false),
+        match self.db.delete(key) {
+            Ok(_) => Ok(true),
+            Err(e) if e.kind() == ErrorKind::NotFound => Ok(true),
+            Err(e) => anyhow::bail!(e),
         }
     }
 
@@ -87,14 +92,19 @@ impl KVQBinaryStore for KVQSimpleMemoryBackingStore {
         for i in 0..fuzzy_bytes {
             base_key[key_len - i - 1] = 0;
         }
-        let rq = self.map.range(base_key..key_end).next_back();
 
-        if rq.is_none() {
-            Ok(None)
-        } else {
-            let p = rq.unwrap().1;
+        let rq = self
+            .db
+            .prefix_iterator(base_key)
+            .take_while(|v| match v {
+                Ok((k, _)) if k.as_ref() < &key_end => true,
+                _ => false,
+            })
+            .last();
 
-            Ok(Some(p.to_owned()))
+        match rq {
+            Some(Ok((_, v))) => Ok(Some(v.to_vec())),
+            _ => Ok(None),
         }
     }
 
@@ -115,16 +125,22 @@ impl KVQBinaryStore for KVQSimpleMemoryBackingStore {
         for i in 0..fuzzy_bytes {
             base_key[key_len - i - 1] = 0;
         }
-        let rq = self.map.range(base_key..key_end).next_back();
 
-        if rq.is_none() {
-            Ok(None)
-        } else {
-            let p = rq.unwrap();
-            Ok(Some(KVQPair {
-                key: p.0.to_owned(),
-                value: p.1.to_owned(),
-            }))
+        let rq = self
+            .db
+            .prefix_iterator(base_key)
+            .take_while(|v| match v {
+                Ok((k, _)) if k.as_ref() < &key_end => true,
+                _ => false,
+            })
+            .last();
+
+        match rq {
+            Some(Ok((k, v))) => Ok(Some(KVQPair {
+                key: k.to_vec(),
+                value: v.to_vec(),
+            })),
+            _ => Ok(None),
         }
     }
 
@@ -136,7 +152,7 @@ impl KVQBinaryStore for KVQSimpleMemoryBackingStore {
         let mut results: Vec<Option<Vec<u8>>> = Vec::with_capacity(keys.len());
         for k in keys {
             let r = self.get_leq(k, fuzzy_bytes)?;
-            results.push(r.to_owned());
+            results.push(r);
         }
         Ok(results)
     }

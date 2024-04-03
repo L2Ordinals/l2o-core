@@ -5,7 +5,7 @@ use clap::Parser;
 use error::Result;
 
 use crate::subcommand::indexer;
-use crate::subcommand::indexer_poc;
+use crate::subcommand::indexer_ordhook;
 use crate::subcommand::Cli;
 use crate::subcommand::Commands;
 
@@ -17,7 +17,7 @@ async fn main() -> Result<()> {
     let cli = Cli::parse();
     match cli.command {
         Commands::Indexer(args) => indexer::run(&args).await?,
-        Commands::IndexerPoc(args) => indexer_poc::run(&args).await?,
+        Commands::IndexerOrdHook(args) => indexer_ordhook::run(&args).await?,
     }
 
     Ok(())

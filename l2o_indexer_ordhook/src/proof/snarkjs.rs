@@ -197,8 +197,8 @@ mod tests {
         let p2 = Groth16::<Bn254>::process_vk(&p).unwrap();
         let mut uncompressed_bytes = Vec::new();
         p.serialize_uncompressed(&mut uncompressed_bytes).unwrap();
-        println!("{:?}", p);
-        println!("{}", uncompressed_bytes.len());
+        tracing::info!("{:?}", p);
+        tracing::info!("{}", uncompressed_bytes.len());
         let r = Groth16::<Bn254>::verify_proof(&p2, &proof.proof, &proof.public_inputs).unwrap();
         assert_eq!(r, true, "verify proof")
     }

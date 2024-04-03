@@ -32,7 +32,7 @@ fn main() {
         Hash256::rand(),
     )
     .unwrap();
-    println!("verify: {}", r.verify::<Sha256Hasher>());
+    tracing::info!("verify: {}", r.verify::<Sha256Hasher>());
 
-    println!("delta: {}", serde_json::to_string(&r).unwrap());
+    tracing::info!("delta: {}", serde_json::to_string(&r).unwrap());
 }

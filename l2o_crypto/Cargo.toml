@@ -51,5 +51,6 @@ musig2 = { version = "0.0.4", default-features = false, features = [
 ] }
 rand_core = "0.6.0"
 
+tracing = "0.1.40"
 
 [dev-dependencies]

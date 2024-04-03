@@ -1,4 +1,5 @@
-PROFILE := lite
+PROFILE   := lite
+LOG_LEVEL := info
 
 .PHONY: check
 check:
@@ -87,11 +88,11 @@ ord-reindex:
 
 .PHONY: run-indexer
 run-indexer:
-	@cargo run --package l2o-cli -- indexer
+	@RUST_LOG=${LOG_LEVEL} cargo run --package l2o-cli -- indexer
 
-.PHONY: run-indexer-poc
-run-indexer-poc:
-	@cargo run --package l2o-cli -- indexer-poc
+.PHONY: run-indexer-ordhook
+run-indexer-ordhook:
+	@RUST_LOG=${LOG_LEVEL} cargo run --package l2o-cli -- indexer-ord-hook
 
 .PHONY: run-ordhook
 run-ordhook:
