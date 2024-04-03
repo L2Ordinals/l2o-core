@@ -1,3 +1,5 @@
+PROFILE := lite
+
 .PHONY: check
 check:
 	@cargo check --all-targets
@@ -24,6 +26,7 @@ relaunch: shutdown launch
 launch:
 	@docker-compose \
 		-f docker-compose.yml \
+		--profile ${PROFILE} \
 		up \
 		--build \
 		-d \
