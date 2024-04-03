@@ -37,6 +37,7 @@ shutdown:
 	@sudo rm -fr chaindata || true
 	@rm -fr ~/.local/share/ord
 	@rm -fr ~/.bitcoin
+	@rm -fr ordhook
 
 .PHONY: bitcoin-advance-block
 bitcoin-advance-block:
@@ -53,7 +54,7 @@ bitcoin-explorer:
 .PHONY: ord-explorer
 ord-explorer:
 	@(open http://localhost:1333 || xdg-open http://localhost:1333) > /dev/null 2>&1 || true
-	@ord -r --bitcoin-rpc-user=devnet --bitcoin-rpc-pass=devnet server --http-port 1333
+	@ord -r --bitcoin-rpc-user=devnet --bitcoin-rpc-pass=devnet --enable-save-ord-receipts --enable-index-bitmap --enable-index-brc20 server --http-port 1333
 
 .PHONY: ord-init
 ord-init:
@@ -80,6 +81,10 @@ ord-inscribe:
 ord-reindex:
 	@ord -r --bitcoin-rpc-user=devnet --bitcoin-rpc-pass=devnet index run
 
-.PHONY: run
-run:
+.PHONY: run-indexer
+run-indexer:
 	@cargo run --package l2o-cli -- indexer
+
+.PHONY: run-indexer-poc
+run-indexer-poc:
+	@cargo run --package l2o-cli -- indexer-poc
