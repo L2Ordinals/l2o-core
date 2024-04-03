@@ -135,7 +135,9 @@ async fn process_l2o_inscription(
                     hash_function: deploy.hash_function.parse().unwrap(),
                     proof_type: proof_type,
                     verifier_data: if proof_type == L2OAProofType::Groth16BN128 {
-                        L2OAVerifierData::Groth16BN128(Groth16BN128VerifierData(deploy.vk.to_verifying_key_groth16_bn254()))
+                        L2OAVerifierData::Groth16BN128(Groth16BN128VerifierData(
+                            deploy.vk.to_verifying_key_groth16_bn254(),
+                        ))
                     } else {
                         todo!()
                     },
