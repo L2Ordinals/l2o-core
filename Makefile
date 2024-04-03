@@ -92,11 +92,11 @@ run-indexer:
 
 .PHONY: run-indexer-ordhook
 run-indexer-ordhook:
-	@RUST_LOG=${LOG_LEVEL} cargo run --package l2o-cli -- indexer-ord-hook
+	@RUST_LOG=${LOG_LEVEL} cargo run --package l2o-cli -- indexer-ord-hook --addr=0.0.0.0:3000
 
 .PHONY: run-ordhook
 run-ordhook:
-	@ordhook service start --post-to=http://localhost:1337/api/events --config-path=./Ordhook.toml
+	@ordhook service start --post-to=http://localhost:3000/api/events --config-path=./Ordhook.toml
 
 .PHONY: image
 image:

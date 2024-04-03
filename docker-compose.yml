@@ -82,9 +82,10 @@ services:
       context: .
       dockerfile: Dockerfile
     ports:
-      - 1337:1337
+      - 3000:3000
     command:
       - "indexer-ord-hook"
+      - "--addr=0.0.0.0:3000"
     networks:
       testing_net:
         ipv4_address: 172.16.238.14
@@ -96,7 +97,7 @@ services:
     command:
       - "service"
       - "start"
-      - "--post-to=http://172.16.238.14:1337/api/events"
+      - "--post-to=http://172.16.238.14:3000/api/events"
       - "--config-path=./Ordhook.toml"
     volumes:
       - "./ordhook-data:/workspace/ordhook-data"

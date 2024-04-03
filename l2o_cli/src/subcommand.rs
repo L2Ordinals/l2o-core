@@ -1,5 +1,4 @@
 use clap::command;
-use clap::Args;
 use clap::Parser;
 use clap::Subcommand;
 
@@ -14,12 +13,6 @@ pub struct Cli {
 
 #[derive(Subcommand)]
 pub enum Commands {
-    Indexer(IndexerArgs),
-    IndexerOrdHook(IndexerOrdHookArgs),
+    Indexer(l2o_common::IndexerArgs),
+    IndexerOrdHook(l2o_common::IndexerOrdHookArgs),
 }
-
-#[derive(Clone, Args)]
-pub struct IndexerArgs {}
-
-#[derive(Clone, Args)]
-pub struct IndexerOrdHookArgs {}

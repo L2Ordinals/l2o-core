@@ -6,15 +6,15 @@ version = "0.1.0"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-anyhow             = "1.0.75"
-bitcoin            = "0.31.1"
-clap               = { version = "4.4.6", features = ["derive", "env"] }
-dotenv             = "0.15.0"
-l2o_indexer        = { path = "../l2o_indexer" }
-l2o-indexer-ordhook    = { path = "../l2o_indexer_ordhook" }
-l2o_utils          = { path = "../l2o_utils" }
-thiserror          = "1.0.50"
-tokio              = { version = "1.0", features = ["rt-multi-thread", "macros"] }
-tracing            = "0.1.40"
-tracing-log        = "0.2.0"
-tracing-subscriber = { version = "0.3.17", features = ["std", "env-filter"] }
+anyhow              = "1.0.75"
+bitcoin             = "0.31.1"
+clap                = { version = "4.4.6", features = ["derive", "env"] }
+dotenv              = "0.15.0"
+l2o-indexer-ordhook = { path = "../l2o_indexer_ordhook" }
+l2o_common          = { path = "../l2o_common" }
+l2o_indexer         = { path = "../l2o_indexer" }
+thiserror           = "1.0.50"
+tokio               = { version = "1.0", features = ["rt-multi-thread", "macros"] }
+tracing             = "0.1.40"
+tracing-log         = "0.2.0"
+tracing-subscriber  = { version = "0.3.17", features = ["std", "env-filter"] }

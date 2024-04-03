@@ -12,7 +12,7 @@ use crate::subcommand::Commands;
 #[tokio::main]
 async fn main() -> Result<()> {
     dotenv::dotenv().ok();
-    l2o_utils::setup_logger();
+    l2o_common::setup_logger();
 
     let cli = Cli::parse();
     match cli.command {

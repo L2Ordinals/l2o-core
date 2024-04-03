@@ -1,4 +1,5 @@
 use std::net::SocketAddr;
+use std::sync::Arc;
 
 use bytes::Buf;
 use bytes::Bytes;
@@ -18,14 +19,25 @@ use hyper::Response;
 use hyper::StatusCode;
 use hyper_util::rt::TokioIo;
 use l2o::inscription::L2OInscription;
+use l2o_common::common::data::hash::Hash256;
+use l2o_common::common::data::signature::L2OCompactPublicKey;
+use l2o_common::common::data::signature::L2OSignature512;
+use l2o_common::standards::l2o_a::actions::deploy::L2ODeployInscription;
+use l2o_common::standards::l2o_a::supported_crypto::L2OAProofType;
+use l2o_common::IndexerOrdHookArgs;
+use l2o_crypto::proof::groth16::bn128::verifier_data::Groth16BN128VerifierData;
+use l2o_crypto::standards::l2o_a::proof::L2OAVerifierData;
+use l2o_store::core::store::L2OStoreV1Core;
+use l2o_store::core::traits::L2OStoreV1;
+use l2o_store_rocksdb::KVQRocksDBStore;
 use serde::Deserialize;
 use serde::Serialize;
 use tokio::net::TcpListener;
 use tokio::net::TcpStream;
+use tokio::sync::Mutex;
 
-type GenericError = Box<dyn std::error::Error + Send + Sync>;
-type Result<T> = std::result::Result<T, GenericError>;
 type BoxBody = http_body_util::combinators::BoxBody<Bytes, hyper::Error>;
+
 pub mod l2o;
 pub mod proof;
 pub mod store;
@@ -33,9 +45,9 @@ static INDEX: &[u8] = b"<a href=\"test.html\">test.html</a>";
 static INTERNAL_SERVER_ERROR: &[u8] = b"Internal Server Error";
 static NOTFOUND: &[u8] = b"Not Found";
 static POST_DATA: &str = r#"{"original": "data"}"#;
-static URL: &str = "http://127.0.0.1:1337/json_api";
+static URL: &str = "http://127.0.0.1:3000/json_api";
 
-async fn client_request_response() -> Result<Response<BoxBody>> {
+async fn client_request_response() -> anyhow::Result<Response<BoxBody>> {
     let req = Request::builder()
         .method(Method::POST)
         .uri(URL)
@@ -52,7 +64,7 @@ async fn client_request_response() -> Result<Response<BoxBody>> {
 
     tokio::task::spawn(async move {
         if let Err(err) = conn.await {
-            tracing::info!("Connection error: {:?}", err);
+            tracing::error!("Connection error: {:?}", err);
         }
     });
 
@@ -102,49 +114,82 @@ pub struct BitcoinChainhookOccurrencePayloadV2 {
     pub rollback: Vec<BitcoinBlockDataV2>,
 }
 
-fn process_l2o_inscription(inscription: L2OInscription) -> Result<()> {
+async fn process_l2o_inscription(
+    store: Arc<Mutex<L2OStoreV1Core<KVQRocksDBStore>>>,
+    inscription: L2OInscription,
+) -> anyhow::Result<()> {
     match inscription {
-        L2OInscription::Deploy(_deploy) => Ok(()),
+        L2OInscription::Deploy(deploy) => {
+            tracing::info!("Deploy: {:?}", deploy);
+            if store.lock().await.has_deployed_l2id(deploy.l2id.into())? {
+                anyhow::bail!("Already deployed");
+            }
+            let proof_type: L2OAProofType = deploy.proof_type.parse().unwrap();
+            store
+                .lock()
+                .await
+                .report_deploy_inscription(L2ODeployInscription {
+                    l2id: deploy.l2id.into(),
+                    public_key: L2OCompactPublicKey::from_hex(&deploy.public_key).unwrap(),
+                    start_state_root: Hash256::from_str(&deploy.start_state_root).unwrap(),
+                    hash_function: deploy.hash_function.parse().unwrap(),
+                    proof_type: proof_type,
+                    verifier_data: if proof_type == L2OAProofType::Groth16BN128 {
+                        L2OAVerifierData::Groth16BN128(Groth16BN128VerifierData(deploy.vk.to_verifying_key_groth16_bn254()))
+                    } else {
+                        todo!()
+                    },
+                    signature: L2OSignature512(core::array::from_fn(|_| 0)),
+                })?;
+            Ok(())
+        }
         L2OInscription::Block(block) => {
             tracing::info!("Block: {:?}", block);
             Ok(())
         }
     }
 }
-fn process_ordinal_ops(payload: &BitcoinChainhookOccurrencePayloadV2) -> Result<()> {
-    for apply in payload.apply.iter() {
-        for transaction in apply.transactions.iter() {
-            for ordinal_operation in transaction.metadata.ordinal_operations.iter() {
-                match ordinal_operation {
-                    OrdinalOperation::InscriptionRevealed(revealed) => {
-                        tracing::info!("{:?}", revealed);
-                        if revealed.content_type == "text/plain;charset=utf-8" {
-                            let decoded = hex::decode(&revealed.content_bytes[2..])?;
-                            tracing::info!("{}", String::from_utf8(decoded.clone()).unwrap());
-                            let inscription = serde_json::from_slice::<L2OInscription>(&decoded)?;
-                            tracing::info!(
-                                " in transaction {}",
-                                transaction.transaction_identifier.hash
-                            );
-                            process_l2o_inscription(inscription)?;
-                        }
-                    }
-                    OrdinalOperation::InscriptionTransferred(_) => {
-                        tracing::info!("xfer")
-                    }
+
+async fn process_ordinal_ops(
+    store: Arc<Mutex<L2OStoreV1Core<KVQRocksDBStore>>>,
+    payload: &BitcoinChainhookOccurrencePayloadV2,
+) -> anyhow::Result<()> {
+    for ordinal_operation in payload
+        .apply
+        .iter()
+        .map(|block| &block.transactions)
+        .flatten()
+        .map(|tx| &tx.metadata.ordinal_operations)
+        .flatten()
+    {
+        match ordinal_operation {
+            OrdinalOperation::InscriptionRevealed(revealed) => {
+                tracing::info!("{:?}", revealed);
+                if revealed.content_type == "text/plain;charset=utf-8" {
+                    let decoded = hex::decode(&revealed.content_bytes[2..])?;
+                    tracing::info!("{}", String::from_utf8(decoded.clone()).unwrap());
+                    let inscription = serde_json::from_slice::<L2OInscription>(&decoded)?;
+                    process_l2o_inscription(store.clone(), inscription).await?;
                 }
+            }
+            OrdinalOperation::InscriptionTransferred(_) => {
+                tracing::info!("xfer")
             }
         }
     }
     Ok(())
 }
-async fn api_post_response(req: Request<IncomingBody>) -> Result<Response<BoxBody>> {
+
+async fn api_post_response(
+    store: Arc<Mutex<L2OStoreV1Core<KVQRocksDBStore>>>,
+    req: Request<IncomingBody>,
+) -> anyhow::Result<Response<BoxBody>> {
     // Aggregate the body...
     let whole_body = req.collect().await?.aggregate();
     // Decode as JSON...
     let data =
         serde_json::from_reader::<_, BitcoinChainhookOccurrencePayloadV2>(whole_body.reader())?;
-    process_ordinal_ops(&data)?;
+    process_ordinal_ops(store, &data).await?;
 
     let response = Response::builder()
         .status(StatusCode::OK)
@@ -153,7 +198,7 @@ async fn api_post_response(req: Request<IncomingBody>) -> Result<Response<BoxBod
     Ok(response)
 }
 
-async fn api_get_response() -> Result<Response<BoxBody>> {
+async fn api_get_response() -> anyhow::Result<Response<BoxBody>> {
     let data = vec!["foo", "bar"];
     let res = match serde_json::to_string(&data) {
         Ok(json) => Response::builder()
@@ -168,11 +213,14 @@ async fn api_get_response() -> Result<Response<BoxBody>> {
     Ok(res)
 }
 
-async fn response_examples(req: Request<IncomingBody>) -> Result<Response<BoxBody>> {
+async fn route(
+    store: Arc<Mutex<L2OStoreV1Core<KVQRocksDBStore>>>,
+    req: Request<IncomingBody>,
+) -> anyhow::Result<Response<BoxBody>> {
     match (req.method(), req.uri().path()) {
         (&Method::GET, "/") | (&Method::GET, "/index.html") => Ok(Response::new(full(INDEX))),
         (&Method::GET, "/test.html") => client_request_response().await,
-        (&Method::POST, "/api/events") => api_post_response(req).await,
+        (&Method::POST, "/api/events") => api_post_response(store, req).await,
         (&Method::GET, "/json_api") => api_get_response().await,
         _ => {
             // Return 404 not found response.
@@ -190,21 +238,23 @@ fn full<T: Into<Bytes>>(chunk: T) -> BoxBody {
         .boxed()
 }
 
-pub async fn listen() -> Result<()> {
-    let addr: SocketAddr = "0.0.0.0:1337".parse().unwrap();
+pub async fn listen(args: &IndexerOrdHookArgs) -> anyhow::Result<()> {
+    let addr: SocketAddr = args.addr.parse()?;
+    let store = Arc::new(Mutex::new(L2OStoreV1Core::new(KVQRocksDBStore::new(
+        &args.db_path,
+    )?)));
 
     let listener = TcpListener::bind(&addr).await?;
     tracing::info!("Listening on http://{}", addr);
     loop {
         let (stream, _) = listener.accept().await?;
         let io = TokioIo::new(stream);
+        let store = store.clone();
 
-        tokio::task::spawn(async move {
-            let service = service_fn(move |req| response_examples(req));
+        let service = service_fn(|req| async { route(store.clone(), req).await });
 
-            if let Err(err) = http1::Builder::new().serve_connection(io, service).await {
-                tracing::info!("Failed to serve connection: {:?}", err);
-            }
-        });
+        if let Err(err) = http1::Builder::new().serve_connection(io, service).await {
+            tracing::error!("Failed to serve connection: {:?}", err);
+        }
     }
 }

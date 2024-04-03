@@ -9,7 +9,6 @@ members = [
   "l2o_indexer",
   "l2o_indexer_ordhook",
   "l2o_cli",
-  "l2o_utils"
 ]
 
 resolver = "2"

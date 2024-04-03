@@ -2758,8 +2758,8 @@ dependencies = [
  "clap",
  "dotenv",
  "l2o-indexer-ordhook",
+ "l2o_common",
  "l2o_indexer",
- "l2o_utils",
  "thiserror",
  "tokio",
  "tracing",
@@ -2779,11 +2779,15 @@ dependencies = [
  "ark-snark",
  "bytes",
  "chainhook-sdk",
+ "futures",
  "hex",
  "http-body-util",
  "hyper 1.2.0",
  "hyper-util",
+ "l2o_common",
+ "l2o_crypto",
  "l2o_store",
+ "l2o_store_rocksdb",
  "serde",
  "serde_json",
  "serde_with",
@@ -2797,12 +2801,15 @@ name = "l2o_common"
 version = "0.1.0"
 dependencies = [
  "anyhow",
+ "clap",
  "hex",
  "kvq",
  "rand 0.8.5",
  "serde",
  "serde_json",
  "serde_with",
+ "thiserror",
+ "tracing-subscriber 0.3.18",
 ]
 
 [[package]]
@@ -2876,16 +2883,6 @@ dependencies = [
  "anyhow",
  "kvq",
  "rocksdb",
-]
-
-[[package]]
-name = "l2o_utils"
-version = "0.1.0"
-dependencies = [
- "thiserror",
- "tracing",
- "tracing-log",
- "tracing-subscriber 0.3.18",
 ]
 
 [[package]]

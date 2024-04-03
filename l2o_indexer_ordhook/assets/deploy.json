@@ -89,6 +89,7 @@
       ]
     ]
   },
-  "hash_function": "sha256"
+  "hash_function": "sha256",
+  "proof_type": "groth16_bn128"
 }
 

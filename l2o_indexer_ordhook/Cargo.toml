@@ -6,22 +6,26 @@ version = "0.1.0"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-anyhow         = "1.0.81"
-ark-bn254      = "0.4.0"
-ark-ec         = "0.4.2"
-ark-groth16    = "0.4.0"
-ark-serialize  = { version = "0.4.2", features = ["derive"] }
-ark-snark      = "0.4.0"
-bytes          = "1"
-chainhook-sdk  = "0.12.6"
-hex            = "0.4.3"
-http-body-util = "0.1"
-hyper          = { version = "1", features = ["full"] }
-hyper-util     = { version = "0.1", features = ["full"] }
-l2o_store      = { path = "../l2o_store" }
-serde          = { version = "1.0.193", features = ["derive"] }
-serde_json     = "1.0"
-serde_with     = { version = "3.4.0", features = ["hex"] }
-thiserror      = "1.0.58"
-tokio          = { version = "1", features = ["full"] }
-tracing        = "0.1.40"
+anyhow            = "1.0.81"
+ark-bn254         = "0.4.0"
+ark-ec            = "0.4.2"
+ark-groth16       = "0.4.0"
+ark-serialize     = { version = "0.4.2", features = ["derive"] }
+ark-snark         = "0.4.0"
+bytes             = "1"
+chainhook-sdk     = "0.12.6"
+futures           = "0.3.30"
+hex               = "0.4.3"
+http-body-util    = "0.1"
+hyper             = { version = "1", features = ["full"] }
+hyper-util        = { version = "0.1", features = ["full"] }
+l2o_common        = { path = "../l2o_common" }
+l2o_crypto        = { path = "../l2o_crypto" }
+l2o_store         = { path = "../l2o_store" }
+l2o_store_rocksdb = { path = "../l2o_store_rocksdb" }
+serde             = { version = "1.0.193", features = ["derive"] }
+serde_json        = "1.0"
+serde_with        = { version = "3.4.0", features = ["hex"] }
+thiserror         = "1.0.58"
+tokio             = { version = "1", features = ["full"] }
+tracing           = "0.1.40"

@@ -6,10 +6,13 @@ version = "0.1.0"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-anyhow     = "1.0.75"
-hex        = "0.4.3"
-kvq        = { path = "../kvq" }
-rand       = "0.8"
-serde      = { version = "1.0.193", features = ["derive"] }
-serde_json = "1.0"
-serde_with = { version = "3.4.0", features = ["hex"] }
+anyhow             = "1.0.75"
+clap               = { version = "4.4.6", features = ["derive", "env"] }
+hex                = "0.4.3"
+kvq                = { path = "../kvq" }
+rand               = "0.8"
+serde              = { version = "1.0.193", features = ["derive"] }
+serde_json         = "1.0"
+serde_with         = { version = "3.4.0", features = ["hex"] }
+thiserror          = "1.0.50"
+tracing-subscriber = { version = "0.3.17", features = ["std", "env-filter"] }
