@@ -25,8 +25,11 @@ use l2o_common::common::data::signature::L2OSignature512;
 use l2o_common::standards::l2o_a::actions::deploy::L2ODeployInscription;
 use l2o_common::standards::l2o_a::supported_crypto::L2OAProofType;
 use l2o_common::IndexerOrdHookArgs;
+use l2o_crypto::proof::groth16::bn128::proof_data::Groth16BN128ProofData;
 use l2o_crypto::proof::groth16::bn128::verifier_data::Groth16BN128VerifierData;
+use l2o_crypto::standards::l2o_a::proof::L2OAProofData;
 use l2o_crypto::standards::l2o_a::proof::L2OAVerifierData;
+use l2o_crypto::standards::l2o_a::L2OBlockInscriptionV1;
 use l2o_store::core::store::L2OStoreV1Core;
 use l2o_store::core::traits::L2OStoreV1;
 use l2o_store_rocksdb::KVQRocksDBStore;
@@ -116,11 +119,12 @@ pub struct BitcoinChainhookOccurrencePayloadV2 {
 
 async fn process_l2o_inscription(
     store: Arc<Mutex<L2OStoreV1Core<KVQRocksDBStore>>>,
+    bitcoin_block: &BitcoinBlockDataV2,
+    bitcoin_tx: &BitcoinTransactionDataV2,
     inscription: L2OInscription,
 ) -> anyhow::Result<()> {
     match inscription {
         L2OInscription::Deploy(deploy) => {
-            tracing::info!("Deploy: {:?}", deploy);
             if store.lock().await.has_deployed_l2id(deploy.l2id.into())? {
                 anyhow::bail!("Already deployed");
             }
@@ -143,10 +147,86 @@ async fn process_l2o_inscription(
                     },
                     signature: L2OSignature512(core::array::from_fn(|_| 0)),
                 })?;
+            tracing::info!("deployed l2o: {:?}", deploy.l2id);
             Ok(())
         }
         L2OInscription::Block(block) => {
-            tracing::info!("Block: {:?}", block);
+            let last_block = store
+                .lock()
+                .await
+                .get_last_block_inscription(block.l2id.into())?;
+            if u64::try_from(block.block_parameters.block_number).unwrap()
+                != last_block.l2_block_number + 1
+            {
+                anyhow::bail!("block must be consecutive");
+            }
+
+            if bitcoin_block.block_identifier.index <= last_block.bitcoin_block_number {
+                anyhow::bail!("bitcoin block must be bigger than previous");
+            }
+
+            if last_block.end_state_root
+                != Hash256::from_str(&block.block_parameters.state_root).unwrap()
+            {
+                anyhow::bail!(
+                    "last block's end state root must be equal to this block's start state root"
+                );
+            }
+
+            if last_block.end_withdrawal_state_root
+                != Hash256::from_str(&block.block_parameters.withdrawals_root).unwrap()
+            {
+                anyhow::bail!("last block's end withdrawals_root must be equal to this block's start withdrawals_root");
+            }
+
+            store
+                .lock()
+                .await
+                .set_last_block_inscription(L2OBlockInscriptionV1 {
+                    p: block.p,
+                    op: todo!(),
+
+                    l2id: block.l2id.into(),
+                    l2_block_number: block.block_parameters.block_number.into(),
+
+                    bitcoin_block_number: bitcoin_block.block_identifier.index,
+                    bitcoin_block_hash: Hash256::from_str(&bitcoin_block.block_identifier.hash)
+                        .unwrap(),
+
+                    public_key: L2OCompactPublicKey::from_hex(&block.block_parameters.public_key)
+                        .unwrap(),
+
+                    start_state_root: last_block.end_state_root,
+                    end_state_root: Hash256::from_str(&block.block_parameters.state_root).unwrap(),
+
+                    deposit_state_root: Hash256::from_str(&block.block_parameters.deposits_root)
+                        .unwrap(),
+
+                    start_withdrawal_state_root: last_block.end_withdrawal_state_root,
+                    end_withdrawal_state_root: Hash256::from_str(
+                        &block.block_parameters.withdrawals_root,
+                    )
+                    .unwrap(),
+
+                    proof: L2OAProofData::Groth16BN128(Groth16BN128ProofData {
+                        proof: block.proof.to_proof_groth16_bn254(),
+                        // TODO: hash
+                        // l2_block_number
+                        // bitcoin_block_hash
+                        // public_key
+                        // start_state_root
+                        // end_state_root
+                        // deposit_state_root
+                        // start_withdrawal_state_root
+                        // end_withdrawal_state_root
+                        // superchain_root
+                        public_inputs: vec![],
+                    }),
+
+                    superchain_root: todo!(),
+
+                    signature: todo!(),
+                })?;
             Ok(())
         }
     }
@@ -156,26 +236,21 @@ async fn process_ordinal_ops(
     store: Arc<Mutex<L2OStoreV1Core<KVQRocksDBStore>>>,
     payload: &BitcoinChainhookOccurrencePayloadV2,
 ) -> anyhow::Result<()> {
-    for ordinal_operation in payload
-        .apply
-        .iter()
-        .map(|block| &block.transactions)
-        .flatten()
-        .map(|tx| &tx.metadata.ordinal_operations)
-        .flatten()
-    {
-        match ordinal_operation {
-            OrdinalOperation::InscriptionRevealed(revealed) => {
-                tracing::info!("{:?}", revealed);
-                if revealed.content_type == "text/plain;charset=utf-8" {
-                    let decoded = hex::decode(&revealed.content_bytes[2..])?;
-                    tracing::info!("{}", String::from_utf8(decoded.clone()).unwrap());
-                    let inscription = serde_json::from_slice::<L2OInscription>(&decoded)?;
-                    process_l2o_inscription(store.clone(), inscription).await?;
+    for block in payload.apply.iter() {
+        for tx in block.transactions.iter() {
+            for ordinal_operation in tx.metadata.ordinal_operations.iter() {
+                match ordinal_operation {
+                    OrdinalOperation::InscriptionRevealed(revealed) => {
+                        if revealed.content_type.starts_with("application/json") {
+                            let decoded = hex::decode(&revealed.content_bytes[2..])?;
+                            let inscription = serde_json::from_slice::<L2OInscription>(&decoded)?;
+                            process_l2o_inscription(store.clone(), block, tx, inscription).await?;
+                        }
+                    }
+                    OrdinalOperation::InscriptionTransferred(_) => {
+                        tracing::info!("xfer")
+                    }
                 }
-            }
-            OrdinalOperation::InscriptionTransferred(_) => {
-                tracing::info!("xfer")
             }
         }
     }

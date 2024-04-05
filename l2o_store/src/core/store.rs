@@ -158,10 +158,10 @@ impl<S: KVQBinaryStore> L2OStoreV1 for L2OStoreV1Core<S> {
         &mut self,
         deployment: L2ODeployInscriptionV1,
     ) -> anyhow::Result<()> {
-        let has_deployed = self.has_deployed_l2id(deployment.l2id)?;
-        if has_deployed {
-            return Err(anyhow::anyhow!("L2ID {} already deployed", deployment.l2id));
-        }
+        // let has_deployed = self.has_deployed_l2id(deployment.l2id)?;
+        // if has_deployed {
+        //     return Err(anyhow::anyhow!("L2ID {} already deployed", deployment.l2id));
+        // }
 
         KVQStandardAdapter::<S, L2ODeploymentsKey, L2ODeployInscriptionV1>::set(
             &mut self.store,
@@ -177,6 +177,12 @@ impl<S: KVQBinaryStore> L2OStoreV1 for L2OStoreV1Core<S> {
         let block_num = block.bitcoin_block_number;
         let l2id = block.l2id;
 
+        // TODO
+        // l2_state.last_bitcoin_block_number = bitcoin_block_number;
+        // l2_state.last_l2_block_number = l2_block_number;
+        // l2_state.last_public_key = public_key;
+        // l2_state.last_end_state_root = end_state_root;
+        // l2_state.last_end_withdrawal_state_root = end_withdrawal_state_root;
         KVQStandardAdapter::<S, L2OLatestBlockKey, L2OBlockInscriptionV1>::set(
             &mut self.store,
             L2OLatestBlockKey::new(block.l2id),

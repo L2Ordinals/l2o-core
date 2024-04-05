@@ -41,6 +41,7 @@ shutdown:
 		--remove-orphans > /dev/null 2>&1 || true
 	@sudo rm -fr chaindata || true
 	@sudo rm -fr ordhook-data
+	@rm -fr db
 	@rm -fr ~/.local/share/ord
 	@rm -fr ~/.bitcoin
 

@@ -56,10 +56,11 @@ struct Groth16VerifierDataSerializable {
 }
 
 pub fn str_to_fq(s: &str) -> anyhow::Result<Fq, ()> {
-    Fq::from_str(s)
+    Fq::from_str(if s == "" { "0" } else { s })
 }
+
 pub fn str_to_fr(s: &str) -> Result<Fr, ()> {
-    Fr::from_str(s)
+    Fr::from_str(if s == "" { "0" } else { s })
 }
 
 impl Groth16VerifierDataSerializable {
@@ -152,6 +153,7 @@ impl Groth16VerifierDataSerializable {
             .iter()
             .map(|x| G1Projective::from(*x))
             .collect::<Vec<_>>();
+
         Self {
             vk_alpha_1: [
                 vk_alpha_1_projective.x.to_string(),

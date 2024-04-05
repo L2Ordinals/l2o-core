@@ -92,7 +92,7 @@ impl<'de> Deserialize<'de> for L2OSignature512 {
         String::deserialize(deserializer).and_then(|string| {
             let mut bytes = [0u8; 64];
             let len = string.len();
-            if len == 64 {
+            if len == 128 {
                 let decoded = hex::decode_to_slice(&string, &mut bytes);
                 if decoded.is_err() {
                     return Err(Error::custom("Invalid public key"));
