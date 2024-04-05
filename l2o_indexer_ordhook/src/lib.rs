@@ -120,7 +120,7 @@ pub struct BitcoinChainhookOccurrencePayloadV2 {
 async fn process_l2o_inscription(
     store: Arc<Mutex<L2OStoreV1Core<KVQRocksDBStore>>>,
     bitcoin_block: &BitcoinBlockDataV2,
-    bitcoin_tx: &BitcoinTransactionDataV2,
+    _bitcoin_tx: &BitcoinTransactionDataV2,
     inscription: L2OInscription,
 ) -> anyhow::Result<()> {
     match inscription {

@@ -1,9 +1,8 @@
 use l2o_common::standards::l2o_a::actions::block::L2OBlockInscription;
 use l2o_common::standards::l2o_a::actions::deploy::L2ODeployInscription;
 
-use crate::standards::l2o_a::proof::L2OAProofData;
-
 use self::proof::L2OAVerifierData;
+use crate::standards::l2o_a::proof::L2OAProofData;
 
 pub mod proof;
 
