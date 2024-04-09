@@ -143,7 +143,7 @@ async fn process_l2o_inscription(
             if let Err(_) = last_block_res {
                 let block_proof = block.proof.to_proof_groth16_bn254();
 
-                let block_inscription = L2OBlockInscriptionV1 {
+                let mut block_inscription = L2OBlockInscriptionV1 {
                     p: "l2o-a".to_string(),
                     op: "Block".to_string(),
 
@@ -177,6 +177,17 @@ async fn process_l2o_inscription(
                     superchain_root: Hash256::zero(),
                     signature: L2OSignature512::from_hex(&block.signature).unwrap(),
                 };
+
+                let public_inputs: [Fr; 2] =
+                    Sha256Hasher::get_l2_block_hash(&block_inscription).into();
+                match block_inscription.proof {
+                    L2OAProofData::Groth16BN128(ref mut p) => {
+                        p.public_inputs.extend(public_inputs.into_iter());
+                    }
+                    _ => {
+                        unreachable!()
+                    }
+                }
 
                 let msg = get_block_payload_bytes(&block_inscription);
                 if !deploy_inscription.public_key.is_zero() {
