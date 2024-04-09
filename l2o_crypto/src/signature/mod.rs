@@ -1,3 +1,5 @@
+pub mod schnorr;
+
 #[cfg(test)]
 mod tests {
 

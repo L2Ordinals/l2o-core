@@ -8,8 +8,8 @@ use crate::hash::merkle::traits::MerkleHasherWithMarkedLeaf;
 use crate::hash::traits::L2OBlockHasher;
 use crate::standards::l2o_a::L2OBlockInscriptionV1;
 
-pub struct Keccack256Hasher;
-impl MerkleHasher<Hash256> for Keccack256Hasher {
+pub struct Keccak256Hasher;
+impl MerkleHasher<Hash256> for Keccak256Hasher {
     fn two_to_one(left: &Hash256, right: &Hash256) -> Hash256 {
         let mut hasher = Keccak256::new();
         hasher.update(&left.0);
@@ -20,7 +20,7 @@ impl MerkleHasher<Hash256> for Keccack256Hasher {
     }
 }
 
-impl MerkleHasherWithMarkedLeaf<Hash256> for Keccack256Hasher {
+impl MerkleHasherWithMarkedLeaf<Hash256> for Keccak256Hasher {
     fn two_to_one_marked_leaf(left: &Hash256, right: &Hash256) -> Hash256 {
         let mut hasher = Keccak256::new();
         hasher.update(&left.0);
@@ -31,7 +31,7 @@ impl MerkleHasherWithMarkedLeaf<Hash256> for Keccack256Hasher {
     }
 }
 
-impl L2OBlockHasher for Keccack256Hasher {
+impl L2OBlockHasher for Keccak256Hasher {
     fn get_l2_block_hash(block: &L2OBlockInscriptionV1) -> Hash256 {
         let payload = get_block_payload_bytes(block);
         let mut hasher = Keccak256::new();

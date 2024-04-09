@@ -1,6 +1,9 @@
 use std::fmt::Display;
 
+use ark_bn254::Fr;
+use ark_ff::PrimeField;
 use kvq::traits::KVQSerializable;
+use num_traits::Zero;
 use rand::RngCore;
 use serde::Deserialize;
 use serde::Serialize;
@@ -19,12 +22,15 @@ pub struct MerkleProofCommonHash256 {
 }
 
 impl Hash256 {
-    pub fn from_str(s: &str) -> Result<Self, ()> {
+    pub fn from_hex(s: &str) -> Result<Self, ()> {
         let bytes = hex::decode(s).unwrap();
         assert_eq!(bytes.len(), 32);
         let mut array = [0u8; 32];
         array.copy_from_slice(&bytes);
         Ok(Self(array))
+    }
+    pub fn to_hex(&self) -> String {
+        hex::encode(self.0)
     }
     pub fn rand() -> Self {
         let mut data = [0u8; 32];
@@ -90,6 +96,16 @@ impl Into<[u64; 4]> for &Hash256 {
                 self.0[i * 4 + 6],
                 self.0[i * 4 + 7],
             ]);
+        }
+        result
+    }
+}
+
+impl From<Hash256> for [Fr; 2] {
+    fn from(value: Hash256) -> Self {
+        let mut result = [Fr::zero(); 2];
+        for i in 0..2 {
+            result[1 - i] = Fr::from_be_bytes_mod_order(&value.0[i * 16..i * 16 + 16]);
         }
         result
     }

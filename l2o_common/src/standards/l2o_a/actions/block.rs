@@ -9,6 +9,7 @@ use crate::common::data::signature::L2OSignature512;
 fn default_p() -> String {
     "l2o-a".to_string()
 }
+
 fn default_op() -> String {
     "Block".to_string()
 }

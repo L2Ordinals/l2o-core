@@ -18,7 +18,7 @@ impl FromStr for L2OAHashFunction {
         match s {
             "sha256" => Ok(L2OAHashFunction::Sha256),
             "blake3" => Ok(L2OAHashFunction::BLAKE3),
-            "keccack256" => Ok(L2OAHashFunction::Keccack256),
+            "keccak256" => Ok(L2OAHashFunction::Keccack256),
             "poseidon_goldilocks" => Ok(L2OAHashFunction::PoseidonGoldilocks),
             _ => Err(s.to_string()),
         }

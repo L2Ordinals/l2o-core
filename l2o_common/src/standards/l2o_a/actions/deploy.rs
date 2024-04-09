@@ -4,18 +4,16 @@ use serde::Serialize;
 
 use crate::common::data::hash::Hash256;
 use crate::common::data::signature::L2OCompactPublicKey;
-use crate::common::data::signature::L2OSignature512;
 use crate::standards::l2o_a::supported_crypto::L2OAHashFunction;
 use crate::standards::l2o_a::supported_crypto::L2OAProofType;
 
-/*
 fn default_p() -> String {
-  "l2o-a".to_string()
+    "l2o-a".to_string()
 }
+
 fn default_op() -> String {
-  "Deploy".to_string()
+    "Deploy".to_string()
 }
-*/
 
 #[derive(Clone, PartialEq, Serialize, Deserialize)]
 #[serde(bound = "V: Serialize, for<'de2> V: Deserialize<'de2>")]
@@ -24,11 +22,10 @@ where
     V: Serialize,
     for<'de2> V: Deserialize<'de2>,
 {
-    /*
     #[serde(default = "default_p")]
     pub p: String,
     #[serde(default = "default_op")]
-    pub op: String,*/
+    pub op: String,
     pub l2id: u64,
     pub public_key: L2OCompactPublicKey,
 
@@ -37,8 +34,6 @@ where
     pub hash_function: L2OAHashFunction,
     pub proof_type: L2OAProofType,
     pub verifier_data: V,
-
-    pub signature: L2OSignature512,
 }
 
 impl<V: Serialize + Clone + PartialEq> KVQSerializable for L2ODeployInscription<V>

@@ -40,6 +40,7 @@ k256 = { version = "0.13.2", features = [
   "pkcs8",
   "precomputed-tables",
   "schnorr",
+  "signature",
   "std",
   "serde",
 ] }

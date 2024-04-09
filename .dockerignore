@@ -2,4 +2,6 @@
 !target/release/l2o-cli
 !target/debug/l2o-cli
 chaindata
+ordhook-data
+db
 rust-toolchain.toml

@@ -6,7 +6,7 @@ use l2o_common::standards::l2o_a::supported_crypto::L2OAHashFunction;
 use l2o_crypto::fields::goldilocks::hash::hash256_to_goldilocks_hash;
 use l2o_crypto::fields::goldilocks::hash::GHashOut;
 use l2o_crypto::hash::hash_functions::blake3::Blake3Hasher;
-use l2o_crypto::hash::hash_functions::keccack256::Keccack256Hasher;
+use l2o_crypto::hash::hash_functions::keccak256::Keccak256Hasher;
 use l2o_crypto::hash::hash_functions::poseidon_goldilocks::PoseidonHasher;
 use l2o_crypto::hash::hash_functions::sha256::Sha256Hasher;
 use l2o_crypto::hash::merkle::core::MerkleProofCore;
@@ -39,7 +39,7 @@ type Keccack256StateRootTree<S> = KVQMerkleTreeModel<
     S,
     KVQStandardAdapter<S, L2OStateRootsMerkleNodeKey, Hash256>,
     Hash256,
-    Keccack256Hasher,
+    Keccak256Hasher,
 >;
 type Blake3StateRootTree<S> = KVQMerkleTreeModel<
     TABLE_L2_STATE_ROOTS,
@@ -158,11 +158,6 @@ impl<S: KVQBinaryStore> L2OStoreV1 for L2OStoreV1Core<S> {
         &mut self,
         deployment: L2ODeployInscriptionV1,
     ) -> anyhow::Result<()> {
-        // let has_deployed = self.has_deployed_l2id(deployment.l2id)?;
-        // if has_deployed {
-        //     return Err(anyhow::anyhow!("L2ID {} already deployed", deployment.l2id));
-        // }
-
         KVQStandardAdapter::<S, L2ODeploymentsKey, L2ODeployInscriptionV1>::set(
             &mut self.store,
             L2ODeploymentsKey::new(deployment.l2id),

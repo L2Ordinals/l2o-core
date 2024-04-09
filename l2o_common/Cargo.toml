@@ -7,9 +7,12 @@ version = "0.1.0"
 
 [dependencies]
 anyhow             = "1.0.75"
+ark-bn254          = "0.4.0"
+ark-ff             = "0.4.0"
 clap               = { version = "4.4.6", features = ["derive", "env"] }
 hex                = "0.4.3"
 kvq                = { path = "../kvq" }
+num-traits         = "0.2.18"
 rand               = "0.8"
 serde              = { version = "1.0.193", features = ["derive"] }
 serde_json         = "1.0"

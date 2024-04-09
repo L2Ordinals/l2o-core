@@ -3,7 +3,7 @@ use plonky2::field::goldilocks_field::GoldilocksField;
 use plonky2::hash::hash_types::HashOut;
 
 use super::blake3::Blake3Hasher;
-use super::keccack256::Keccack256Hasher;
+use super::keccak256::Keccak256Hasher;
 use super::poseidon_goldilocks::PoseidonHasher;
 use super::sha256::Sha256Hasher;
 use crate::hash::merkle::traits::MerkleZeroHasherWithCache;
@@ -2077,7 +2077,7 @@ impl MerkleZeroHasherWithCacheMarkedLeaf<Hash256> for Blake3Hasher {
     ];
 }
 
-impl MerkleZeroHasherWithCache<Hash256> for Keccack256Hasher {
+impl MerkleZeroHasherWithCache<Hash256> for Keccak256Hasher {
     const CACHED_ZERO_HASHES: [Hash256; 128] = [
         Hash256([
             0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
@@ -2594,7 +2594,7 @@ impl MerkleZeroHasherWithCache<Hash256> for Keccack256Hasher {
     ];
 }
 
-impl MerkleZeroHasherWithCacheMarkedLeaf<Hash256> for Keccack256Hasher {
+impl MerkleZeroHasherWithCacheMarkedLeaf<Hash256> for Keccak256Hasher {
     const CACHED_MARKED_LEAF_ZERO_HASHES: [Hash256; 128] = [
         Hash256([
             0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,

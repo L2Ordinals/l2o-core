@@ -92,7 +92,7 @@ mod tests {
     use super::*;
 
     #[test]
-    fn test_serialize_verify() {
+    fn test_serialize_hash() {
         let h: HashOut<GoldilocksField> = HashOut::rand();
         let bytes = h.to_hash_256();
         let h2 = HashOut::<GoldilocksField>::from_hash_256(&bytes);

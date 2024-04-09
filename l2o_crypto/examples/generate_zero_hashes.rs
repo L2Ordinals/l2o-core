@@ -1,6 +1,6 @@
 use l2o_common::common::data::hash::Hash256;
 use l2o_crypto::hash::hash_functions::blake3::Blake3Hasher;
-use l2o_crypto::hash::hash_functions::keccack256::Keccack256Hasher;
+use l2o_crypto::hash::hash_functions::keccak256::Keccak256Hasher;
 use l2o_crypto::hash::hash_functions::poseidon_goldilocks::PoseidonHasher;
 use l2o_crypto::hash::hash_functions::sha256::Sha256Hasher;
 use l2o_crypto::hash::merkle::traits::MerkleHasher;
@@ -92,9 +92,9 @@ impl NamedMerkleHasher for Blake3Hasher {
         "Blake3Hasher"
     }
 }
-impl NamedMerkleHasher for Keccack256Hasher {
+impl NamedMerkleHasher for Keccak256Hasher {
     fn get_zh_hasher_name() -> &'static str {
-        "Keccack256Hasher"
+        "Keccak256Hasher"
     }
 }
 impl NamedMerkleHasher for PoseidonHasher {
@@ -171,13 +171,12 @@ pub fn print_hash256_zero_hashes() {
     result.push_str(&get_zero_hashes_for_leaf_hash_str::<Hash256, Blake3Hasher>(
         ZERO_HASH_CACHE_SIZE,
     ));
-    result.push_str(&get_zero_hashes_for_hash_str::<Hash256, Keccack256Hasher>(
+    result.push_str(&get_zero_hashes_for_hash_str::<Hash256, Keccak256Hasher>(
         ZERO_HASH_CACHE_SIZE,
     ));
-    result.push_str(&get_zero_hashes_for_leaf_hash_str::<
-        Hash256,
-        Keccack256Hasher,
-    >(ZERO_HASH_CACHE_SIZE));
+    result.push_str(
+        &get_zero_hashes_for_leaf_hash_str::<Hash256, Keccak256Hasher>(ZERO_HASH_CACHE_SIZE),
+    );
     tracing::info!("{}", result);
 }
 
