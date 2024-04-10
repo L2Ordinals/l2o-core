@@ -17,10 +17,8 @@ use l2o_crypto::hash::hash_functions::block_hasher::get_block_payload_bytes;
 use l2o_crypto::hash::hash_functions::sha256::Sha256Hasher;
 use l2o_crypto::hash::traits::L2OBlockHasher;
 use l2o_crypto::proof::groth16::bn128::proof_data::Groth16BN128ProofData;
-use l2o_crypto::proof::groth16::bn128::verifier_data::Groth16VerifierDataSerializable;
 use l2o_crypto::standards::l2o_a::proof::L2OAProofData;
 use l2o_crypto::standards::l2o_a::L2OBlockInscriptionV1;
-use l2o_indexer_ordhook::l2o::inscription::L2OInscription;
 use l2o_indexer_ordhook::l2o::inscription::L2OInscriptionBlock;
 use l2o_indexer_ordhook::l2o::inscription::L2OInscriptionBlockParameters;
 use l2o_indexer_ordhook::proof::snarkjs::ProofJson;
@@ -39,7 +37,7 @@ async fn execute_single(
     client: &Client,
     args: &SequencerArgs,
     pk: &ProvingKey<Bn254>,
-    vk: &VerifyingKey<Bn254>,
+    _vk: &VerifyingKey<Bn254>,
     rng: &mut StdRng,
 ) -> anyhow::Result<()> {
     let response = client
