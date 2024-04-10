@@ -23,6 +23,7 @@ use l2o_crypto::standards::l2o_a::proof::L2OAProofData;
 use l2o_crypto::standards::l2o_a::L2OBlockInscriptionV1;
 use l2o_indexer_ordhook::l2o::inscription::L2OInscription;
 use l2o_indexer_ordhook::proof::snarkjs::ProofJson;
+use l2o_indexer_ordhook::proof::snarkjs::ProofWithPublicInputs;
 use serde_json::json;
 
 use crate::circuits::BlockCircuit;
@@ -87,6 +88,7 @@ pub async fn run(
     let (pk, vk) = Groth16::<Bn254>::setup(block_circuit.clone(), &mut rng).unwrap();
 
     let vk_json = Groth16VerifierDataSerializable::from_vk(&vk);
+    let vk_json_cloned = vk_json.clone();
     deploy.vk.ic = vk_json.ic.into_iter().map(|x| x.into()).collect();
     deploy.vk.vk_alpha_1 = vk_json.vk_alpha_1.to_vec();
     deploy.vk.vk_beta_2 = vk_json.vk_beta_2.into_iter().map(|x| x.into()).collect();
@@ -116,13 +118,27 @@ pub async fn run(
     let processed_vk = Groth16::<Bn254>::process_vk(&vk).unwrap();
     let proof = Groth16::<Bn254>::prove(&pk, block_circuit.clone(), &mut rng).unwrap();
 
-    Groth16::<Bn254>::verify_with_processed_vk(&processed_vk, &block_circuit.block_hash, &proof)
-        .unwrap();
+    assert!(Groth16::<Bn254>::verify_with_processed_vk(
+        &processed_vk,
+        &block_circuit.block_hash,
+        &proof
+    )
+    .unwrap());
     let proof_json =
         ProofJson::from_proof_with_public_inputs_groth16_bn254(&Groth16BN128ProofData {
             proof,
             public_inputs: block_hash.to_vec(),
         });
+
+    let proof_deserialized: ProofWithPublicInputs<Bn254> =
+        proof_json.to_proof_with_public_inputs_groth16_bn254();
+    assert!(Groth16::<Bn254>::verify_proof(
+        &Groth16::<Bn254>::process_vk(&vk_json_cloned.to_vk().unwrap()).unwrap(),
+        &proof_deserialized.proof,
+        &proof_deserialized.public_inputs,
+    )
+    .unwrap());
+
     block_value["proof"] = json!(proof_json);
     std::fs::write(
         "./l2o_indexer_ordhook/assets/block.json",

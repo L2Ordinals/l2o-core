@@ -52,7 +52,7 @@ pub struct Groth16VerifierDataSerializable {
     pub vk_gamma_2: [[String; 2]; 3],
     pub vk_delta_2: [[String; 2]; 3],
     //    pub vk_alphabeta_12: [[[String; 2]; 3]; 2],
-    pub ic: [[String; 3]; 2],
+    pub ic: [[String; 3]; 3],
 }
 
 pub fn str_to_fq(s: &str) -> anyhow::Result<Fq, ()> {
@@ -212,6 +212,11 @@ impl Groth16VerifierDataSerializable {
                     ic_projective[1].x.to_string(),
                     ic_projective[1].y.to_string(),
                     ic_projective[1].z.to_string(),
+                ],
+                [
+                    ic_projective[2].x.to_string(),
+                    ic_projective[2].y.to_string(),
+                    ic_projective[2].z.to_string(),
                 ],
             ],
         }

@@ -66,7 +66,7 @@ async fn execute_single(
         proof: ProofJson::from_proof_with_public_inputs_groth16_bn254(
             &prev_block.proof.as_groth16_bn128(),
         ),
-        signature: Hash256::zero().to_hex(),
+        signature: prev_block.signature.to_hex(),
     };
 
     let mock_proof = next_block.proof.to_proof_with_public_inputs_groth16_bn254();
@@ -83,8 +83,8 @@ async fn execute_single(
 
         public_key: L2OCompactPublicKey::from_hex(&next_block.block_parameters.public_key).unwrap(),
 
-        start_state_root: Hash256::zero(),
-        end_state_root: prev_block.start_state_root.clone(),
+        start_state_root: prev_block.end_state_root.clone(),
+        end_state_root: Hash256::from_hex(&next_block.block_parameters.state_root).unwrap(),
 
         deposit_state_root: Hash256::from_hex(&next_block.block_parameters.deposits_root).unwrap(),
 
