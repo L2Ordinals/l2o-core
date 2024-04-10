@@ -14,7 +14,7 @@ fn default_op() -> String {
     "Block".to_string()
 }
 
-#[derive(Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(bound = "Proof: Serialize, for<'de2> Proof: Deserialize<'de2>")]
 pub struct L2OBlockInscription<Proof>
 where

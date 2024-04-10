@@ -23,7 +23,7 @@ pub struct MerkleProofCommonHash256 {
 
 impl Hash256 {
     pub fn from_hex(s: &str) -> Result<Self, ()> {
-        let bytes = hex::decode(s).unwrap();
+        let bytes = hex::decode(s.trim_start_matches("0x")).unwrap();
         assert_eq!(bytes.len(), 32);
         let mut array = [0u8; 32];
         array.copy_from_slice(&bytes);
@@ -86,15 +86,15 @@ impl Into<[u64; 4]> for &Hash256 {
     fn into(self) -> [u64; 4] {
         let mut result = [0u64; 4];
         for i in 0..4 {
-            result[7 - i] = u64::from_be_bytes([
-                self.0[i * 4],
-                self.0[i * 4 + 1],
-                self.0[i * 4 + 2],
-                self.0[i * 4 + 3],
-                self.0[i * 4 + 4],
-                self.0[i * 4 + 5],
-                self.0[i * 4 + 6],
-                self.0[i * 4 + 7],
+            result[3 - i] = u64::from_be_bytes([
+                self.0[i * 8],
+                self.0[i * 8 + 1],
+                self.0[i * 8 + 2],
+                self.0[i * 8 + 3],
+                self.0[i * 8 + 4],
+                self.0[i * 8 + 5],
+                self.0[i * 8 + 6],
+                self.0[i * 8 + 7],
             ]);
         }
         result

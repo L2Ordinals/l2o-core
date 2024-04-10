@@ -13,6 +13,7 @@ use ark_groth16::Proof;
 use ark_groth16::VerifyingKey;
 use ark_serialize::CanonicalDeserialize;
 use ark_serialize::CanonicalSerialize;
+use l2o_crypto::proof::groth16::bn128::proof_data::Groth16BN128ProofData;
 use serde::Deserialize;
 use serde::Serialize;
 
@@ -63,6 +64,43 @@ impl ProofJson {
         let public_inputs = self.public_inputs.iter().map(|s| str_to_fr(s)).collect();
         ProofWithPublicInputs::<Bn254> {
             proof: proof,
+            public_inputs: public_inputs,
+        }
+    }
+    pub fn from_proof_with_public_inputs_groth16_bn254(proof: &Groth16BN128ProofData) -> Self {
+        let a_g1_projective = G1Projective::from(proof.proof.a);
+        let b_g2_projective = G2Projective::from(proof.proof.b);
+        let c_g1_projective = G1Projective::from(proof.proof.c);
+        let public_inputs = proof
+            .public_inputs
+            .iter()
+            .map(|x| x.to_string())
+            .collect::<Vec<_>>();
+        Self {
+            pi_a: [
+                a_g1_projective.x.to_string(),
+                a_g1_projective.y.to_string(),
+                a_g1_projective.z.to_string(),
+            ],
+            pi_b: [
+                [
+                    b_g2_projective.x.c0.to_string(),
+                    b_g2_projective.x.c1.to_string(),
+                ],
+                [
+                    b_g2_projective.y.c0.to_string(),
+                    b_g2_projective.y.c1.to_string(),
+                ],
+                [
+                    b_g2_projective.z.c0.to_string(),
+                    b_g2_projective.z.c1.to_string(),
+                ],
+            ],
+            pi_c: [
+                c_g1_projective.x.to_string(),
+                c_g1_projective.y.to_string(),
+                c_g1_projective.z.to_string(),
+            ],
             public_inputs: public_inputs,
         }
     }
@@ -167,10 +205,11 @@ impl VerifyingKeyJson {
 }
 
 pub fn str_to_fq(s: &str) -> Fq {
-    Fq::from_str(s).unwrap()
+    Fq::from_str(if s == "" { "0" } else { s }).unwrap()
 }
+
 pub fn str_to_fr(s: &str) -> Fr {
-    Fr::from_str(s).unwrap()
+    Fr::from_str(if s == "" { "0" } else { s }).unwrap()
 }
 
 #[cfg(test)]

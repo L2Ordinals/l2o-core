@@ -3,6 +3,8 @@ use std::sync::Arc;
 
 use ark_bn254::Fr;
 use ark_groth16::Groth16;
+use ark_serialize::CanonicalSerialize;
+use ark_snark::SNARK;
 use bytes::Buf;
 use bytes::Bytes;
 use chainhook_sdk::types::BitcoinBlockMetadata;
@@ -44,11 +46,18 @@ use serde::Serialize;
 use tokio::net::TcpListener;
 use tokio::sync::Mutex;
 
+use crate::rpc::request::RequestParams;
+use crate::rpc::request::RpcRequest;
+use crate::rpc::response::ResponseResult;
+use crate::rpc::response::RpcResponse;
+
 type BoxBody = http_body_util::combinators::BoxBody<Bytes, hyper::Error>;
 
 pub mod l2o;
 pub mod proof;
+pub mod rpc;
 pub mod store;
+
 static NOTFOUND: &[u8] = b"Not Found";
 
 #[derive(Debug, Clone, PartialEq, Deserialize, Serialize)]
@@ -141,9 +150,18 @@ async fn process_l2o_inscription(
                 .get_last_block_inscription(block.l2id.into());
 
             if let Err(_) = last_block_res {
-                let block_proof = block.proof.to_proof_groth16_bn254();
+                let block_proof = block.proof.to_proof_with_public_inputs_groth16_bn254();
+                if block.block_parameters.block_number != 0 {
+                    anyhow::bail!("genesis block number must be zero");
+                }
+                if block.block_parameters.state_root != deploy_inscription.start_state_root.to_hex()
+                {
+                    anyhow::bail!(
+                        "genesis block state root must be equal to deploy start state root"
+                    );
+                }
 
-                let mut block_inscription = L2OBlockInscriptionV1 {
+                let block_inscription = L2OBlockInscriptionV1 {
                     p: "l2o-a".to_string(),
                     op: "Block".to_string(),
 
@@ -170,24 +188,40 @@ async fn process_l2o_inscription(
                     .unwrap(),
 
                     proof: L2OAProofData::Groth16BN128(Groth16BN128ProofData {
-                        proof: block_proof,
-                        public_inputs: vec![],
+                        proof: block_proof.proof.clone(),
+                        public_inputs: block_proof.public_inputs.clone(),
                     }),
 
                     superchain_root: Hash256::zero(),
                     signature: L2OSignature512::from_hex(&block.signature).unwrap(),
                 };
 
+                let mut uncompressed_bytes = Vec::new();
+                block_proof
+                    .serialize_uncompressed(&mut uncompressed_bytes)
+                    .unwrap();
+
                 let public_inputs: [Fr; 2] =
                     Sha256Hasher::get_l2_block_hash(&block_inscription).into();
-                match block_inscription.proof {
-                    L2OAProofData::Groth16BN128(ref mut p) => {
-                        p.public_inputs.extend(public_inputs.into_iter());
-                    }
+                if public_inputs.to_vec() != block_proof.public_inputs {
+                    anyhow::bail!("public inputs mismatch");
+                }
+
+                let vk = match deploy_inscription.verifier_data {
+                    L2OAVerifierData::Groth16BN128(vk) => vk.0,
                     _ => {
                         unreachable!()
                     }
-                }
+                };
+
+                let processed_vk = Groth16::<ark_bn254::Bn254>::process_vk(&vk).unwrap();
+
+                Groth16::<ark_bn254::Bn254>::verify_proof(
+                    &processed_vk,
+                    &block_proof.proof,
+                    &block_proof.public_inputs,
+                )
+                .unwrap();
 
                 let msg = get_block_payload_bytes(&block_inscription);
                 if !deploy_inscription.public_key.is_zero() {
@@ -212,7 +246,7 @@ async fn process_l2o_inscription(
                 anyhow::bail!("block must be consecutive");
             }
 
-            if bitcoin_block.block_identifier.index > last_block.bitcoin_block_number {
+            if bitcoin_block.block_identifier.index <= last_block.bitcoin_block_number {
                 anyhow::bail!("bitcoin block must be bigger than previous");
             }
 
@@ -239,9 +273,9 @@ async fn process_l2o_inscription(
                 anyhow::bail!("only groth16bn128 is supported");
             }
 
-            let block_proof = block.proof.to_proof_groth16_bn254();
+            let block_proof = block.proof.to_proof_with_public_inputs_groth16_bn254();
 
-            let mut block_inscription = L2OBlockInscriptionV1 {
+            let block_inscription = L2OBlockInscriptionV1 {
                 p: "l2o-a".to_string(),
                 op: "Block".to_string(),
 
@@ -268,8 +302,8 @@ async fn process_l2o_inscription(
                 .unwrap(),
 
                 proof: L2OAProofData::Groth16BN128(Groth16BN128ProofData {
-                    proof: block_proof.clone(),
-                    public_inputs: vec![],
+                    proof: block_proof.proof.clone(),
+                    public_inputs: block_proof.public_inputs.clone(),
                 }),
 
                 superchain_root: Hash256::zero(),
@@ -287,14 +321,14 @@ async fn process_l2o_inscription(
                 .unwrap();
             }
 
+            let mut uncompressed_bytes = Vec::new();
+            block_proof
+                .serialize_uncompressed(&mut uncompressed_bytes)
+                .unwrap();
+
             let public_inputs: [Fr; 2] = Sha256Hasher::get_l2_block_hash(&block_inscription).into();
-            match block_inscription.proof {
-                L2OAProofData::Groth16BN128(ref mut p) => {
-                    p.public_inputs.extend(public_inputs.into_iter());
-                }
-                _ => {
-                    unreachable!()
-                }
+            if public_inputs.to_vec() != block_proof.public_inputs {
+                anyhow::bail!("public inputs mismatch");
             }
 
             let vk = match deploy_inscription.verifier_data {
@@ -304,8 +338,14 @@ async fn process_l2o_inscription(
                 }
             };
 
-            Groth16::<ark_bn254::Bn254>::verify_proof(&vk.into(), &block_proof, &public_inputs)
-                .unwrap();
+            let processed_vk = Groth16::<ark_bn254::Bn254>::process_vk(&vk).unwrap();
+
+            Groth16::<ark_bn254::Bn254>::verify_proof(
+                &processed_vk,
+                &block_proof.proof,
+                &block_proof.public_inputs,
+            )
+            .unwrap();
 
             store
                 .lock()
@@ -315,6 +355,33 @@ async fn process_l2o_inscription(
             Ok(())
         }
     }
+}
+
+async fn process_rpc_requests(
+    store: Arc<Mutex<L2OStoreV1Core<KVQRocksDBStore>>>,
+    req: &RpcRequest,
+) -> anyhow::Result<RpcResponse> {
+    let response = match req.request {
+        RequestParams::L2OGetLastBlockInscription(l2oid) => {
+            let last_block = store.lock().await.get_last_block_inscription(l2oid)?;
+
+            RpcResponse {
+                jsonrpc: rpc::request::Version::V2,
+                id: Some(req.id.clone()),
+                result: ResponseResult::Success(serde_json::to_value(last_block)?),
+            }
+        }
+        RequestParams::L2OGetDeployInscription(l2oid) => {
+            let deploy_inscription = store.lock().await.get_deploy_inscription(l2oid)?;
+
+            RpcResponse {
+                jsonrpc: rpc::request::Version::V2,
+                id: Some(req.id.clone()),
+                result: ResponseResult::Success(serde_json::to_value(deploy_inscription)?),
+            }
+        }
+    };
+    Ok(response)
 }
 
 async fn process_ordinal_ops(
@@ -342,7 +409,7 @@ async fn process_ordinal_ops(
     Ok(())
 }
 
-async fn api_post_response(
+async fn handle_ordinal_events(
     store: Arc<Mutex<L2OStoreV1Core<KVQRocksDBStore>>>,
     req: Request<IncomingBody>,
 ) -> anyhow::Result<Response<BoxBody>> {
@@ -360,12 +427,29 @@ async fn api_post_response(
     Ok(response)
 }
 
+async fn handle_rpc_requests(
+    store: Arc<Mutex<L2OStoreV1Core<KVQRocksDBStore>>>,
+    req: Request<IncomingBody>,
+) -> anyhow::Result<Response<BoxBody>> {
+    // Aggregate the body...
+    let whole_body = req.collect().await?.aggregate();
+    // Decode as JSON...
+    let data = serde_json::from_reader::<_, RpcRequest>(whole_body.reader())?;
+    let response = process_rpc_requests(store, &data).await?;
+
+    Ok(Response::builder()
+        .status(StatusCode::OK)
+        .header(header::CONTENT_TYPE, "application/json")
+        .body(full(serde_json::to_vec(&response).unwrap()))?)
+}
+
 async fn route(
     store: Arc<Mutex<L2OStoreV1Core<KVQRocksDBStore>>>,
     req: Request<IncomingBody>,
 ) -> anyhow::Result<Response<BoxBody>> {
     match (req.method(), req.uri().path()) {
-        (&Method::POST, "/api/events") => api_post_response(store, req).await,
+        (&Method::POST, "/api/events") => handle_ordinal_events(store, req).await,
+        (&Method::POST, "/") => handle_rpc_requests(store, req).await,
         _ => {
             // Return 404 not found response.
             Ok(Response::builder()
@@ -398,7 +482,7 @@ pub async fn listen(args: &IndexerOrdHookArgs) -> anyhow::Result<()> {
         let service = service_fn(|req| async { route(store.clone(), req).await });
 
         if let Err(err) = http1::Builder::new().serve_connection(io, service).await {
-            tracing::error!("Failed to serve connection: {:?}", err);
+            tracing::error!("{:?}", err);
         }
     }
 }

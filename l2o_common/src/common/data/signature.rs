@@ -3,7 +3,7 @@ use serde::Deserializer;
 use serde::Serialize;
 use serde::Serializer;
 
-#[derive(Clone, PartialEq, Hash)]
+#[derive(Debug, Clone, PartialEq, Hash)]
 pub struct L2OCompactPublicKey(pub [u8; 32]);
 
 impl L2OCompactPublicKey {
@@ -55,7 +55,7 @@ impl<'de> Deserialize<'de> for L2OCompactPublicKey {
     }
 }
 
-#[derive(Clone, PartialEq, Hash)]
+#[derive(Debug, Clone, PartialEq, Hash)]
 pub struct L2OSignature512(pub [u8; 64]);
 
 impl L2OSignature512 {

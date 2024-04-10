@@ -7,7 +7,7 @@ use serde::Serialize;
 pub enum L2OAHashFunction {
     Sha256,
     BLAKE3,
-    Keccack256,
+    Keccak256,
     PoseidonGoldilocks,
 }
 
@@ -16,10 +16,12 @@ impl FromStr for L2OAHashFunction {
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         match s {
-            "sha256" => Ok(L2OAHashFunction::Sha256),
-            "blake3" => Ok(L2OAHashFunction::BLAKE3),
-            "keccak256" => Ok(L2OAHashFunction::Keccack256),
-            "poseidon_goldilocks" => Ok(L2OAHashFunction::PoseidonGoldilocks),
+            "sha256" | "Sha256" => Ok(L2OAHashFunction::Sha256),
+            "blake3" | "BLAKE3" => Ok(L2OAHashFunction::BLAKE3),
+            "keccak256" | "Keccak256" => Ok(L2OAHashFunction::Keccak256),
+            "poseidon_goldilocks" | "PoseidonGoldilocks" => {
+                Ok(L2OAHashFunction::PoseidonGoldilocks)
+            }
             _ => Err(s.to_string()),
         }
     }
@@ -36,8 +38,10 @@ impl FromStr for L2OAProofType {
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         match s {
-            "groth16_bn128" => Ok(L2OAProofType::Groth16BN128),
-            "plonky2_poseidon_goldilocks" => Ok(L2OAProofType::Plonky2PoseidonGoldilocks),
+            "groth16_bn128" | "Groth16BN128" => Ok(L2OAProofType::Groth16BN128),
+            "plonky2_poseidon_goldilocks" | "Plonky2PoseidonGoldilocks" => {
+                Ok(L2OAProofType::Plonky2PoseidonGoldilocks)
+            }
             _ => Err(s.to_string()),
         }
     }

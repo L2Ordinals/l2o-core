@@ -13,6 +13,15 @@ pub enum L2OAProofData {
     Plonky2PoseidonGoldilocks(Plonky2PoseidonGoldilocksProofData),
 }
 
+impl L2OAProofData {
+    pub fn as_groth16_bn128(self) -> Groth16BN128ProofData {
+        match self {
+            L2OAProofData::Groth16BN128(x) => x,
+            L2OAProofData::Plonky2PoseidonGoldilocks(_) => unreachable!(),
+        }
+    }
+}
+
 #[derive(Clone, PartialEq, Serialize, Deserialize, Debug)]
 #[serde(tag = "proof_type", content = "verifier_data")]
 pub enum L2OAVerifierData {

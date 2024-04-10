@@ -91,6 +91,10 @@ ord-reindex:
 run-indexer:
 	@RUST_LOG=${LOG_LEVEL} cargo run --package l2o-cli -- indexer
 
+.PHONY: run-l2o-sequencer
+run-l2o-sequencer:
+	@RUST_LOG=${LOG_LEVEL} cargo run --package l2o-cli -- sequencer
+
 .PHONY: run-indexer-ordhook
 run-indexer-ordhook:
 	@RUST_LOG=${LOG_LEVEL} cargo run --package l2o-cli -- indexer-ord-hook --addr=0.0.0.0:3000
@@ -98,6 +102,20 @@ run-indexer-ordhook:
 .PHONY: run-ordhook
 run-ordhook:
 	@ordhook service start --post-to=http://localhost:3000/api/events --config-path=./Ordhook.toml
+
+.PHONY: l2o-last-block
+l2o-last-block:
+	curl http://localhost:3000 \
+  	-X POST \
+  	-H "Content-Type: application/json" \
+		--data '{"method":"l2o_getLastBlockInscription","params":1,"id":1,"jsonrpc":"2.0"}' | jq
+
+.PHONY: l2o-deploy-info
+l2o-deploy-info:
+	curl http://localhost:3000 \
+		-X POST \
+		-H "Content-Type: application/json" \
+		--data '{"method":"l2o_getDeployInscription","params":1,"id":1,"jsonrpc":"2.0"}' | jq
 
 .PHONY: image
 image:

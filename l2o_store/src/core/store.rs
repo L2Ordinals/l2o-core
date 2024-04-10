@@ -126,7 +126,7 @@ impl<S: KVQBinaryStore> L2OStoreV1 for L2OStoreV1Core<S> {
                     block_number,
                 ),
             ),
-            L2OAHashFunction::Keccack256 => Keccack256StateRootTree::<S>::get_leaf(
+            L2OAHashFunction::Keccak256 => Keccack256StateRootTree::<S>::get_leaf(
                 &mut self.store,
                 &KVQMerkleNodeKey::new(
                     SUB_TABLE_L2_STATE_ROOTS_KECCACK256,

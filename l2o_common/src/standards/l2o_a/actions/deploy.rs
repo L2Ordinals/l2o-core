@@ -15,7 +15,7 @@ fn default_op() -> String {
     "Deploy".to_string()
 }
 
-#[derive(Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(bound = "V: Serialize, for<'de2> V: Deserialize<'de2>")]
 pub struct L2ODeployInscription<V>
 where

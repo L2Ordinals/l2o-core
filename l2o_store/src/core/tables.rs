@@ -13,4 +13,4 @@ pub const SUB_TABLE_L2_STATE_ROOTS_POSEIDON_GOLDILOCKS: u8 = 4;
 
 pub type L2OStateRootsMerkleNodeKey = KVQMerkleNodeKey<TABLE_L2_STATE_ROOTS>;
 pub type L2ODeploymentsKey = L2TableKey<TABLE_L2_DEPLOYMENTS>;
-pub type L2OLatestBlockKey = L2TableKey<TABLE_L2_DEPLOYMENTS>;
+pub type L2OLatestBlockKey = L2TableKey<TABLE_L2_LATEST_BLOCK>;

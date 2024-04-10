@@ -4,6 +4,8 @@ use clap::Subcommand;
 
 pub mod indexer;
 pub mod indexer_ordhook;
+pub mod initializer;
+pub mod sequencer;
 
 #[derive(Parser)]
 pub struct Cli {
@@ -15,4 +17,6 @@ pub struct Cli {
 pub enum Commands {
     Indexer(l2o_common::IndexerArgs),
     IndexerOrdHook(l2o_common::IndexerOrdHookArgs),
+    Sequencer(l2o_common::SequencerArgs),
+    Initializer(l2o_common::InitializerArgs),
 }
