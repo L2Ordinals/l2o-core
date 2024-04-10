@@ -201,7 +201,7 @@ async fn process_l2o_inscription(
                     .serialize_uncompressed(&mut uncompressed_bytes)
                     .unwrap();
 
-                let _public_inputs: [Fr; 2] =
+                let public_inputs: [Fr; 2] =
                     Sha256Hasher::get_l2_block_hash(&block_inscription).into();
                 // if public_inputs.to_vec() != block_proof.public_inputs {
                 //     anyhow::bail!("public inputs mismatch");
@@ -248,20 +248,6 @@ async fn process_l2o_inscription(
 
             if bitcoin_block.block_identifier.index <= last_block.bitcoin_block_number {
                 anyhow::bail!("bitcoin block must be bigger than previous");
-            }
-
-            if last_block.end_state_root
-                != Hash256::from_hex(&block.block_parameters.state_root).unwrap()
-            {
-                anyhow::bail!(
-                    "last block's end state root must be equal to this block's start state root"
-                );
-            }
-
-            if last_block.end_withdrawal_state_root
-                != Hash256::from_hex(&block.block_parameters.withdrawals_root).unwrap()
-            {
-                anyhow::bail!("last block's end withdrawals_root must be equal to this block's start withdrawals_root");
             }
 
             let deploy_inscription = store
@@ -326,10 +312,8 @@ async fn process_l2o_inscription(
                 .serialize_uncompressed(&mut uncompressed_bytes)
                 .unwrap();
 
-            let _public_inputs: [Fr; 2] =
+            let public_inputs: [Fr; 2] =
                 Sha256Hasher::get_l2_block_hash(&block_inscription).into();
-            // dbg!(&public_inputs);
-            // dbg!(&block_proof.public_inputs);
             // if public_inputs.to_vec() != block_proof.public_inputs {
             //     anyhow::bail!("public inputs mismatch");
             // }

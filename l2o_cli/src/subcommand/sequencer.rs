@@ -141,6 +141,6 @@ pub async fn run(args: &SequencerArgs) -> anyhow::Result<()> {
         if let Err(err) = execute_single(&client, args, &pk, &vk, &mut rng).await {
             tracing::error!("{}", err);
         }
-        tokio::time::sleep(Duration::from_secs(3)).await;
+        tokio::time::sleep(Duration::from_secs(15)).await;
     }
 }
