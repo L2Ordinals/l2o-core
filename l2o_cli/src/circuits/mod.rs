@@ -11,9 +11,10 @@ use ark_r1cs_std::ToBitsGadget;
 use ark_r1cs_std::ToBytesGadget;
 use ark_relations::r1cs::ConstraintSynthesizer;
 
+#[derive(Clone)]
 pub struct BlockCircuit<F: PrimeField> {
-    block_hash: [F; 2],
-    block_payload: Vec<u8>,
+    pub block_hash: [F; 2],
+    pub block_payload: Vec<u8>,
 }
 
 impl<F: PrimeField> ConstraintSynthesizer<F> for BlockCircuit<F> {

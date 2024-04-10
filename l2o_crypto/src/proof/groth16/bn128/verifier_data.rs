@@ -46,7 +46,7 @@ impl<'de> Deserialize<'de> for Groth16BN128VerifierData {
 }
 
 #[derive(Serialize, Deserialize, Clone, PartialEq, Debug)]
-struct Groth16VerifierDataSerializable {
+pub struct Groth16VerifierDataSerializable {
     pub vk_alpha_1: [String; 3],
     pub vk_beta_2: [[String; 2]; 3],
     pub vk_gamma_2: [[String; 2]; 3],

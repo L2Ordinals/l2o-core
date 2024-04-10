@@ -22,7 +22,9 @@ async fn main() -> Result<()> {
         Commands::Indexer(args) => indexer::run(&args).await?,
         Commands::IndexerOrdHook(args) => indexer_ordhook::run(&args).await?,
         Commands::Sequencer(args) => sequencer::run(&args).await?,
-        Commands::Initializer(args) => initializer::run(&args).await?,
+        Commands::Initializer(args) => {
+            initializer::run(&args).await?;
+        }
     }
 
     Ok(())

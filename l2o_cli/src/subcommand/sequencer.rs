@@ -1,151 +1,148 @@
+use std::time::Duration;
 
-
-
-use ark_crypto_primitives::crh::sha256::constraints::Sha256Gadget;
-use ark_crypto_primitives::crh::sha256::Sha256;
-use ark_crypto_primitives::crh::CRHSchemeGadget;
-
-use ark_ff::PrimeField;
-
-use ark_r1cs_std::alloc::AllocVar;
-use ark_r1cs_std::boolean::Boolean;
-use ark_r1cs_std::eq::EqGadget;
-use ark_r1cs_std::fields::fp::FpVar;
-use ark_r1cs_std::uint8::UInt8;
-use ark_r1cs_std::ToBitsGadget;
-use ark_r1cs_std::ToBytesGadget;
-use ark_relations::r1cs::ConstraintSynthesizer;
-
-use ark_std::rand::SeedableRng;
-
-
+use ark_bn254::Bn254;
+use ark_bn254::Fr;
+use ark_crypto_primitives::snark::SNARK;
+use ark_groth16::Groth16;
+use ark_groth16::ProvingKey;
+use ark_groth16::VerifyingKey;
+use ark_std::rand::rngs::StdRng;
+use l2o_common::common::data::hash::Hash256;
 use l2o_common::common::data::hash::L2OHash;
+use l2o_common::common::data::signature::L2OCompactPublicKey;
+use l2o_common::common::data::signature::L2OSignature512;
+use l2o_common::InitializerArgs;
 use l2o_common::SequencerArgs;
+use l2o_crypto::hash::hash_functions::block_hasher::get_block_payload_bytes;
+use l2o_crypto::hash::hash_functions::sha256::Sha256Hasher;
+use l2o_crypto::hash::traits::L2OBlockHasher;
+use l2o_crypto::proof::groth16::bn128::proof_data::Groth16BN128ProofData;
+use l2o_crypto::proof::groth16::bn128::verifier_data::Groth16VerifierDataSerializable;
+use l2o_crypto::standards::l2o_a::proof::L2OAProofData;
+use l2o_crypto::standards::l2o_a::L2OBlockInscriptionV1;
+use l2o_indexer_ordhook::l2o::inscription::L2OInscription;
+use l2o_indexer_ordhook::l2o::inscription::L2OInscriptionBlock;
+use l2o_indexer_ordhook::l2o::inscription::L2OInscriptionBlockParameters;
+use l2o_indexer_ordhook::proof::snarkjs::ProofJson;
+use l2o_indexer_ordhook::rpc::request::Id;
+use l2o_indexer_ordhook::rpc::request::RequestParams;
+use l2o_indexer_ordhook::rpc::request::RpcRequest;
+use l2o_indexer_ordhook::rpc::request::Version;
+use reqwest::Client;
+use serde_json::json;
+use serde_json::Value;
 
+use crate::circuits::BlockCircuit;
+use crate::subcommand::initializer;
 
+async fn execute_single(
+    client: &Client,
+    args: &SequencerArgs,
+    pk: &ProvingKey<Bn254>,
+    vk: &VerifyingKey<Bn254>,
+    rng: &mut StdRng,
+) -> anyhow::Result<()> {
+    let response = client
+        .post(&args.indexer_url)
+        .json(&RpcRequest {
+            jsonrpc: Version::V2,
+            request: RequestParams::L2OGetLastBlockInscription(args.l2oid),
+            id: Id::Number(1),
+        })
+        .send()
+        .await?
+        .json::<Value>()
+        .await?;
 
+    let prev_block = serde_json::from_value::<L2OBlockInscriptionV1>(response["result"].clone())?;
 
+    let next_block = L2OInscriptionBlock {
+        l2id: prev_block.l2id as u32,
+        block_parameters: L2OInscriptionBlockParameters {
+            state_root: Hash256::rand().to_hex(),
+            public_key: prev_block.public_key.to_hex(),
+            deposits_root: Hash256::rand().to_hex(),
+            withdrawals_root: Hash256::rand().to_hex(),
+            block_number: (prev_block.l2_block_number + 1) as u32,
+        },
+        proof: ProofJson::from_proof_with_public_inputs_groth16_bn254(
+            &prev_block.proof.as_groth16_bn128(),
+        ),
+        signature: Hash256::zero().to_hex(),
+    };
 
+    let mock_proof = next_block.proof.to_proof_with_public_inputs_groth16_bn254();
 
+    let block_inscription = L2OBlockInscriptionV1 {
+        p: "l2o-a".to_string(),
+        op: "Block".to_string(),
 
+        l2id: next_block.l2id.into(),
+        l2_block_number: next_block.block_parameters.block_number.into(),
 
+        bitcoin_block_number: 0,
+        bitcoin_block_hash: Hash256::zero(),
 
+        public_key: L2OCompactPublicKey::from_hex(&next_block.block_parameters.public_key).unwrap(),
 
+        start_state_root: Hash256::zero(),
+        end_state_root: prev_block.start_state_root.clone(),
 
+        deposit_state_root: Hash256::from_hex(&next_block.block_parameters.deposits_root).unwrap(),
 
+        start_withdrawal_state_root: prev_block.end_withdrawal_state_root.clone(),
+        end_withdrawal_state_root: Hash256::from_hex(&next_block.block_parameters.withdrawals_root)
+            .unwrap(),
 
+        proof: L2OAProofData::Groth16BN128(Groth16BN128ProofData {
+            proof: mock_proof.proof,
+            public_inputs: mock_proof.public_inputs,
+        }),
 
-pub struct BlockCircuit<F: PrimeField> {
-    block_hash: [F; 2],
-    block_payload: Vec<u8>,
+        superchain_root: Hash256::zero(),
+        signature: L2OSignature512::from_hex(&next_block.signature).unwrap(),
+    };
+    let block_payload = get_block_payload_bytes(&block_inscription);
+    let block_hash: [Fr; 2] = Sha256Hasher::get_l2_block_hash(&block_inscription).into();
+    let block_circuit = BlockCircuit {
+        block_hash,
+        block_payload,
+    };
+    let proof = Groth16::<Bn254>::prove(&pk, block_circuit, rng).unwrap();
+    let proof_json =
+        ProofJson::from_proof_with_public_inputs_groth16_bn254(&Groth16BN128ProofData {
+            proof,
+            public_inputs: block_hash.to_vec(),
+        });
+    let mut block_value = serde_json::to_value(&next_block).unwrap();
+    block_value["proof"] = json!(proof_json);
+
+    block_value["p"] = json!("l2o");
+    block_value["op"] = json!("Block");
+    std::fs::write(
+        "./l2o_indexer_ordhook/assets/block.json",
+        serde_json::to_string_pretty(&block_value).unwrap(),
+    )?;
+
+    std::process::Command::new("make")
+        .args([
+            "FILE=./l2o_indexer_ordhook/assets/block.json",
+            "ord-inscribe",
+        ])
+        .spawn()
+        .expect("failed to execute process");
+
+    Ok::<_, anyhow::Error>(())
 }
 
-impl<F: PrimeField> ConstraintSynthesizer<F> for BlockCircuit<F> {
-    fn generate_constraints(
-        self,
-        cs: ark_relations::r1cs::ConstraintSystemRef<F>,
-    ) -> ark_relations::r1cs::Result<()> {
-        let sha256_parameter =
-            <Sha256Gadget<F> as CRHSchemeGadget<Sha256, F>>::ParametersVar::new_constant(
-                cs.clone(),
-                (),
-            )?;
+pub async fn run(args: &SequencerArgs) -> anyhow::Result<()> {
+    let (pk, vk, mut rng) = initializer::run(&InitializerArgs {}).await.unwrap();
 
-        let hash_input = self
-            .block_payload
-            .into_iter()
-            .map(|row| UInt8::new_witness(ark_relations::ns!(cs, "hash input byte"), || Ok(row)))
-            .flatten()
-            .collect::<Vec<UInt8<F>>>();
-
-        let hash_result =
-            Sha256Gadget::<F>::evaluate(&sha256_parameter, &hash_input)?.to_bytes()?;
-        let low = Boolean::le_bits_to_fp_var(&hash_result[0..16].to_bits_le()?)?;
-        let high = Boolean::le_bits_to_fp_var(&hash_result[16..32].to_bits_le()?)?;
-
-        let low_expected = FpVar::new_input(cs.clone(), || Ok(self.block_hash[0]))?;
-        let high_expected = FpVar::new_input(cs.clone(), || Ok(self.block_hash[1]))?;
-
-        low.enforce_equal(&low_expected)?;
-        high.enforce_equal(&high_expected)?;
-
-        Ok(())
+    let client = Client::new();
+    loop {
+        if let Err(err) = execute_single(&client, args, &pk, &vk, &mut rng).await {
+            tracing::error!("{}", err);
+        }
+        tokio::time::sleep(Duration::from_secs(3)).await;
     }
-}
-
-pub async fn run(_args: &SequencerArgs) -> anyhow::Result<()> {
-    let _rng = ark_std::rand::rngs::StdRng::seed_from_u64(1);
-    // let (pk, vk) = {
-    //     let c = BlockCircuit {
-    //         block_hash: ,
-    //         block_payload: ,
-    //     };
-    // Groth16::<ark_bn254::Bn254>::setup(c, &mut rng).unwrap()
-    // };
-    //     let block_json =
-    // include_str!("../../../l2o_indexer_ordhook/assets/block.json");     let p
-    // = serde_json::from_str::<L2OInscription>(block_json).unwrap();
-    // let block = match p {
-    //     L2OInscription::Block(block) => block,
-    //     _ => unreachable!()
-    // };
-    //     tracing::info!("{:?}", p);
-    // let client = Client::new();
-    // loop {
-    //     if let Err(err) = (|| async {
-    //         let response = client
-    //             .post(&args.indexer_url)
-    //             .json(&RpcRequest {
-    //                 jsonrpc: Version::V2,
-    //                 request:
-    // RequestParams::L2OGetLastBlockInscription(args.l2oid),                 
-    // id: Id::Number(1),             })
-    //             .send()
-    //             .await?
-    //             .json::<Value>()
-    //             .await?;
-    //
-    //         let last_block =
-    //             
-    // serde_json::from_value::<L2OBlockInscriptionV1>(response["result"].clone())?;
-    //
-    //         let new_block = L2OInscriptionBlock {
-    //             l2id: last_block.l2id as u32,
-    //             block_parameters: L2OInscriptionBlockParameters {
-    //                 state_root: Hash256::rand().to_hex(),
-    //                 public_key: last_block.public_key.to_hex(),
-    //                 deposits_root: last_block.deposit_state_root.to_hex(),
-    //                 withdrawals_root:
-    // last_block.end_withdrawal_state_root.to_hex(),                 
-    // block_number: (last_block.l2_block_number + 1) as u32,             },
-    //             proof: ProofJson::from_proof_with_public_inputs_groth16_bn254(
-    //                 &last_block.proof.as_groth16_bn128(),
-    //             ),
-    //             signature: Hash256::zero().to_hex(),
-    //         };
-    //         let mut value = serde_json::to_value(&new_block).unwrap();
-    //         value["p"] = json!("l2o");
-    //         value["op"] = json!("Block");
-    //         std::fs::write(
-    //             "./l2o_indexer_ordhook/assets/block.json",
-    //             serde_json::to_string(&value).unwrap(),
-    //         )?;
-    //
-    //         process::Command::new("make")
-    //             .args([
-    //                 "FILE=./l2o_indexer_ordhook/assets/block.json",
-    //                 "ord-inscribe",
-    //             ])
-    //             .spawn()
-    //             .expect("failed to execute process");
-    //
-    //         Ok::<_, anyhow::Error>(())
-    //     })()
-    //     .await
-    //     {
-    //         tracing::error!("{}", err);
-    //     }
-    //     tokio::time::sleep(Duration::from_secs(3)).await;
-    // }
-    Ok(())
 }

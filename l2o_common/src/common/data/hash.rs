@@ -105,7 +105,7 @@ impl From<Hash256> for [Fr; 2] {
     fn from(value: Hash256) -> Self {
         let mut result = [Fr::zero(); 2];
         for i in 0..2 {
-            result[1 - i] = Fr::from_be_bytes_mod_order(&value.0[i * 16..i * 16 + 16]);
+            result[i] = Fr::from_le_bytes_mod_order(&value.0[i * 16..i * 16 + 16]);
         }
         result
     }

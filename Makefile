@@ -95,6 +95,10 @@ run-indexer:
 run-l2o-sequencer:
 	@RUST_LOG=${LOG_LEVEL} cargo run --package l2o-cli -- sequencer
 
+.PHONY: run-l2o-initializer
+run-l2o-initializer:
+	@RUST_LOG=${LOG_LEVEL} cargo run --package l2o-cli -- initializer
+
 .PHONY: run-indexer-ordhook
 run-indexer-ordhook:
 	@RUST_LOG=${LOG_LEVEL} cargo run --package l2o-cli -- indexer-ord-hook --addr=0.0.0.0:3000

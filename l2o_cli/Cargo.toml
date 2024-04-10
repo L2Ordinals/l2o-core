@@ -7,13 +7,13 @@ version = "0.1.0"
 
 [dependencies]
 anyhow = "1.0.75"
-ark-bn254 = { version = "0.4.0" }
-ark-crypto-primitives = { version = "0.4.0", features = ["r1cs", "crh"] }
-ark-ff = { version = "0.4.0" }
-ark-groth16 = "0.4.0"
-ark-r1cs-std = { version = "0.4.0" }
-ark-relations = { version = "0.4.0" }
-ark-std = { version = "0.4.0" }
+ark-bn254 = { version = "0.4.0", default-features = false }
+ark-crypto-primitives = { version = "0.4.0", default-features = false, features = ["r1cs", "crh", "snark"] }
+ark-ff = { version = "0.4.0", default-features = false }
+ark-groth16 = {version = "0.4.0", default-features = false }
+ark-r1cs-std = { version = "0.4.0", default-features = false  }
+ark-relations = { version = "0.4.0", default-features = false  }
+ark-std = { version = "0.4.0", default-features = false  }
 bitcoin = "0.31.1"
 clap = { version = "4.4.6", features = ["derive", "env"] }
 dotenv = "0.15.0"
@@ -32,3 +32,16 @@ tokio = { version = "1.0", features = ["rt-multi-thread", "macros"] }
 tracing = "0.1.40"
 tracing-log = "0.2.0"
 tracing-subscriber = { version = "0.3.17", features = ["std", "env-filter"] }
+
+[features]
+default = ["parallel", "r1cs"]
+parallel = [
+    "ark-std/parallel",
+    "ark-ff/parallel",
+    "ark-groth16/parallel",
+    "ark-r1cs-std/parallel",
+    "ark-crypto-primitives/parallel",
+]
+r1cs = [
+    "ark-crypto-primitives/r1cs",
+]
