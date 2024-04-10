@@ -1,12 +1,12 @@
-use std::process;
-use std::time::Duration;
+
+
 
 use ark_crypto_primitives::crh::sha256::constraints::Sha256Gadget;
 use ark_crypto_primitives::crh::sha256::Sha256;
 use ark_crypto_primitives::crh::CRHSchemeGadget;
-use ark_crypto_primitives::snark::CircuitSpecificSetupSNARK;
+
 use ark_ff::PrimeField;
-use ark_groth16::Groth16;
+
 use ark_r1cs_std::alloc::AllocVar;
 use ark_r1cs_std::boolean::Boolean;
 use ark_r1cs_std::eq::EqGadget;
@@ -15,25 +15,25 @@ use ark_r1cs_std::uint8::UInt8;
 use ark_r1cs_std::ToBitsGadget;
 use ark_r1cs_std::ToBytesGadget;
 use ark_relations::r1cs::ConstraintSynthesizer;
-use ark_std::rand::RngCore;
+
 use ark_std::rand::SeedableRng;
-use ark_std::test_rng;
-use l2o_common::common::data::hash::Hash256;
+
+
 use l2o_common::common::data::hash::L2OHash;
 use l2o_common::SequencerArgs;
-use l2o_crypto::hash::hash_functions::block_hasher::get_block_payload_bytes;
-use l2o_crypto::standards::l2o_a::L2OBlockInscriptionV1;
-use l2o_indexer_ordhook::l2o::inscription::L2OInscription;
-use l2o_indexer_ordhook::l2o::inscription::L2OInscriptionBlock;
-use l2o_indexer_ordhook::l2o::inscription::L2OInscriptionBlockParameters;
-use l2o_indexer_ordhook::proof::snarkjs::ProofJson;
-use l2o_indexer_ordhook::rpc::request::Id;
-use l2o_indexer_ordhook::rpc::request::RequestParams;
-use l2o_indexer_ordhook::rpc::request::RpcRequest;
-use l2o_indexer_ordhook::rpc::request::Version;
-use reqwest::Client;
-use serde_json::json;
-use serde_json::Value;
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 pub struct BlockCircuit<F: PrimeField> {
     block_hash: [F; 2],
@@ -73,8 +73,8 @@ impl<F: PrimeField> ConstraintSynthesizer<F> for BlockCircuit<F> {
     }
 }
 
-pub async fn run(args: &SequencerArgs) -> anyhow::Result<()> {
-    let mut rng = ark_std::rand::rngs::StdRng::seed_from_u64(1);
+pub async fn run(_args: &SequencerArgs) -> anyhow::Result<()> {
+    let _rng = ark_std::rand::rngs::StdRng::seed_from_u64(1);
     // let (pk, vk) = {
     //     let c = BlockCircuit {
     //         block_hash: ,

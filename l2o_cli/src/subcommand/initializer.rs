@@ -11,7 +11,7 @@ use l2o_crypto::standards::l2o_a::proof::L2OAProofData;
 use l2o_crypto::standards::l2o_a::L2OBlockInscriptionV1;
 use l2o_indexer_ordhook::l2o::inscription::L2OInscription;
 
-pub async fn run(args: &InitializerArgs) -> anyhow::Result<()> {
+pub async fn run(_args: &InitializerArgs) -> anyhow::Result<()> {
     let deploy_json = include_str!("../../../l2o_indexer_ordhook/assets/deploy.json");
     let block_json = include_str!("../../../l2o_indexer_ordhook/assets/block.json");
     let deploy_data = serde_json::from_str::<L2OInscription>(deploy_json).unwrap();
