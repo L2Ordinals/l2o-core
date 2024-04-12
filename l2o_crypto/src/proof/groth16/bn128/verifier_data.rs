@@ -35,10 +35,9 @@ impl<'de> Deserialize<'de> for Groth16BN128VerifierData {
     {
         use serde::de::Error;
         let raw = Groth16VerifierDataSerializable::deserialize(deserializer)?;
-        let vk = raw.to_vk();
 
-        if vk.is_ok() {
-            Ok(Groth16BN128VerifierData(vk.unwrap()))
+        if let Ok(vk) = raw.to_vk() {
+            Ok(Groth16BN128VerifierData(vk))
         } else {
             Err(Error::custom("invalid Groth16BN128VerifierData JSON"))
         }
@@ -55,16 +54,18 @@ pub struct Groth16VerifierDataSerializable {
     pub ic: [[String; 3]; 3],
 }
 
-pub fn str_to_fq(s: &str) -> anyhow::Result<Fq, ()> {
-    Fq::from_str(if s == "" { "0" } else { s })
+pub fn str_to_fq(s: &str) -> l2o_common::Result<Fq> {
+    Ok(Fq::from_str(if s == "" { "0" } else { s })
+        .map_err(|_| anyhow::anyhow!("str to fq conversion failed"))?)
 }
 
-pub fn str_to_fr(s: &str) -> Result<Fr, ()> {
-    Fr::from_str(if s == "" { "0" } else { s })
+pub fn str_to_fr(s: &str) -> l2o_common::Result<Fr> {
+    Ok(Fr::from_str(if s == "" { "0" } else { s })
+        .map_err(|_| anyhow::anyhow!("str to fr conversion failed"))?)
 }
 
 impl Groth16VerifierDataSerializable {
-    pub fn to_vk(&self) -> anyhow::Result<VerifyingKey<Bn254>, ()> {
+    pub fn to_vk(&self) -> l2o_common::Result<VerifyingKey<Bn254>> {
         let alpha_g1 = G1Affine::from(G1Projective::new(
             str_to_fq(&self.vk_alpha_1[0])?,
             str_to_fq(&self.vk_alpha_1[1])?,

@@ -105,7 +105,7 @@ impl<const TABLE_TYPE: u16> KVQMerkleNodeKey<TABLE_TYPE> {
     }
 }
 impl<const TABLE_TYPE: u16> KVQSerializable for KVQMerkleNodeKey<TABLE_TYPE> {
-    fn to_bytes(&self) -> Vec<u8> {
+    fn to_bytes(&self) -> anyhow::Result<Vec<u8>> {
         let mut result: Vec<u8> = Vec::with_capacity(32);
         result.push(((TABLE_TYPE & 0xFF00) >> 8) as u8); // 1
         result.push((TABLE_TYPE & 0xFF) as u8); // 2
@@ -115,18 +115,18 @@ impl<const TABLE_TYPE: u16> KVQSerializable for KVQMerkleNodeKey<TABLE_TYPE> {
         result.push(self.level); // 16
         result.extend_from_slice(&self.index.to_be_bytes()); // 24
         result.extend_from_slice(&self.checkpoint_id.to_be_bytes()); // 32
-        result
+        Ok(result)
     }
 
-    fn from_bytes(bytes: &[u8]) -> Self {
-        Self {
+    fn from_bytes(bytes: &[u8]) -> anyhow::Result<Self> {
+        Ok(Self {
             tree_id: bytes[2],
-            primary_id: u64::from_be_bytes(bytes[3..11].try_into().unwrap()),
-            secondary_id: u32::from_be_bytes(bytes[11..15].try_into().unwrap()),
+            primary_id: u64::from_be_bytes(bytes[3..11].try_into()?),
+            secondary_id: u32::from_be_bytes(bytes[11..15].try_into()?),
             level: bytes[15],
-            index: u64::from_be_bytes(bytes[16..24].try_into().unwrap()),
-            checkpoint_id: u64::from_be_bytes(bytes[24..32].try_into().unwrap()),
-        }
+            index: u64::from_be_bytes(bytes[16..24].try_into()?),
+            checkpoint_id: u64::from_be_bytes(bytes[24..32].try_into()?),
+        })
     }
 }
 impl<const TABLE_TYPE: u16> KVQMerkleNodeKey<TABLE_TYPE> {

@@ -22,8 +22,8 @@ pub struct MerkleProofCommonHash256 {
 }
 
 impl Hash256 {
-    pub fn from_hex(s: &str) -> Result<Self, ()> {
-        let bytes = hex::decode(s.trim_start_matches("0x")).unwrap();
+    pub fn from_hex(s: &str) -> crate::Result<Self> {
+        let bytes = hex::decode(s.trim_start_matches("0x"))?;
         assert_eq!(bytes.len(), 32);
         let mut array = [0u8; 32];
         array.copy_from_slice(&bytes);
@@ -112,13 +112,13 @@ impl From<Hash256> for [Fr; 2] {
 }
 
 impl KVQSerializable for Hash256 {
-    fn to_bytes(&self) -> Vec<u8> {
-        self.0.to_vec()
+    fn to_bytes(&self) -> anyhow::Result<Vec<u8>> {
+        Ok(self.0.to_vec())
     }
 
-    fn from_bytes(bytes: &[u8]) -> Self {
+    fn from_bytes(bytes: &[u8]) -> anyhow::Result<Self> {
         let mut result = [0u8; 32];
         result.copy_from_slice(bytes);
-        Hash256(result)
+        Ok(Hash256(result))
     }
 }

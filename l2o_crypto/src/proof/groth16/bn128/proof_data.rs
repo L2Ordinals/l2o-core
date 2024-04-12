@@ -40,10 +40,9 @@ impl<'de> Deserialize<'de> for Groth16BN128ProofData {
     {
         use serde::de::Error;
         let raw = Groth16ProofSerializable::deserialize(deserializer)?;
-        let proof = raw.to_proof_with_public_inputs_groth16_bn254();
 
-        if proof.is_ok() {
-            Ok(proof.unwrap())
+        if let Ok(proof) = raw.to_proof_with_public_inputs_groth16_bn254() {
+            Ok(proof)
         } else {
             Err(Error::custom("invalid Groth16BN128ProofData JSON"))
         }
@@ -59,7 +58,7 @@ struct Groth16ProofSerializable {
 }
 
 impl Groth16ProofSerializable {
-    pub fn to_proof_groth16_bn254(&self) -> anyhow::Result<Proof<Bn254>, ()> {
+    pub fn to_proof_groth16_bn254(&self) -> l2o_common::Result<Proof<Bn254>> {
         let a_g1 = G1Affine::from(G1Projective::new(
             str_to_fq(&self.pi_a[0])?,
             str_to_fq(&self.pi_a[1])?,
@@ -88,7 +87,7 @@ impl Groth16ProofSerializable {
     }
     pub fn to_proof_with_public_inputs_groth16_bn254(
         &self,
-    ) -> anyhow::Result<Groth16BN128ProofData, ()> {
+    ) -> l2o_common::Result<Groth16BN128ProofData> {
         let proof = self.to_proof_groth16_bn254()?;
         let mut public_inputs: Vec<Fr> = Vec::new();
         for pi in self.public_inputs.iter() {

@@ -40,11 +40,11 @@ impl<V: Serialize + Clone + PartialEq> KVQSerializable for L2ODeployInscription<
 where
     for<'de2> V: Deserialize<'de2>,
 {
-    fn to_bytes(&self) -> Vec<u8> {
-        serde_json::to_vec(self).unwrap()
+    fn to_bytes(&self) -> anyhow::Result<Vec<u8>> {
+        Ok(serde_json::to_vec(self)?)
     }
 
-    fn from_bytes(bytes: &[u8]) -> Self {
-        serde_json::from_slice(bytes).unwrap()
+    fn from_bytes(bytes: &[u8]) -> anyhow::Result<Self> {
+        Ok(serde_json::from_slice(bytes)?)
     }
 }

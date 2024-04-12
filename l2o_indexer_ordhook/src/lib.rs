@@ -110,18 +110,24 @@ async fn process_l2o_inscription(
             if store.lock().await.has_deployed_l2id(deploy.l2id.into())? {
                 anyhow::bail!("L2o already deployed");
             }
-            let proof_type: L2OAProofType = deploy.proof_type.parse().unwrap();
+            let proof_type: L2OAProofType = deploy
+                .proof_type
+                .parse()
+                .map_err(|e: String| anyhow::anyhow!(e))?;
             let deploy_inscription = L2ODeployInscription {
                 p: "l2o-a".to_string(),
                 op: "Deploy".to_string(),
                 l2id: deploy.l2id.into(),
-                public_key: L2OCompactPublicKey::from_hex(&deploy.public_key).unwrap(),
-                start_state_root: Hash256::from_hex(&deploy.start_state_root).unwrap(),
-                hash_function: deploy.hash_function.parse().unwrap(),
+                public_key: L2OCompactPublicKey::from_hex(&deploy.public_key)?,
+                start_state_root: Hash256::from_hex(&deploy.start_state_root)?,
+                hash_function: deploy
+                    .hash_function
+                    .parse()
+                    .map_err(|e: String| anyhow::anyhow!(e))?,
                 proof_type: proof_type,
                 verifier_data: if proof_type == L2OAProofType::Groth16BN128 {
                     L2OAVerifierData::Groth16BN128(Groth16BN128VerifierData(
-                        deploy.vk.to_verifying_key_groth16_bn254(),
+                        deploy.vk.to_verifying_key_groth16_bn254()?,
                     ))
                 } else {
                     panic!("Unsupported verifier type")
@@ -150,7 +156,7 @@ async fn process_l2o_inscription(
                 .get_last_block_inscription(block.l2id.into());
 
             if let Err(_) = last_block_res {
-                let block_proof = block.proof.to_proof_with_public_inputs_groth16_bn254();
+                let block_proof = block.proof.to_proof_with_public_inputs_groth16_bn254()?;
                 if block.block_parameters.block_number != 0 {
                     anyhow::bail!("genesis block number must be zero");
                 }
@@ -169,23 +175,19 @@ async fn process_l2o_inscription(
                     l2_block_number: block.block_parameters.block_number.into(),
 
                     bitcoin_block_number: bitcoin_block.block_identifier.index,
-                    bitcoin_block_hash: Hash256::from_hex(&bitcoin_block.block_identifier.hash)
-                        .unwrap(),
+                    bitcoin_block_hash: Hash256::from_hex(&bitcoin_block.block_identifier.hash)?,
 
-                    public_key: L2OCompactPublicKey::from_hex(&block.block_parameters.public_key)
-                        .unwrap(),
+                    public_key: L2OCompactPublicKey::from_hex(&block.block_parameters.public_key)?,
 
                     start_state_root: Hash256::zero(),
                     end_state_root: deploy_inscription.start_state_root,
 
-                    deposit_state_root: Hash256::from_hex(&block.block_parameters.deposits_root)
-                        .unwrap(),
+                    deposit_state_root: Hash256::from_hex(&block.block_parameters.deposits_root)?,
 
                     start_withdrawal_state_root: Hash256::zero(),
                     end_withdrawal_state_root: Hash256::from_hex(
                         &block.block_parameters.withdrawals_root,
-                    )
-                    .unwrap(),
+                    )?,
 
                     proof: L2OAProofData::Groth16BN128(Groth16BN128ProofData {
                         proof: block_proof.proof.clone(),
@@ -193,13 +195,11 @@ async fn process_l2o_inscription(
                     }),
 
                     superchain_root: Hash256::zero(),
-                    signature: L2OSignature512::from_hex(&block.signature).unwrap(),
+                    signature: L2OSignature512::from_hex(&block.signature)?,
                 };
 
                 let mut uncompressed_bytes = Vec::new();
-                block_proof
-                    .serialize_uncompressed(&mut uncompressed_bytes)
-                    .unwrap();
+                block_proof.serialize_uncompressed(&mut uncompressed_bytes)?;
 
                 let public_inputs: [Fr; 2] =
                     Sha256Hasher::get_l2_block_hash(&block_inscription).into();
@@ -214,14 +214,13 @@ async fn process_l2o_inscription(
                     }
                 };
 
-                let processed_vk = Groth16::<ark_bn254::Bn254>::process_vk(&vk).unwrap();
+                let processed_vk = Groth16::<ark_bn254::Bn254>::process_vk(&vk)?;
 
                 assert!(Groth16::<ark_bn254::Bn254>::verify_proof(
                     &processed_vk,
                     &block_proof.proof,
                     &block_proof.public_inputs,
-                )
-                .unwrap());
+                )?);
 
                 let msg = get_block_payload_bytes(&block_inscription);
                 if !deploy_inscription.public_key.is_zero() {
@@ -229,8 +228,7 @@ async fn process_l2o_inscription(
                         &deploy_inscription.public_key,
                         &block_inscription.signature,
                         &msg,
-                    )
-                    .unwrap();
+                    )?;
                 }
 
                 store
@@ -241,7 +239,7 @@ async fn process_l2o_inscription(
                 return Ok(());
             }
 
-            let last_block = last_block_res.unwrap();
+            let last_block = last_block_res?;
             if u64::from(block.block_parameters.block_number) != last_block.l2_block_number + 1 {
                 anyhow::bail!("block must be consecutive");
             }
@@ -259,7 +257,7 @@ async fn process_l2o_inscription(
                 anyhow::bail!("only groth16bn128 is supported");
             }
 
-            let block_proof = block.proof.to_proof_with_public_inputs_groth16_bn254();
+            let block_proof = block.proof.to_proof_with_public_inputs_groth16_bn254()?;
 
             let block_inscription = L2OBlockInscriptionV1 {
                 p: "l2o-a".to_string(),
@@ -269,23 +267,19 @@ async fn process_l2o_inscription(
                 l2_block_number: block.block_parameters.block_number.into(),
 
                 bitcoin_block_number: bitcoin_block.block_identifier.index,
-                bitcoin_block_hash: Hash256::from_hex(&bitcoin_block.block_identifier.hash)
-                    .unwrap(),
+                bitcoin_block_hash: Hash256::from_hex(&bitcoin_block.block_identifier.hash)?,
 
-                public_key: L2OCompactPublicKey::from_hex(&block.block_parameters.public_key)
-                    .unwrap(),
+                public_key: L2OCompactPublicKey::from_hex(&block.block_parameters.public_key)?,
 
                 start_state_root: last_block.end_state_root,
-                end_state_root: Hash256::from_hex(&block.block_parameters.state_root).unwrap(),
+                end_state_root: Hash256::from_hex(&block.block_parameters.state_root)?,
 
-                deposit_state_root: Hash256::from_hex(&block.block_parameters.deposits_root)
-                    .unwrap(),
+                deposit_state_root: Hash256::from_hex(&block.block_parameters.deposits_root)?,
 
                 start_withdrawal_state_root: last_block.end_withdrawal_state_root,
                 end_withdrawal_state_root: Hash256::from_hex(
                     &block.block_parameters.withdrawals_root,
-                )
-                .unwrap(),
+                )?,
 
                 proof: L2OAProofData::Groth16BN128(Groth16BN128ProofData {
                     proof: block_proof.proof.clone(),
@@ -294,7 +288,7 @@ async fn process_l2o_inscription(
 
                 superchain_root: Hash256::zero(),
 
-                signature: L2OSignature512::from_hex(&block.signature).unwrap(),
+                signature: L2OSignature512::from_hex(&block.signature)?,
             };
 
             let msg = get_block_payload_bytes(&block_inscription);
@@ -303,17 +297,13 @@ async fn process_l2o_inscription(
                     &deploy_inscription.public_key,
                     &block_inscription.signature,
                     &msg,
-                )
-                .unwrap();
+                )?;
             }
 
             let mut uncompressed_bytes = Vec::new();
-            block_proof
-                .serialize_uncompressed(&mut uncompressed_bytes)
-                .unwrap();
+            block_proof.serialize_uncompressed(&mut uncompressed_bytes)?;
 
-            let public_inputs: [Fr; 2] =
-                Sha256Hasher::get_l2_block_hash(&block_inscription).into();
+            let public_inputs: [Fr; 2] = Sha256Hasher::get_l2_block_hash(&block_inscription).into();
             // if public_inputs.to_vec() != block_proof.public_inputs {
             //     anyhow::bail!("public inputs mismatch");
             // }
@@ -325,14 +315,13 @@ async fn process_l2o_inscription(
                 }
             };
 
-            let processed_vk = Groth16::<ark_bn254::Bn254>::process_vk(&vk).unwrap();
+            let processed_vk = Groth16::<ark_bn254::Bn254>::process_vk(&vk)?;
 
             assert!(Groth16::<ark_bn254::Bn254>::verify_proof(
                 &processed_vk,
                 &block_proof.proof,
                 &block_proof.public_inputs,
-            )
-            .unwrap());
+            )?);
 
             store
                 .lock()
@@ -427,7 +416,7 @@ async fn handle_rpc_requests(
     Ok(Response::builder()
         .status(StatusCode::OK)
         .header(header::CONTENT_TYPE, "application/json")
-        .body(full(serde_json::to_vec(&response).unwrap()))?)
+        .body(full(serde_json::to_vec(&response)?))?)
 }
 
 async fn route(
@@ -441,8 +430,7 @@ async fn route(
             // Return 404 not found response.
             Ok(Response::builder()
                 .status(StatusCode::NOT_FOUND)
-                .body(full(NOTFOUND))
-                .unwrap())
+                .body(full(NOTFOUND))?)
         }
     }
 }

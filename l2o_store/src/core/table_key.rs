@@ -10,17 +10,17 @@ impl<const TABLE_TYPE: u16> L2TableKey<TABLE_TYPE> {
     }
 }
 impl<const TABLE_TYPE: u16> KVQSerializable for L2TableKey<TABLE_TYPE> {
-    fn to_bytes(&self) -> Vec<u8> {
+    fn to_bytes(&self) -> anyhow::Result<Vec<u8>> {
         let mut result: Vec<u8> = Vec::with_capacity(10);
         result.push(((TABLE_TYPE & 0xFF00) >> 8) as u8); // 1
         result.push((TABLE_TYPE & 0xFF) as u8); // 2
         result.extend_from_slice(&self.l2id.to_be_bytes()); // 11
-        result
+        Ok(result)
     }
 
-    fn from_bytes(bytes: &[u8]) -> Self {
-        Self {
-            l2id: u64::from_be_bytes(bytes[2..10].try_into().unwrap()),
-        }
+    fn from_bytes(bytes: &[u8]) -> anyhow::Result<Self> {
+        Ok(Self {
+            l2id: u64::from_be_bytes(bytes[2..10].try_into()?),
+        })
     }
 }

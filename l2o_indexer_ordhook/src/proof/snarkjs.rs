@@ -32,40 +32,40 @@ pub struct ProofJson {
     pub public_inputs: Vec<String>,
 }
 impl ProofJson {
-    pub fn to_proof_groth16_bn254(&self) -> Proof<Bn254> {
+    pub fn to_proof_groth16_bn254(&self) -> anyhow::Result<Proof<Bn254>> {
         let a_g1 = G1Affine::from(G1Projective::new(
-            str_to_fq(&self.pi_a[0]),
-            str_to_fq(&self.pi_a[1]),
-            str_to_fq(&self.pi_a[2]),
+            str_to_fq(&self.pi_a[0])?,
+            str_to_fq(&self.pi_a[1])?,
+            str_to_fq(&self.pi_a[2])?,
         ));
         let b_g2 = G2Affine::from(G2Projective::new(
             // x
-            Fq2::new(str_to_fq(&self.pi_b[0][0]), str_to_fq(&self.pi_b[0][1])),
+            Fq2::new(str_to_fq(&self.pi_b[0][0])?, str_to_fq(&self.pi_b[0][1])?),
             // y
-            Fq2::new(str_to_fq(&self.pi_b[1][0]), str_to_fq(&self.pi_b[1][1])),
+            Fq2::new(str_to_fq(&self.pi_b[1][0])?, str_to_fq(&self.pi_b[1][1])?),
             // z,
-            Fq2::new(str_to_fq(&self.pi_b[2][0]), str_to_fq(&self.pi_b[2][1])),
+            Fq2::new(str_to_fq(&self.pi_b[2][0])?, str_to_fq(&self.pi_b[2][1])?),
         ));
 
         let c_g1 = G1Affine::from(G1Projective::new(
-            str_to_fq(&self.pi_c[0]),
-            str_to_fq(&self.pi_c[1]),
-            str_to_fq(&self.pi_c[2]),
+            str_to_fq(&self.pi_c[0])?,
+            str_to_fq(&self.pi_c[1])?,
+            str_to_fq(&self.pi_c[2])?,
         ));
 
-        Proof::<Bn254> {
+        Ok(Proof::<Bn254> {
             a: a_g1,
             b: b_g2,
             c: c_g1,
-        }
+        })
     }
-    pub fn to_proof_with_public_inputs_groth16_bn254(&self) -> ProofWithPublicInputs<Bn254> {
-        let proof = self.to_proof_groth16_bn254();
-        let public_inputs = self.public_inputs.iter().map(|s| str_to_fr(s)).collect();
-        ProofWithPublicInputs::<Bn254> {
+    pub fn to_proof_with_public_inputs_groth16_bn254(&self) -> anyhow::Result<ProofWithPublicInputs<Bn254>> {
+        let proof = self.to_proof_groth16_bn254()?;
+        let public_inputs = self.public_inputs.iter().map(|s| str_to_fr(s)).collect::<l2o_common::Result<_>>()?;
+        Ok(ProofWithPublicInputs::<Bn254> {
             proof: proof,
             public_inputs: public_inputs,
-        }
+        })
     }
     pub fn from_proof_with_public_inputs_groth16_bn254(proof: &Groth16BN128ProofData) -> Self {
         let a_g1_projective = G1Projective::from(proof.proof.a);
@@ -122,94 +122,96 @@ pub struct VerifyingKeyJson {
 }
 
 impl VerifyingKeyJson {
-    pub fn to_verifying_key_groth16_bn254(self) -> VerifyingKey<Bn254> {
+    pub fn to_verifying_key_groth16_bn254(self) -> anyhow::Result<VerifyingKey<Bn254>> {
         let alpha_g1 = G1Affine::from(G1Projective::new(
-            str_to_fq(&self.vk_alpha_1[0]),
-            str_to_fq(&self.vk_alpha_1[1]),
-            str_to_fq(&self.vk_alpha_1[2]),
+            str_to_fq(&self.vk_alpha_1[0])?,
+            str_to_fq(&self.vk_alpha_1[1])?,
+            str_to_fq(&self.vk_alpha_1[2])?,
         ));
         let beta_g2 = G2Affine::from(G2Projective::new(
             // x
             Fq2::new(
-                str_to_fq(&self.vk_beta_2[0][0]),
-                str_to_fq(&self.vk_beta_2[0][1]),
+                str_to_fq(&self.vk_beta_2[0][0])?,
+                str_to_fq(&self.vk_beta_2[0][1])?,
             ),
             // y
             Fq2::new(
-                str_to_fq(&self.vk_beta_2[1][0]),
-                str_to_fq(&self.vk_beta_2[1][1]),
+                str_to_fq(&self.vk_beta_2[1][0])?,
+                str_to_fq(&self.vk_beta_2[1][1])?,
             ),
             // z,
             Fq2::new(
-                str_to_fq(&self.vk_beta_2[2][0]),
-                str_to_fq(&self.vk_beta_2[2][1]),
+                str_to_fq(&self.vk_beta_2[2][0])?,
+                str_to_fq(&self.vk_beta_2[2][1])?,
             ),
         ));
 
         let gamma_g2 = G2Affine::from(G2Projective::new(
             // x
             Fq2::new(
-                str_to_fq(&self.vk_gamma_2[0][0]),
-                str_to_fq(&self.vk_gamma_2[0][1]),
+                str_to_fq(&self.vk_gamma_2[0][0])?,
+                str_to_fq(&self.vk_gamma_2[0][1])?,
             ),
             // y
             Fq2::new(
-                str_to_fq(&self.vk_gamma_2[1][0]),
-                str_to_fq(&self.vk_gamma_2[1][1]),
+                str_to_fq(&self.vk_gamma_2[1][0])?,
+                str_to_fq(&self.vk_gamma_2[1][1])?,
             ),
             // z,
             Fq2::new(
-                str_to_fq(&self.vk_gamma_2[2][0]),
-                str_to_fq(&self.vk_gamma_2[2][1]),
+                str_to_fq(&self.vk_gamma_2[2][0])?,
+                str_to_fq(&self.vk_gamma_2[2][1])?,
             ),
         ));
 
         let delta_g2 = G2Affine::from(G2Projective::new(
             // x
             Fq2::new(
-                str_to_fq(&self.vk_delta_2[0][0]),
-                str_to_fq(&self.vk_delta_2[0][1]),
+                str_to_fq(&self.vk_delta_2[0][0])?,
+                str_to_fq(&self.vk_delta_2[0][1])?,
             ),
             // y
             Fq2::new(
-                str_to_fq(&self.vk_delta_2[1][0]),
-                str_to_fq(&self.vk_delta_2[1][1]),
+                str_to_fq(&self.vk_delta_2[1][0])?,
+                str_to_fq(&self.vk_delta_2[1][1])?,
             ),
             // z,
             Fq2::new(
-                str_to_fq(&self.vk_delta_2[2][0]),
-                str_to_fq(&self.vk_delta_2[2][1]),
+                str_to_fq(&self.vk_delta_2[2][0])?,
+                str_to_fq(&self.vk_delta_2[2][1])?,
             ),
         ));
 
         let gamma_abc_g1: Vec<G1Affine> = self
             .ic
             .iter()
-            .map(|coords| {
+            .map(|coords| Ok({
                 G1Affine::from(G1Projective::new(
-                    str_to_fq(&coords[0]),
-                    str_to_fq(&coords[1]),
-                    str_to_fq(&coords[2]),
+                    str_to_fq(&coords[0])?,
+                    str_to_fq(&coords[1])?,
+                    str_to_fq(&coords[2])?,
                 ))
-            })
-            .collect();
+            }))
+            .collect::<l2o_common::Result<_>>()?;
 
-        VerifyingKey::<Bn254> {
+        Ok(VerifyingKey::<Bn254> {
             alpha_g1: alpha_g1,
             beta_g2: beta_g2,
             gamma_g2: gamma_g2,
             delta_g2: delta_g2,
             gamma_abc_g1: gamma_abc_g1,
-        }
+        })
     }
 }
 
-pub fn str_to_fq(s: &str) -> Fq {
-    Fq::from_str(if s == "" { "0" } else { s }).unwrap()
+pub fn str_to_fq(s: &str) -> l2o_common::Result<Fq> {
+    Ok(Fq::from_str(if s == "" { "0" } else { s })
+        .map_err(|_| anyhow::anyhow!("str to fq conversion failed"))?)
 }
 
-pub fn str_to_fr(s: &str) -> Fr {
-    Fr::from_str(if s == "" { "0" } else { s }).unwrap()
+pub fn str_to_fr(s: &str) -> l2o_common::Result<Fr> {
+    Ok(Fr::from_str(if s == "" { "0" } else { s })
+        .map_err(|_| anyhow::anyhow!("str to fr conversion failed"))?)
 }
 
 #[cfg(test)]
@@ -228,10 +230,10 @@ mod tests {
         let proof_json = include_str!("../../assets/example_proof.json");
         let p: VerifyingKey<Bn254> = serde_json::from_str::<VerifyingKeyJson>(vk_json)
             .unwrap()
-            .to_verifying_key_groth16_bn254();
+            .to_verifying_key_groth16_bn254().unwrap();
         let proof: ProofWithPublicInputs<Bn254> = serde_json::from_str::<ProofJson>(proof_json)
             .unwrap()
-            .to_proof_with_public_inputs_groth16_bn254();
+            .to_proof_with_public_inputs_groth16_bn254().unwrap();
 
         let p2 = Groth16::<Bn254>::process_vk(&p).unwrap();
         let mut uncompressed_bytes = Vec::new();

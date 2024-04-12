@@ -7,8 +7,8 @@ use serde::Serializer;
 pub struct L2OCompactPublicKey(pub [u8; 32]);
 
 impl L2OCompactPublicKey {
-    pub fn from_hex(s: &str) -> Result<Self, ()> {
-        let bytes = hex::decode(s).unwrap();
+    pub fn from_hex(s: &str) -> crate::Result<Self> {
+        let bytes = hex::decode(s)?;
         assert_eq!(bytes.len(), 32);
         let mut array = [0u8; 32];
         array.copy_from_slice(&bytes);
@@ -59,8 +59,8 @@ impl<'de> Deserialize<'de> for L2OCompactPublicKey {
 pub struct L2OSignature512(pub [u8; 64]);
 
 impl L2OSignature512 {
-    pub fn from_hex(s: &str) -> Result<Self, ()> {
-        let bytes = hex::decode(s).unwrap();
+    pub fn from_hex(s: &str) -> crate::Result<Self> {
+        let bytes = hex::decode(s)?;
         assert_eq!(bytes.len(), 64);
         let mut array = [0u8; 64];
         array.copy_from_slice(&bytes);

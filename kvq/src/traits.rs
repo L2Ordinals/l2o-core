@@ -38,27 +38,27 @@ impl<'de, K: Deserialize<'de>, V: Deserialize<'de>> Deserialize<'de> for KVQPair
 }
 
 pub trait KVQSerializable: Clone + PartialEq {
-    fn to_bytes(&self) -> Vec<u8>;
-    fn from_bytes(bytes: &[u8]) -> Self;
+    fn to_bytes(&self) -> anyhow::Result<Vec<u8>>;
+    fn from_bytes(bytes: &[u8]) -> anyhow::Result<Self>;
 }
 
 pub fn unwrap_kv_vec_result<T>(results: Vec<Option<T>>) -> anyhow::Result<Vec<T>> {
     let mut result: Vec<T> = Vec::with_capacity(results.len());
 
-    for item in results {
-        if item.is_none() {
-            return Err(anyhow::anyhow!("Missing value in unwrapped Vec result!"));
+    for item_opt in results {
+        if let Some(item) = item_opt {
+            result.push(item);
         } else {
-            result.push(item.unwrap());
+            return Err(anyhow::anyhow!("Missing value in unwrapped Vec result!"));
         }
     }
     Ok(result)
 }
-pub fn unwrap_kv_result<T>(item: Option<T>) -> anyhow::Result<T> {
-    if item.is_none() {
-        return Err(anyhow::anyhow!("Missing value in unwrapped Vec result!"));
+pub fn unwrap_kv_result<T>(item_opt: Option<T>) -> anyhow::Result<T> {
+    if let Some(item) = item_opt {
+        Ok(item)
     } else {
-        Ok(item.unwrap())
+        return Err(anyhow::anyhow!("Missing value in unwrapped Vec result!"));
     }
 }
 

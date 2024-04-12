@@ -1,5 +1,4 @@
 use clap::Args;
-
 #[derive(Clone, Args)]
 pub struct IndexerArgs {
     #[clap(short, env, long, default_value = "0.0.0.0:3000", env)]

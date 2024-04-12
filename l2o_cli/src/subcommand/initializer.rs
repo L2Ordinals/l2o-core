@@ -33,8 +33,8 @@ pub async fn run(
 ) -> anyhow::Result<(ProvingKey<Bn254>, VerifyingKey<Bn254>, StdRng)> {
     let deploy_json = include_str!("../../../l2o_indexer_ordhook/assets/deploy.json");
     let block_json = include_str!("../../../l2o_indexer_ordhook/assets/block.json");
-    let deploy_data = serde_json::from_str::<L2OInscription>(deploy_json).unwrap();
-    let block_data = serde_json::from_str::<L2OInscription>(block_json).unwrap();
+    let deploy_data = serde_json::from_str::<L2OInscription>(deploy_json)?;
+    let block_data = serde_json::from_str::<L2OInscription>(block_json)?;
     let mut deploy = match deploy_data {
         L2OInscription::Deploy(deploy) => deploy,
         _ => unreachable!(),
@@ -44,7 +44,7 @@ pub async fn run(
         _ => unreachable!(),
     };
 
-    let block_proof = block.proof.to_proof_with_public_inputs_groth16_bn254();
+    let block_proof = block.proof.to_proof_with_public_inputs_groth16_bn254()?;
     let block_inscription = L2OBlockInscriptionV1 {
         p: "l2o-a".to_string(),
         op: "Block".to_string(),
@@ -55,16 +55,15 @@ pub async fn run(
         bitcoin_block_number: 0,
         bitcoin_block_hash: Hash256::zero(),
 
-        public_key: L2OCompactPublicKey::from_hex(&block.block_parameters.public_key).unwrap(),
+        public_key: L2OCompactPublicKey::from_hex(&block.block_parameters.public_key)?,
 
         start_state_root: Hash256::zero(),
-        end_state_root: Hash256::from_hex(&deploy.start_state_root).unwrap(),
+        end_state_root: Hash256::from_hex(&deploy.start_state_root)?,
 
-        deposit_state_root: Hash256::from_hex(&block.block_parameters.deposits_root).unwrap(),
+        deposit_state_root: Hash256::from_hex(&block.block_parameters.deposits_root)?,
 
         start_withdrawal_state_root: Hash256::zero(),
-        end_withdrawal_state_root: Hash256::from_hex(&block.block_parameters.withdrawals_root)
-            .unwrap(),
+        end_withdrawal_state_root: Hash256::from_hex(&block.block_parameters.withdrawals_root)?,
 
         proof: L2OAProofData::Groth16BN128(Groth16BN128ProofData {
             proof: block_proof.proof,
@@ -72,7 +71,7 @@ pub async fn run(
         }),
 
         superchain_root: Hash256::zero(),
-        signature: L2OSignature512::from_hex(&block.signature).unwrap(),
+        signature: L2OSignature512::from_hex(&block.signature)?,
     };
 
     let block_payload = get_block_payload_bytes(&block_inscription);
@@ -85,7 +84,7 @@ pub async fn run(
 
     let mut rng = ark_std::rand::rngs::StdRng::seed_from_u64(test_rng().next_u64());
 
-    let (pk, vk) = Groth16::<Bn254>::setup(block_circuit.clone(), &mut rng).unwrap();
+    let (pk, vk) = Groth16::<Bn254>::setup(block_circuit.clone(), &mut rng)?;
 
     let vk_json = Groth16VerifierDataSerializable::from_vk(&vk);
     let vk_json_cloned = vk_json.clone();
@@ -95,14 +94,13 @@ pub async fn run(
     deploy.vk.vk_gamma_2 = vk_json.vk_gamma_2.into_iter().map(|x| x.into()).collect();
     deploy.vk.vk_delta_2 = vk_json.vk_delta_2.into_iter().map(|x| x.into()).collect();
 
-    let mut deploy_value = serde_json::to_value(&deploy).unwrap();
+    let mut deploy_value = serde_json::to_value(&deploy)?;
     deploy_value["p"] = json!("l2o");
     deploy_value["op"] = json!("Deploy");
     std::fs::write(
         "./l2o_indexer_ordhook/assets/deploy.json",
-        serde_json::to_string_pretty(&deploy_value).unwrap(),
-    )
-    .unwrap();
+        serde_json::to_string_pretty(&deploy_value)?,
+    )?;
 
     std::process::Command::new("make")
         .args([
@@ -112,18 +110,17 @@ pub async fn run(
         .spawn()
         .expect("failed to execute process");
 
-    let mut block_value = serde_json::to_value(&block).unwrap();
+    let mut block_value = serde_json::to_value(&block)?;
     block_value["p"] = json!("l2o");
     block_value["op"] = json!("Block");
-    let processed_vk = Groth16::<Bn254>::process_vk(&vk).unwrap();
-    let proof = Groth16::<Bn254>::prove(&pk, block_circuit.clone(), &mut rng).unwrap();
+    let processed_vk = Groth16::<Bn254>::process_vk(&vk)?;
+    let proof = Groth16::<Bn254>::prove(&pk, block_circuit.clone(), &mut rng)?;
 
     assert!(Groth16::<Bn254>::verify_with_processed_vk(
         &processed_vk,
         &block_circuit.block_hash,
         &proof
-    )
-    .unwrap());
+    )?);
     let proof_json =
         ProofJson::from_proof_with_public_inputs_groth16_bn254(&Groth16BN128ProofData {
             proof,
@@ -131,20 +128,18 @@ pub async fn run(
         });
 
     let proof_deserialized: ProofWithPublicInputs<Bn254> =
-        proof_json.to_proof_with_public_inputs_groth16_bn254();
+        proof_json.to_proof_with_public_inputs_groth16_bn254()?;
     assert!(Groth16::<Bn254>::verify_proof(
-        &Groth16::<Bn254>::process_vk(&vk_json_cloned.to_vk().unwrap()).unwrap(),
+        &Groth16::<Bn254>::process_vk(&vk_json_cloned.to_vk()?).unwrap(),
         &proof_deserialized.proof,
         &proof_deserialized.public_inputs,
-    )
-    .unwrap());
+    )?);
 
     block_value["proof"] = json!(proof_json);
     std::fs::write(
         "./l2o_indexer_ordhook/assets/block.json",
-        serde_json::to_string_pretty(&block_value).unwrap(),
-    )
-    .unwrap();
+        serde_json::to_string_pretty(&block_value)?,
+    )?;
 
     std::process::Command::new("make")
         .args([

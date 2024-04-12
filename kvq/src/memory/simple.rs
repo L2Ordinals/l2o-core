@@ -53,7 +53,7 @@ impl KVQBinaryStore for KVQSimpleMemoryBackingStore {
 
     fn set_many_vec(&mut self, items: Vec<KVQPair<Vec<u8>, Vec<u8>>>) -> anyhow::Result<()> {
         for item in items {
-            self.map.insert(item.key.clone(), item.value.clone());
+            self.map.insert(item.key, item.value);
         }
         Ok(())
     }
@@ -89,12 +89,10 @@ impl KVQBinaryStore for KVQSimpleMemoryBackingStore {
         }
         let rq = self.map.range(base_key..key_end).next_back();
 
-        if rq.is_none() {
-            Ok(None)
-        } else {
-            let p = rq.unwrap().1;
-
+        if let Some((_, p)) = rq {
             Ok(Some(p.to_owned()))
+        } else {
+            Ok(None)
         }
     }
 
@@ -117,14 +115,13 @@ impl KVQBinaryStore for KVQSimpleMemoryBackingStore {
         }
         let rq = self.map.range(base_key..key_end).next_back();
 
-        if rq.is_none() {
-            Ok(None)
-        } else {
-            let p = rq.unwrap();
+        if let Some((k, v)) = rq {
             Ok(Some(KVQPair {
-                key: p.0.to_owned(),
-                value: p.1.to_owned(),
+                key: k.to_owned(),
+                value: v.to_owned(),
             }))
+        } else {
+            Ok(None)
         }
     }
 

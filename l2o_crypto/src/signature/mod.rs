@@ -6,7 +6,7 @@ mod tests {
     use musig2::secp::Point;
 
     #[test]
-    fn test_blake3_two_to_one() -> anyhow::Result<()> {
+    fn test_blake3_two_to_one() -> l2o_common::Result<()> {
         let signature_bytes = hex::decode("403B12B0D8555A344175EA7EC746566303321E5DBFA8BE6F091635163ECA79A8585ED3E3170807E7C03B720FC54C7B23897FCBA0E9D0B4A06894CFD249F22367")?;
         let mut public_key_bytes = [0u8; 32];
         hex::decode_to_slice(
@@ -15,7 +15,7 @@ mod tests {
         )?;
 
         let public_key = Point::lift_x(&public_key_bytes)?;
-        let message_bytes = hex::decode("99999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999").unwrap();
+        let message_bytes = hex::decode("99999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999")?;
 
         musig2::verify_single(public_key, &*signature_bytes, &message_bytes)?;
         /*let p: &[u8] = &signature_bytes;

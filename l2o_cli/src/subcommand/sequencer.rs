@@ -69,7 +69,7 @@ async fn execute_single(
         signature: prev_block.signature.to_hex(),
     };
 
-    let mock_proof = next_block.proof.to_proof_with_public_inputs_groth16_bn254();
+    let mock_proof = next_block.proof.to_proof_with_public_inputs_groth16_bn254()?;
 
     let block_inscription = L2OBlockInscriptionV1 {
         p: "l2o-a".to_string(),
@@ -81,16 +81,17 @@ async fn execute_single(
         bitcoin_block_number: 0,
         bitcoin_block_hash: Hash256::zero(),
 
-        public_key: L2OCompactPublicKey::from_hex(&next_block.block_parameters.public_key).unwrap(),
+        public_key: L2OCompactPublicKey::from_hex(&next_block.block_parameters.public_key)?,
 
         start_state_root: prev_block.end_state_root.clone(),
-        end_state_root: Hash256::from_hex(&next_block.block_parameters.state_root).unwrap(),
+        end_state_root: Hash256::from_hex(&next_block.block_parameters.state_root)?,
 
-        deposit_state_root: Hash256::from_hex(&next_block.block_parameters.deposits_root).unwrap(),
+        deposit_state_root: Hash256::from_hex(&next_block.block_parameters.deposits_root)?,
 
         start_withdrawal_state_root: prev_block.end_withdrawal_state_root.clone(),
-        end_withdrawal_state_root: Hash256::from_hex(&next_block.block_parameters.withdrawals_root)
-            .unwrap(),
+        end_withdrawal_state_root: Hash256::from_hex(
+            &next_block.block_parameters.withdrawals_root,
+        )?,
 
         proof: L2OAProofData::Groth16BN128(Groth16BN128ProofData {
             proof: mock_proof.proof,
@@ -98,7 +99,7 @@ async fn execute_single(
         }),
 
         superchain_root: Hash256::zero(),
-        signature: L2OSignature512::from_hex(&next_block.signature).unwrap(),
+        signature: L2OSignature512::from_hex(&next_block.signature)?,
     };
     let block_payload = get_block_payload_bytes(&block_inscription);
     let block_hash: [Fr; 2] = Sha256Hasher::get_l2_block_hash(&block_inscription).into();
@@ -106,20 +107,20 @@ async fn execute_single(
         block_hash,
         block_payload,
     };
-    let proof = Groth16::<Bn254>::prove(&pk, block_circuit, rng).unwrap();
+    let proof = Groth16::<Bn254>::prove(&pk, block_circuit, rng)?;
     let proof_json =
         ProofJson::from_proof_with_public_inputs_groth16_bn254(&Groth16BN128ProofData {
             proof,
             public_inputs: block_hash.to_vec(),
         });
-    let mut block_value = serde_json::to_value(&next_block).unwrap();
+    let mut block_value = serde_json::to_value(&next_block)?;
     block_value["proof"] = json!(proof_json);
 
     block_value["p"] = json!("l2o");
     block_value["op"] = json!("Block");
     std::fs::write(
         "./l2o_indexer_ordhook/assets/block.json",
-        serde_json::to_string_pretty(&block_value).unwrap(),
+        serde_json::to_string_pretty(&block_value)?,
     )?;
 
     std::process::Command::new("make")
@@ -134,7 +135,7 @@ async fn execute_single(
 }
 
 pub async fn run(args: &SequencerArgs) -> anyhow::Result<()> {
-    let (pk, vk, mut rng) = initializer::run(&InitializerArgs {}).await.unwrap();
+    let (pk, vk, mut rng) = initializer::run(&InitializerArgs {}).await?;
 
     let client = Client::new();
     loop {
