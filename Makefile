@@ -1,5 +1,5 @@
 PROFILE   := lite
-LOG_LEVEL := info
+LOG_LEVEL := info,r1cs=off
 
 .PHONY: check
 check:
