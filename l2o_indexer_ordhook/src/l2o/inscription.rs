@@ -1,8 +1,7 @@
+use l2o_crypto::proof::groth16::bn128::proof_data::Groth16ProofSerializable;
+use l2o_crypto::proof::groth16::bn128::verifier_data::Groth16VerifierDataSerializable;
 use serde::Deserialize;
 use serde::Serialize;
-
-use crate::proof::snarkjs::ProofJson;
-use crate::proof::snarkjs::VerifyingKeyJson;
 
 #[derive(Serialize, Deserialize, Clone, PartialEq, Debug)]
 #[serde(tag = "op")]
@@ -16,7 +15,7 @@ pub struct L2OInscriptionDeploy {
     pub l2id: u32,
     pub start_state_root: String,
     pub public_key: String,
-    pub vk: VerifyingKeyJson,
+    pub vk: Groth16VerifierDataSerializable,
     pub hash_function: String,
     pub proof_type: String,
 }
@@ -34,7 +33,7 @@ pub struct L2OInscriptionBlockParameters {
 pub struct L2OInscriptionBlock {
     pub l2id: u32,
     pub block_parameters: L2OInscriptionBlockParameters,
-    pub proof: ProofJson,
+    pub proof: Groth16ProofSerializable,
     pub signature: String,
 }
 

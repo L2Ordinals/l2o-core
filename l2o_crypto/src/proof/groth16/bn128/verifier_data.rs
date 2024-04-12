@@ -48,7 +48,12 @@ pub struct Groth16VerifierDataSerializable {
     pub vk_gamma_2: [[String; 2]; 3],
     pub vk_delta_2: [[String; 2]; 3],
     //    pub vk_alphabeta_12: [[[String; 2]; 3]; 2],
+    #[serde(rename = "nPublic")]
+    pub n_public: u32,
+    #[serde(rename = "IC")]
     pub ic: [[String; 3]; 3],
+    pub curve: String,
+    pub protocol: String,
 }
 
 impl Groth16VerifierDataSerializable {
@@ -207,14 +212,45 @@ impl Groth16VerifierDataSerializable {
                     ic_projective[2].z.to_string(),
                 ],
             ],
+            n_public: 1,
+            curve: "bn128".to_string(),
+            protocol: "groth16".to_string(),
         }
     }
 }
 
-#[derive(Serialize, Deserialize, Clone, PartialEq, Debug)]
-struct Groth16ProofSerializable {
-    pub pi_a: [String; 3],
-    pub pi_b: [String; 3],
-    pub pi_c: [String; 3],
-    pub public_inputs: Vec<String>,
+#[cfg(test)]
+mod tests {
+    use ark_bn254::Bn254;
+    use ark_groth16::Groth16;
+    use ark_groth16::VerifyingKey;
+    use ark_serialize::CanonicalSerialize;
+    use ark_snark::SNARK;
+
+    use super::*;
+    use crate::proof::groth16::bn128::proof_data::Groth16ProofSerializable;
+
+    #[test]
+    fn test_serialize_verify() {
+        let vk_json = include_str!("../../../../../l2o_indexer_ordhook/assets/example_vkey.json");
+        let proof_json =
+            include_str!("../../../../../l2o_indexer_ordhook/assets/example_proof.json");
+        let p: VerifyingKey<Bn254> =
+            serde_json::from_str::<Groth16VerifierDataSerializable>(vk_json)
+                .unwrap()
+                .to_vk()
+                .unwrap();
+        let proof = serde_json::from_str::<Groth16ProofSerializable>(proof_json)
+            .unwrap()
+            .to_proof_with_public_inputs_groth16_bn254()
+            .unwrap();
+
+        let p2 = Groth16::<Bn254>::process_vk(&p).unwrap();
+        let mut uncompressed_bytes = Vec::new();
+        p.serialize_uncompressed(&mut uncompressed_bytes).unwrap();
+        tracing::info!("{:?}", p);
+        tracing::info!("{}", uncompressed_bytes.len());
+        let r = Groth16::<Bn254>::verify_proof(&p2, &proof.proof, &proof.public_inputs).unwrap();
+        assert_eq!(r, true, "verify proof")
+    }
 }

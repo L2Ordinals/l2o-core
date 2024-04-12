@@ -49,7 +49,7 @@ impl<'de> Deserialize<'de> for Groth16BN128ProofData {
 }
 
 #[derive(Serialize, Deserialize, Clone, PartialEq, Debug)]
-struct Groth16ProofSerializable {
+pub struct Groth16ProofSerializable {
     pub pi_a: [String; 3],
     pub pi_b: [[String; 2]; 3],
     pub pi_c: [String; 3],

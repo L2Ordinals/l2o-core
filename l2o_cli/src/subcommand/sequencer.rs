@@ -17,11 +17,11 @@ use l2o_crypto::hash::hash_functions::block_hasher::get_block_payload_bytes;
 use l2o_crypto::hash::hash_functions::sha256::Sha256Hasher;
 use l2o_crypto::hash::traits::L2OBlockHasher;
 use l2o_crypto::proof::groth16::bn128::proof_data::Groth16BN128ProofData;
+use l2o_crypto::proof::groth16::bn128::proof_data::Groth16ProofSerializable;
 use l2o_crypto::standards::l2o_a::proof::L2OAProofData;
 use l2o_crypto::standards::l2o_a::L2OBlockInscriptionV1;
 use l2o_indexer_ordhook::l2o::inscription::L2OInscriptionBlock;
 use l2o_indexer_ordhook::l2o::inscription::L2OInscriptionBlockParameters;
-use l2o_indexer_ordhook::proof::snarkjs::ProofJson;
 use l2o_indexer_ordhook::rpc::request::Id;
 use l2o_indexer_ordhook::rpc::request::RequestParams;
 use l2o_indexer_ordhook::rpc::request::RpcRequest;
@@ -63,7 +63,7 @@ async fn execute_single(
             withdrawals_root: Hash256::rand().to_hex(),
             block_number: (prev_block.l2_block_number + 1) as u32,
         },
-        proof: ProofJson::from_proof_with_public_inputs_groth16_bn254(
+        proof: Groth16ProofSerializable::from_proof_with_public_inputs_groth16_bn254(
             &prev_block.proof.as_groth16_bn128(),
         ),
         signature: prev_block.signature.to_hex(),
@@ -110,11 +110,12 @@ async fn execute_single(
         block_payload,
     };
     let proof = Groth16::<Bn254>::prove(&pk, block_circuit, rng)?;
-    let proof_json =
-        ProofJson::from_proof_with_public_inputs_groth16_bn254(&Groth16BN128ProofData {
+    let proof_json = Groth16ProofSerializable::from_proof_with_public_inputs_groth16_bn254(
+        &Groth16BN128ProofData {
             proof,
             public_inputs: block_hash.to_vec(),
-        });
+        },
+    );
     let mut block_value = serde_json::to_value(&next_block)?;
     block_value["proof"] = json!(proof_json);
 

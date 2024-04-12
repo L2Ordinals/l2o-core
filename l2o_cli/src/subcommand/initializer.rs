@@ -18,12 +18,11 @@ use l2o_crypto::hash::hash_functions::block_hasher::get_block_payload_bytes;
 use l2o_crypto::hash::hash_functions::sha256::Sha256Hasher;
 use l2o_crypto::hash::traits::L2OBlockHasher;
 use l2o_crypto::proof::groth16::bn128::proof_data::Groth16BN128ProofData;
+use l2o_crypto::proof::groth16::bn128::proof_data::Groth16ProofSerializable;
 use l2o_crypto::proof::groth16::bn128::verifier_data::Groth16VerifierDataSerializable;
 use l2o_crypto::standards::l2o_a::proof::L2OAProofData;
 use l2o_crypto::standards::l2o_a::L2OBlockInscriptionV1;
 use l2o_indexer_ordhook::l2o::inscription::L2OInscription;
-use l2o_indexer_ordhook::proof::snarkjs::ProofJson;
-use l2o_indexer_ordhook::proof::snarkjs::ProofWithPublicInputs;
 use serde_json::json;
 
 use crate::circuits::BlockCircuit;
@@ -88,11 +87,11 @@ pub async fn run(
 
     let vk_json = Groth16VerifierDataSerializable::from_vk(&vk);
     let vk_json_cloned = vk_json.clone();
-    deploy.vk.ic = vk_json.ic.into_iter().map(|x| x.into()).collect();
-    deploy.vk.vk_alpha_1 = vk_json.vk_alpha_1.to_vec();
-    deploy.vk.vk_beta_2 = vk_json.vk_beta_2.into_iter().map(|x| x.into()).collect();
-    deploy.vk.vk_gamma_2 = vk_json.vk_gamma_2.into_iter().map(|x| x.into()).collect();
-    deploy.vk.vk_delta_2 = vk_json.vk_delta_2.into_iter().map(|x| x.into()).collect();
+    deploy.vk.ic = vk_json.ic;
+    deploy.vk.vk_alpha_1 = vk_json.vk_alpha_1;
+    deploy.vk.vk_beta_2 = vk_json.vk_beta_2;
+    deploy.vk.vk_gamma_2 = vk_json.vk_gamma_2;
+    deploy.vk.vk_delta_2 = vk_json.vk_delta_2;
 
     let mut deploy_value = serde_json::to_value(&deploy)?;
     deploy_value["p"] = json!("l2o");
@@ -121,14 +120,14 @@ pub async fn run(
         &block_circuit.block_hash,
         &proof
     )?);
-    let proof_json =
-        ProofJson::from_proof_with_public_inputs_groth16_bn254(&Groth16BN128ProofData {
+    let proof_json = Groth16ProofSerializable::from_proof_with_public_inputs_groth16_bn254(
+        &Groth16BN128ProofData {
             proof,
             public_inputs: block_hash.to_vec(),
-        });
+        },
+    );
 
-    let proof_deserialized: ProofWithPublicInputs<Bn254> =
-        proof_json.to_proof_with_public_inputs_groth16_bn254()?;
+    let proof_deserialized = proof_json.to_proof_with_public_inputs_groth16_bn254()?;
     assert!(Groth16::<Bn254>::verify_proof(
         &Groth16::<Bn254>::process_vk(&vk_json_cloned.to_vk()?).unwrap(),
         &proof_deserialized.proof,
