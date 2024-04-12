@@ -1,9 +1,5 @@
-use std::str::FromStr;
-
 use ark_bn254::Bn254;
-use ark_bn254::Fq;
 use ark_bn254::Fq2;
-use ark_bn254::Fr;
 use ark_bn254::G1Affine;
 use ark_bn254::G1Projective;
 use ark_bn254::G2Affine;

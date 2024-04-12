@@ -201,7 +201,7 @@ async fn process_l2o_inscription(
                 let mut uncompressed_bytes = Vec::new();
                 block_proof.serialize_uncompressed(&mut uncompressed_bytes)?;
 
-                let public_inputs: [Fr; 2] =
+                let _public_inputs: [Fr; 2] =
                     Sha256Hasher::get_l2_block_hash(&block_inscription).into();
                 // if public_inputs.to_vec() != block_proof.public_inputs {
                 //     anyhow::bail!("public inputs mismatch");
@@ -303,7 +303,8 @@ async fn process_l2o_inscription(
             let mut uncompressed_bytes = Vec::new();
             block_proof.serialize_uncompressed(&mut uncompressed_bytes)?;
 
-            let public_inputs: [Fr; 2] = Sha256Hasher::get_l2_block_hash(&block_inscription).into();
+            let _public_inputs: [Fr; 2] =
+                Sha256Hasher::get_l2_block_hash(&block_inscription).into();
             // if public_inputs.to_vec() != block_proof.public_inputs {
             //     anyhow::bail!("public inputs mismatch");
             // }
