@@ -13,6 +13,8 @@ use ark_groth16::Proof;
 use ark_groth16::VerifyingKey;
 use ark_serialize::CanonicalDeserialize;
 use ark_serialize::CanonicalSerialize;
+use l2o_common::str_to_fq;
+use l2o_common::str_to_fr;
 use l2o_crypto::proof::groth16::bn128::proof_data::Groth16BN128ProofData;
 use serde::Deserialize;
 use serde::Serialize;
@@ -59,9 +61,15 @@ impl ProofJson {
             c: c_g1,
         })
     }
-    pub fn to_proof_with_public_inputs_groth16_bn254(&self) -> anyhow::Result<ProofWithPublicInputs<Bn254>> {
+    pub fn to_proof_with_public_inputs_groth16_bn254(
+        &self,
+    ) -> anyhow::Result<ProofWithPublicInputs<Bn254>> {
         let proof = self.to_proof_groth16_bn254()?;
-        let public_inputs = self.public_inputs.iter().map(|s| str_to_fr(s)).collect::<l2o_common::Result<_>>()?;
+        let public_inputs = self
+            .public_inputs
+            .iter()
+            .map(|s| str_to_fr(s))
+            .collect::<l2o_common::Result<_>>()?;
         Ok(ProofWithPublicInputs::<Bn254> {
             proof: proof,
             public_inputs: public_inputs,
@@ -185,13 +193,15 @@ impl VerifyingKeyJson {
         let gamma_abc_g1: Vec<G1Affine> = self
             .ic
             .iter()
-            .map(|coords| Ok({
-                G1Affine::from(G1Projective::new(
-                    str_to_fq(&coords[0])?,
-                    str_to_fq(&coords[1])?,
-                    str_to_fq(&coords[2])?,
-                ))
-            }))
+            .map(|coords| {
+                Ok({
+                    G1Affine::from(G1Projective::new(
+                        str_to_fq(&coords[0])?,
+                        str_to_fq(&coords[1])?,
+                        str_to_fq(&coords[2])?,
+                    ))
+                })
+            })
             .collect::<l2o_common::Result<_>>()?;
 
         Ok(VerifyingKey::<Bn254> {
@@ -202,16 +212,6 @@ impl VerifyingKeyJson {
             gamma_abc_g1: gamma_abc_g1,
         })
     }
-}
-
-pub fn str_to_fq(s: &str) -> l2o_common::Result<Fq> {
-    Ok(Fq::from_str(if s == "" { "0" } else { s })
-        .map_err(|_| anyhow::anyhow!("str to fq conversion failed"))?)
-}
-
-pub fn str_to_fr(s: &str) -> l2o_common::Result<Fr> {
-    Ok(Fr::from_str(if s == "" { "0" } else { s })
-        .map_err(|_| anyhow::anyhow!("str to fr conversion failed"))?)
 }
 
 #[cfg(test)]
@@ -230,10 +230,12 @@ mod tests {
         let proof_json = include_str!("../../assets/example_proof.json");
         let p: VerifyingKey<Bn254> = serde_json::from_str::<VerifyingKeyJson>(vk_json)
             .unwrap()
-            .to_verifying_key_groth16_bn254().unwrap();
+            .to_verifying_key_groth16_bn254()
+            .unwrap();
         let proof: ProofWithPublicInputs<Bn254> = serde_json::from_str::<ProofJson>(proof_json)
             .unwrap()
-            .to_proof_with_public_inputs_groth16_bn254().unwrap();
+            .to_proof_with_public_inputs_groth16_bn254()
+            .unwrap();
 
         let p2 = Groth16::<Bn254>::process_vk(&p).unwrap();
         let mut uncompressed_bytes = Vec::new();

@@ -69,7 +69,9 @@ async fn execute_single(
         signature: prev_block.signature.to_hex(),
     };
 
-    let mock_proof = next_block.proof.to_proof_with_public_inputs_groth16_bn254()?;
+    let mock_proof = next_block
+        .proof
+        .to_proof_with_public_inputs_groth16_bn254()?;
 
     let block_inscription = L2OBlockInscriptionV1 {
         p: "l2o-a".to_string(),

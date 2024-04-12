@@ -9,6 +9,7 @@ use ark_bn254::G1Projective;
 use ark_bn254::G2Affine;
 use ark_bn254::G2Projective;
 use ark_groth16::VerifyingKey;
+use l2o_common::str_to_fq;
 use serde::Deserialize;
 use serde::Deserializer;
 use serde::Serialize;
@@ -52,16 +53,6 @@ pub struct Groth16VerifierDataSerializable {
     pub vk_delta_2: [[String; 2]; 3],
     //    pub vk_alphabeta_12: [[[String; 2]; 3]; 2],
     pub ic: [[String; 3]; 3],
-}
-
-pub fn str_to_fq(s: &str) -> l2o_common::Result<Fq> {
-    Ok(Fq::from_str(if s == "" { "0" } else { s })
-        .map_err(|_| anyhow::anyhow!("str to fq conversion failed"))?)
-}
-
-pub fn str_to_fr(s: &str) -> l2o_common::Result<Fr> {
-    Ok(Fr::from_str(if s == "" { "0" } else { s })
-        .map_err(|_| anyhow::anyhow!("str to fr conversion failed"))?)
 }
 
 impl Groth16VerifierDataSerializable {

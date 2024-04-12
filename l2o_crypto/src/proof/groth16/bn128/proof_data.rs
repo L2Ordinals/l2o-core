@@ -8,13 +8,12 @@ use ark_bn254::G2Projective;
 use ark_groth16::Proof;
 use ark_serialize::CanonicalDeserialize;
 use ark_serialize::CanonicalSerialize;
+use l2o_common::str_to_fq;
+use l2o_common::str_to_fr;
 use serde::Deserialize;
 use serde::Deserializer;
 use serde::Serialize;
 use serde::Serializer;
-
-use super::verifier_data::str_to_fq;
-use super::verifier_data::str_to_fr;
 
 #[derive(Clone, Debug, PartialEq, CanonicalSerialize, CanonicalDeserialize)]
 pub struct Groth16BN128ProofData {
