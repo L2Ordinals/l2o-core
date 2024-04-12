@@ -94,7 +94,7 @@ pub async fn run(
     deploy.vk.vk_delta_2 = vk_json.vk_delta_2;
 
     let mut deploy_value = serde_json::to_value(&deploy)?;
-    deploy_value["p"] = json!("l2o");
+    deploy_value["p"] = json!("l2o-a");
     deploy_value["op"] = json!("Deploy");
     std::fs::write(
         "./l2o_indexer_ordhook/assets/deploy.json",
@@ -110,7 +110,7 @@ pub async fn run(
         .is_ok());
 
     let mut block_value = serde_json::to_value(&block)?;
-    block_value["p"] = json!("l2o");
+    block_value["p"] = json!("l2o-a");
     block_value["op"] = json!("Block");
     let processed_vk = Groth16::<Bn254>::process_vk(&vk)?;
     let proof = Groth16::<Bn254>::prove(&pk, block_circuit.clone(), &mut rng)?;

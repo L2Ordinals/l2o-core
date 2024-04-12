@@ -198,11 +198,11 @@ async fn process_l2o_inscription(
                 let mut uncompressed_bytes = Vec::new();
                 block_proof.serialize_uncompressed(&mut uncompressed_bytes)?;
 
-                let _public_inputs: [Fr; 2] =
+                let public_inputs: [Fr; 2] =
                     Sha256Hasher::get_l2_block_hash(&block_inscription).into();
-                // if public_inputs.to_vec() != block_proof.public_inputs {
-                //     anyhow::bail!("public inputs mismatch");
-                // }
+                if public_inputs.to_vec() != block_proof.public_inputs {
+                    anyhow::bail!("public inputs mismatch");
+                }
 
                 let vk = match deploy_inscription.verifier_data {
                     L2OAVerifierData::Groth16BN128(vk) => vk.0,
@@ -300,11 +300,10 @@ async fn process_l2o_inscription(
             let mut uncompressed_bytes = Vec::new();
             block_proof.serialize_uncompressed(&mut uncompressed_bytes)?;
 
-            let _public_inputs: [Fr; 2] =
-                Sha256Hasher::get_l2_block_hash(&block_inscription).into();
-            // if public_inputs.to_vec() != block_proof.public_inputs {
-            //     anyhow::bail!("public inputs mismatch");
-            // }
+            let public_inputs: [Fr; 2] = Sha256Hasher::get_l2_block_hash(&block_inscription).into();
+            if public_inputs.to_vec() != block_proof.public_inputs {
+                anyhow::bail!("public inputs mismatch");
+            }
 
             let vk = match deploy_inscription.verifier_data {
                 L2OAVerifierData::Groth16BN128(vk) => vk.0,

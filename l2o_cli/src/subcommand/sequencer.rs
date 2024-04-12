@@ -120,7 +120,7 @@ async fn execute_single(
     let mut block_value = serde_json::to_value(&next_block)?;
     block_value["proof"] = json!(proof_json);
 
-    block_value["p"] = json!("l2o");
+    block_value["p"] = json!("l2o-a");
     block_value["op"] = json!("Block");
     std::fs::write(
         "./l2o_indexer_ordhook/assets/block.json",
