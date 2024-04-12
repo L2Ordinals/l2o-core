@@ -1,6 +1,8 @@
 use std::sync::Once;
 
-use tracing_subscriber::{fmt::format::FmtSpan, util::SubscriberInitExt, EnvFilter};
+use tracing_subscriber::fmt::format::FmtSpan;
+use tracing_subscriber::util::SubscriberInitExt;
+use tracing_subscriber::EnvFilter;
 
 static INIT: Once = Once::new();
 
@@ -11,8 +13,7 @@ pub fn setup_logger() {
     INIT.call_once(|| {
         let default_filter = "off";
         let env_filter =
-            EnvFilter::try_from_default_env().unwrap_or_else(|_|
-        EnvFilter::new(default_filter));
+            EnvFilter::try_from_default_env().unwrap_or_else(|_| EnvFilter::new(default_filter));
         tracing_subscriber::fmt::Subscriber::builder()
             .compact()
             .with_file(false)

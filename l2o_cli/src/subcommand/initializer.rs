@@ -1,3 +1,5 @@
+use std::process::Command;
+
 use ark_bn254::Bn254;
 use ark_bn254::Fr;
 use ark_crypto_primitives::snark::CircuitSpecificSetupSNARK;
@@ -6,9 +8,7 @@ use ark_groth16::Groth16;
 use ark_groth16::ProvingKey;
 use ark_groth16::VerifyingKey;
 use ark_std::rand::rngs::StdRng;
-use ark_std::rand::RngCore;
 use ark_std::rand::SeedableRng;
-use ark_std::test_rng;
 use l2o_common::common::data::hash::Hash256;
 use l2o_common::common::data::hash::L2OHash;
 use l2o_common::common::data::signature::L2OCompactPublicKey;
@@ -81,7 +81,7 @@ pub async fn run(
         block_payload,
     };
 
-    let mut rng = ark_std::rand::rngs::StdRng::seed_from_u64(test_rng().next_u64());
+    let mut rng = ark_std::rand::rngs::StdRng::seed_from_u64(9365255816191338696);
 
     let (pk, vk) = Groth16::<Bn254>::setup(block_circuit.clone(), &mut rng)?;
 
@@ -101,13 +101,13 @@ pub async fn run(
         serde_json::to_string_pretty(&deploy_value)?,
     )?;
 
-    std::process::Command::new("make")
+    assert!(Command::new("make")
         .args([
             "FILE=./l2o_indexer_ordhook/assets/deploy.json",
             "ord-inscribe",
         ])
-        .spawn()
-        .expect("failed to execute process");
+        .status()
+        .is_ok());
 
     let mut block_value = serde_json::to_value(&block)?;
     block_value["p"] = json!("l2o");
@@ -140,13 +140,13 @@ pub async fn run(
         serde_json::to_string_pretty(&block_value)?,
     )?;
 
-    std::process::Command::new("make")
+    assert!(Command::new("make")
         .args([
             "FILE=./l2o_indexer_ordhook/assets/block.json",
             "ord-inscribe",
         ])
-        .spawn()
-        .expect("failed to execute process");
+        .status()
+        .is_ok());
 
     Ok((pk, vk, rng))
 }

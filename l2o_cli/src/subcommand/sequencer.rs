@@ -1,3 +1,4 @@
+use std::process::Command;
 use std::time::Duration;
 
 use ark_bn254::Bn254;
@@ -126,13 +127,13 @@ async fn execute_single(
         serde_json::to_string_pretty(&block_value)?,
     )?;
 
-    std::process::Command::new("make")
+    assert!(Command::new("make")
         .args([
             "FILE=./l2o_indexer_ordhook/assets/block.json",
             "ord-inscribe",
         ])
-        .spawn()
-        .expect("failed to execute process");
+        .status()
+        .is_ok());
 
     Ok::<_, anyhow::Error>(())
 }

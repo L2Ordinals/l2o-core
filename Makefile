@@ -1,5 +1,6 @@
-PROFILE   := lite
-LOG_LEVEL := info,r1cs=off
+PROFILE    			:= lite
+LOG_LEVEL  			:= info,r1cs=off
+TRACE_ENABLED   := 1
 
 .PHONY: check
 check:
@@ -87,21 +88,24 @@ ord-inscribe:
 ord-reindex:
 	@ord -r --bitcoin-rpc-user=devnet --bitcoin-rpc-pass=devnet index run
 
+.PHONY: run
+run: run-indexer-ordhook run-ordhook run-l2o-sequencer
+
 .PHONY: run-indexer
 run-indexer:
-	@RUST_LOG=${LOG_LEVEL} cargo run --package l2o-cli -- indexer
+	@RUST_LOG=${LOG_LEVEL} RUST_BACKTRACE=${TRACE_ENABLED} cargo run --package l2o-cli -- indexer
 
 .PHONY: run-l2o-sequencer
 run-l2o-sequencer:
-	@RUST_LOG=${LOG_LEVEL} cargo run --package l2o-cli -- sequencer
+	@RUST_LOG=${LOG_LEVEL} RUST_BACKTRACE=${TRACE_ENABLED} cargo run --package l2o-cli -- sequencer
 
 .PHONY: run-l2o-initializer
 run-l2o-initializer:
-	@RUST_LOG=${LOG_LEVEL} cargo run --package l2o-cli -- initializer
+	@RUST_LOG=${LOG_LEVEL} RUST_BACKTRACE=${TRACE_ENABLED} cargo run --package l2o-cli -- initializer
 
 .PHONY: run-indexer-ordhook
 run-indexer-ordhook:
-	@RUST_LOG=${LOG_LEVEL} cargo run --package l2o-cli -- indexer-ord-hook --addr=0.0.0.0:3000
+	@RUST_LOG=${LOG_LEVEL} RUST_BACKTRACE=${TRACE_ENABLED} cargo run --package l2o-cli -- indexer-ord-hook --addr=0.0.0.0:3000
 
 .PHONY: run-ordhook
 run-ordhook:

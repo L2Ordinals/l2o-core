@@ -452,10 +452,12 @@ pub async fn listen(args: &IndexerOrdHookArgs) -> anyhow::Result<()> {
         let io = TokioIo::new(stream);
         let store = store.clone();
 
-        let service = service_fn(|req| async { route(store.clone(), req).await });
+        tokio::task::spawn(async move {
+            let service = service_fn(|req| async { route(store.clone(), req).await });
 
-        if let Err(err) = http1::Builder::new().serve_connection(io, service).await {
-            tracing::error!("{:?}", err);
-        }
+            if let Err(err) = http1::Builder::new().serve_connection(io, service).await {
+                tracing::error!("{:?}", err);
+            }
+        });
     }
 }
