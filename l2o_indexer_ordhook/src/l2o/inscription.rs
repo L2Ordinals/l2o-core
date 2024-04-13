@@ -1,5 +1,5 @@
-use l2o_crypto::proof::groth16::bn128::proof_data::Groth16ProofSerializable;
-use l2o_crypto::proof::groth16::bn128::verifier_data::Groth16VerifierDataSerializable;
+use l2o_crypto::proof::L2OAProofSerializableData;
+use l2o_crypto::proof::L2OAVerifierSerializableData;
 use serde::Deserialize;
 use serde::Serialize;
 
@@ -15,7 +15,7 @@ pub struct L2OInscriptionDeploy {
     pub l2id: u32,
     pub start_state_root: String,
     pub public_key: String,
-    pub vk: Groth16VerifierDataSerializable,
+    pub vk: L2OAVerifierSerializableData,
     pub hash_function: String,
     pub proof_type: String,
 }
@@ -33,7 +33,7 @@ pub struct L2OInscriptionBlockParameters {
 pub struct L2OInscriptionBlock {
     pub l2id: u32,
     pub block_parameters: L2OInscriptionBlockParameters,
-    pub proof: Groth16ProofSerializable,
+    pub proof: L2OAProofSerializableData,
     pub signature: String,
 }
 

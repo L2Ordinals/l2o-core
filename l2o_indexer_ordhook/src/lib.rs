@@ -1,6 +1,7 @@
 use std::net::SocketAddr;
 use std::sync::Arc;
 
+use ark_bn254::Bn254;
 use ark_bn254::Fr;
 use ark_groth16::Groth16;
 use ark_serialize::CanonicalSerialize;
@@ -36,7 +37,6 @@ use l2o_crypto::hash::traits::L2OBlockHasher;
 use l2o_crypto::proof::groth16::bn128::proof_data::Groth16BN128ProofData;
 use l2o_crypto::proof::groth16::bn128::verifier_data::Groth16BN128VerifierData;
 use l2o_crypto::standards::l2o_a::proof::L2OAProofData;
-use l2o_crypto::standards::l2o_a::proof::L2OAVerifierData;
 use l2o_crypto::standards::l2o_a::L2OBlockInscriptionV1;
 use l2o_store::core::store::L2OStoreV1Core;
 use l2o_store::core::traits::L2OStoreV1;
@@ -106,161 +106,98 @@ async fn process_l2o_inscription(
 ) -> anyhow::Result<()> {
     match inscription {
         L2OInscription::Deploy(deploy) => {
-            if store.lock().await.has_deployed_l2id(deploy.l2id.into())? {
-                anyhow::bail!("L2o already deployed");
+            let l2id: u64 = deploy.l2id.into();
+            if store.lock().await.has_deployed_l2id(l2id)? {
+                tracing::debug!("l2o {} already deployed", l2id);
+                return Ok(());
             }
-            let proof_type: L2OAProofType = deploy
-                .proof_type
-                .parse()
-                .map_err(|e: String| anyhow::anyhow!(e))?;
+            let proof_type: L2OAProofType = deploy.proof_type.parse()?;
+            let verifier_data = if proof_type.is_groth_16_bn_128() {
+                deploy
+                    .vk
+                    .try_as_groth_16_verifier_serializable()
+                    .ok_or(anyhow::anyhow!("marformed verifier"))?
+                    .to_vk()?
+            } else {
+                anyhow::bail!("unsupported verifier type");
+            };
             let deploy_inscription = L2ODeployInscription {
                 p: "l2o-a".to_string(),
                 op: "Deploy".to_string(),
-                l2id: deploy.l2id.into(),
+                l2id,
                 public_key: L2OCompactPublicKey::from_hex(&deploy.public_key)?,
                 start_state_root: Hash256::from_hex(&deploy.start_state_root)?,
-                hash_function: deploy
-                    .hash_function
-                    .parse()
-                    .map_err(|e: String| anyhow::anyhow!(e))?,
-                proof_type: proof_type,
-                verifier_data: if proof_type == L2OAProofType::Groth16BN128 {
-                    L2OAVerifierData::Groth16BN128(Groth16BN128VerifierData(deploy.vk.to_vk()?))
-                } else {
-                    panic!("Unsupported verifier type")
-                },
+                hash_function: deploy.hash_function.parse()?,
+                proof_type,
+                verifier_data: Groth16BN128VerifierData(verifier_data).into(),
             };
             store
                 .lock()
                 .await
                 .report_deploy_inscription(deploy_inscription)?;
-            tracing::info!("deployed l2o: {:?}", deploy.l2id);
+            tracing::info!("deployed l2o: {}", deploy.l2id);
             Ok(())
         }
         L2OInscription::Block(block) => {
-            if !store.lock().await.has_deployed_l2id(block.l2id.into())? {
-                anyhow::bail!("L2o not deployed yet");
-            }
-
-            let deploy_inscription = store
-                .lock()
-                .await
-                .get_deploy_inscription(block.l2id.into())?;
-
-            let last_block_res = store
-                .lock()
-                .await
-                .get_last_block_inscription(block.l2id.into());
-
-            if let Err(_) = last_block_res {
-                let block_proof = block.proof.to_proof_with_public_inputs_groth16_bn254()?;
-                if block.block_parameters.block_number != 0 {
-                    anyhow::bail!("genesis block number must be zero");
-                }
-                if block.block_parameters.state_root != deploy_inscription.start_state_root.to_hex()
-                {
-                    anyhow::bail!(
-                        "genesis block state root must be equal to deploy start state root"
-                    );
-                }
-
-                let block_inscription = L2OBlockInscriptionV1 {
-                    p: "l2o-a".to_string(),
-                    op: "Block".to_string(),
-
-                    l2id: block.l2id.into(),
-                    l2_block_number: block.block_parameters.block_number.into(),
-
-                    bitcoin_block_number: bitcoin_block.block_identifier.index,
-                    bitcoin_block_hash: Hash256::from_hex(&bitcoin_block.block_identifier.hash)?,
-
-                    public_key: L2OCompactPublicKey::from_hex(&block.block_parameters.public_key)?,
-
-                    start_state_root: Hash256::zero(),
-                    end_state_root: deploy_inscription.start_state_root,
-
-                    deposit_state_root: Hash256::from_hex(&block.block_parameters.deposits_root)?,
-
-                    start_withdrawal_state_root: Hash256::zero(),
-                    end_withdrawal_state_root: Hash256::from_hex(
-                        &block.block_parameters.withdrawals_root,
-                    )?,
-
-                    proof: L2OAProofData::Groth16BN128(Groth16BN128ProofData {
-                        proof: block_proof.proof.clone(),
-                        public_inputs: block_proof.public_inputs.clone(),
-                    }),
-
-                    superchain_root: Hash256::zero(),
-                    signature: L2OSignature512::from_hex(&block.signature)?,
-                };
-
-                let mut uncompressed_bytes = Vec::new();
-                block_proof.serialize_uncompressed(&mut uncompressed_bytes)?;
-
-                let public_inputs: [Fr; 2] =
-                    Sha256Hasher::get_l2_block_hash(&block_inscription).into();
-                if public_inputs.to_vec() != block_proof.public_inputs {
-                    anyhow::bail!("public inputs mismatch");
-                }
-
-                let vk = match deploy_inscription.verifier_data {
-                    L2OAVerifierData::Groth16BN128(vk) => vk.0,
-                    _ => {
-                        unreachable!()
-                    }
-                };
-
-                let processed_vk = Groth16::<ark_bn254::Bn254>::process_vk(&vk)?;
-
-                assert!(Groth16::<ark_bn254::Bn254>::verify_proof(
-                    &processed_vk,
-                    &block_proof.proof,
-                    &block_proof.public_inputs,
-                )?);
-
-                let msg = get_block_payload_bytes(&block_inscription);
-                if !deploy_inscription.public_key.is_zero() {
-                    l2o_crypto::signature::schnorr::verify(
-                        &deploy_inscription.public_key,
-                        &block_inscription.signature,
-                        &msg,
-                    )?;
-                }
-
-                store
-                    .lock()
-                    .await
-                    .set_last_block_inscription(block_inscription)?;
-
+            let l2id: u64 = block.l2id.into();
+            if !store.lock().await.has_deployed_l2id(l2id)? {
+                tracing::debug!("l2o {} not deployed yet", l2id);
                 return Ok(());
             }
 
-            let last_block = last_block_res?;
-            if u64::from(block.block_parameters.block_number) != last_block.l2_block_number + 1 {
-                anyhow::bail!("block must be consecutive");
-            }
+            let deploy = store.lock().await.get_deploy_inscription(l2id)?;
 
-            if bitcoin_block.block_identifier.index <= last_block.bitcoin_block_number {
-                anyhow::bail!("bitcoin block must be bigger than previous");
-            }
+            let block_proof = if deploy.proof_type.is_groth_16_bn_128() {
+                block
+                    .proof
+                    .try_as_groth_16_proof_serializable()
+                    .ok_or(anyhow::anyhow!("marformed proof"))?
+                    .to_proof_with_public_inputs_groth16_bn254()?
+            } else {
+                anyhow::bail!("unsupported proof type");
+            };
 
-            let deploy_inscription = store
-                .lock()
-                .await
-                .get_deploy_inscription(block.l2id.into())?;
+            let (start_state_root, end_state_root, start_withdrawal_state_root, public_key) =
+                if let Ok(last_block) = store.lock().await.get_last_block_inscription(l2id) {
+                    if u64::from(block.block_parameters.block_number)
+                        != last_block.l2_block_number + 1
+                    {
+                        anyhow::bail!("block must be consecutive");
+                    }
 
-            if deploy_inscription.proof_type != L2OAProofType::Groth16BN128 {
-                anyhow::bail!("only groth16bn128 is supported");
-            }
+                    if bitcoin_block.block_identifier.index <= last_block.bitcoin_block_number {
+                        anyhow::bail!("bitcoin block must be bigger than previous");
+                    }
 
-            let block_proof = block.proof.to_proof_with_public_inputs_groth16_bn254()?;
+                    (
+                        last_block.end_state_root,
+                        Hash256::from_hex(&block.block_parameters.state_root)?,
+                        last_block.end_withdrawal_state_root,
+                        last_block.public_key,
+                    )
+                } else {
+                    if block.block_parameters.block_number != 0 {
+                        anyhow::bail!("genesis block number must be zero");
+                    }
+                    if block.block_parameters.state_root != deploy.start_state_root.to_hex() {
+                        anyhow::bail!(
+                            "genesis block state root must be equal to deploy start state root"
+                        );
+                    }
+
+                    (
+                        Hash256::zero(),
+                        deploy.start_state_root,
+                        Hash256::zero(),
+                        deploy.public_key,
+                    )
+                };
 
             let block_inscription = L2OBlockInscriptionV1 {
                 p: "l2o-a".to_string(),
                 op: "Block".to_string(),
 
-                l2id: block.l2id.into(),
+                l2id,
                 l2_block_number: block.block_parameters.block_number.into(),
 
                 bitcoin_block_number: bitcoin_block.block_identifier.index,
@@ -268,12 +205,12 @@ async fn process_l2o_inscription(
 
                 public_key: L2OCompactPublicKey::from_hex(&block.block_parameters.public_key)?,
 
-                start_state_root: last_block.end_state_root,
-                end_state_root: Hash256::from_hex(&block.block_parameters.state_root)?,
+                start_state_root,
+                end_state_root: end_state_root,
 
                 deposit_state_root: Hash256::from_hex(&block.block_parameters.deposits_root)?,
 
-                start_withdrawal_state_root: last_block.end_withdrawal_state_root,
+                start_withdrawal_state_root: start_withdrawal_state_root,
                 end_withdrawal_state_root: Hash256::from_hex(
                     &block.block_parameters.withdrawals_root,
                 )?,
@@ -284,18 +221,8 @@ async fn process_l2o_inscription(
                 }),
 
                 superchain_root: Hash256::zero(),
-
                 signature: L2OSignature512::from_hex(&block.signature)?,
             };
-
-            let msg = get_block_payload_bytes(&block_inscription);
-            if !last_block.public_key.is_zero() {
-                l2o_crypto::signature::schnorr::verify(
-                    &deploy_inscription.public_key,
-                    &block_inscription.signature,
-                    &msg,
-                )?;
-            }
 
             let mut uncompressed_bytes = Vec::new();
             block_proof.serialize_uncompressed(&mut uncompressed_bytes)?;
@@ -305,27 +232,35 @@ async fn process_l2o_inscription(
                 anyhow::bail!("public inputs mismatch");
             }
 
-            let vk = match deploy_inscription.verifier_data {
-                L2OAVerifierData::Groth16BN128(vk) => vk.0,
-                _ => {
-                    unreachable!()
-                }
-            };
+            let vk = deploy
+                .verifier_data
+                .try_as_groth_16_bn_128()
+                .ok_or(anyhow::anyhow!("marformed verifier"))?
+                .0;
 
-            let processed_vk = Groth16::<ark_bn254::Bn254>::process_vk(&vk)?;
+            let processed_vk = Groth16::<Bn254>::process_vk(&vk)?;
 
-            assert!(Groth16::<ark_bn254::Bn254>::verify_proof(
+            assert!(Groth16::<Bn254>::verify_proof(
                 &processed_vk,
                 &block_proof.proof,
                 &block_proof.public_inputs,
             )?);
+
+            let msg = get_block_payload_bytes(&block_inscription);
+            if !public_key.is_zero() {
+                l2o_crypto::signature::schnorr::verify(
+                    &public_key,
+                    &block_inscription.signature,
+                    &msg,
+                )?;
+            }
 
             store
                 .lock()
                 .await
                 .set_last_block_inscription(block_inscription)?;
 
-            Ok(())
+            return Ok(());
         }
     }
 }

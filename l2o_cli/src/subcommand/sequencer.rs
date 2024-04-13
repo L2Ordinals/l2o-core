@@ -65,13 +65,17 @@ async fn execute_single(
             block_number: (prev_block.l2_block_number + 1) as u32,
         },
         proof: Groth16ProofSerializable::from_proof_with_public_inputs_groth16_bn254(
-            &prev_block.proof.as_groth16_bn128(),
-        ),
+            &prev_block.proof.try_as_groth_16_bn_128().unwrap(),
+        )
+        .into(),
         signature: prev_block.signature.to_hex(),
     };
 
     let mock_proof = next_block
         .proof
+        .clone()
+        .try_as_groth_16_proof_serializable()
+        .unwrap()
         .to_proof_with_public_inputs_groth16_bn254()?;
 
     let block_inscription = L2OBlockInscriptionV1 {

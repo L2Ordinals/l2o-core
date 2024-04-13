@@ -57,7 +57,7 @@ pub struct Groth16ProofSerializable {
 }
 
 impl Groth16ProofSerializable {
-    pub fn to_proof_groth16_bn254(&self) -> l2o_common::Result<Proof<Bn254>> {
+    pub fn to_proof_groth16_bn254(&self) -> anyhow::Result<Proof<Bn254>> {
         let a_g1 = G1Affine::from(G1Projective::new(
             str_to_fq(&self.pi_a[0])?,
             str_to_fq(&self.pi_a[1])?,

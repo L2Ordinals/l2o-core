@@ -37,7 +37,8 @@ pub fn get_block_payload_goldilocks_hash_u32_mode(
     //     block.bitcoin_block_number,
     // ));
 
-    // payload_bytes.extend_from_slice(&hash256_to_goldilocks_u32(&block.bitcoin_block_hash));
+    // payload_bytes.extend_from_slice(&hash256_to_goldilocks_u32(&block.
+    // bitcoin_block_hash));
     payload_bytes.extend_from_slice(&hash256_to_goldilocks_u32(&Hash256(block.public_key.0)));
     payload_bytes.extend_from_slice(&hash256_to_goldilocks_u32(&block.start_state_root));
     payload_bytes.extend_from_slice(&hash256_to_goldilocks_u32(&block.end_state_root));

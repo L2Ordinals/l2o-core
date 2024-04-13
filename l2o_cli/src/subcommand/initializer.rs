@@ -19,7 +19,8 @@ use l2o_crypto::hash::hash_functions::sha256::Sha256Hasher;
 use l2o_crypto::hash::traits::L2OBlockHasher;
 use l2o_crypto::proof::groth16::bn128::proof_data::Groth16BN128ProofData;
 use l2o_crypto::proof::groth16::bn128::proof_data::Groth16ProofSerializable;
-use l2o_crypto::proof::groth16::bn128::verifier_data::Groth16VerifierDataSerializable;
+use l2o_crypto::proof::groth16::bn128::verifier_data::Groth16VerifierSerializable;
+use l2o_crypto::proof::L2OAVerifierSerializableData;
 use l2o_crypto::standards::l2o_a::proof::L2OAProofData;
 use l2o_crypto::standards::l2o_a::L2OBlockInscriptionV1;
 use l2o_indexer_ordhook::l2o::inscription::L2OInscription;
@@ -43,7 +44,12 @@ pub async fn run(
         _ => unreachable!(),
     };
 
-    let block_proof = block.proof.to_proof_with_public_inputs_groth16_bn254()?;
+    let block_proof = block
+        .proof
+        .clone()
+        .try_as_groth_16_proof_serializable()
+        .unwrap()
+        .to_proof_with_public_inputs_groth16_bn254()?;
     let block_inscription = L2OBlockInscriptionV1 {
         p: "l2o-a".to_string(),
         op: "Block".to_string(),
@@ -85,13 +91,16 @@ pub async fn run(
 
     let (pk, vk) = Groth16::<Bn254>::setup(block_circuit.clone(), &mut rng)?;
 
-    let vk_json = Groth16VerifierDataSerializable::from_vk(&vk);
+    let vk_json = Groth16VerifierSerializable::from_vk(&vk);
     let vk_json_cloned = vk_json.clone();
-    deploy.vk.ic = vk_json.ic;
-    deploy.vk.vk_alpha_1 = vk_json.vk_alpha_1;
-    deploy.vk.vk_beta_2 = vk_json.vk_beta_2;
-    deploy.vk.vk_gamma_2 = vk_json.vk_gamma_2;
-    deploy.vk.vk_delta_2 = vk_json.vk_delta_2;
+    #[allow(irrefutable_let_patterns)]
+    if let L2OAVerifierSerializableData::Groth16VerifierSerializable(ref mut vk) = deploy.vk {
+        vk.vk_alpha_1 = vk_json.vk_alpha_1;
+        vk.vk_beta_2 = vk_json.vk_beta_2;
+        vk.vk_gamma_2 = vk_json.vk_gamma_2;
+        vk.vk_delta_2 = vk_json.vk_delta_2;
+        vk.ic = vk_json.ic;
+    }
 
     let mut deploy_value = serde_json::to_value(&deploy)?;
     deploy_value["p"] = json!("l2o-a");

@@ -6,6 +6,7 @@ use k256::schnorr::signature::Error as SchnorrSignatureError;
 use musig2::errors::VerifyError;
 use musig2::secp::errors::InvalidPointBytes;
 use serde_json::error::Error as SerializeJsonError;
+use strum::ParseError as StrumParseError;
 use thiserror::Error as ThisError;
 
 #[derive(ThisError, Debug)]
@@ -24,6 +25,8 @@ pub enum Error {
     FromHexError(#[from] FromHexError),
     #[error("SchnorrSignatureError: `{0:?}`")]
     SchnorrSignatureError(#[from] SchnorrSignatureError),
+    #[error("StrumParseError: `{0:?}`")]
+    StrumParseError(#[from] StrumParseError),
 }
 
 pub type Result<T> = std::result::Result<T, Error>;

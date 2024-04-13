@@ -19,7 +19,7 @@ impl Serialize for Groth16BN128VerifierData {
     where
         S: Serializer,
     {
-        let raw = Groth16VerifierDataSerializable::from_vk(&self.0);
+        let raw = Groth16VerifierSerializable::from_vk(&self.0);
 
         raw.serialize(serializer)
     }
@@ -31,7 +31,7 @@ impl<'de> Deserialize<'de> for Groth16BN128VerifierData {
         D: Deserializer<'de>,
     {
         use serde::de::Error;
-        let raw = Groth16VerifierDataSerializable::deserialize(deserializer)?;
+        let raw = Groth16VerifierSerializable::deserialize(deserializer)?;
 
         if let Ok(vk) = raw.to_vk() {
             Ok(Groth16BN128VerifierData(vk))
@@ -42,22 +42,17 @@ impl<'de> Deserialize<'de> for Groth16BN128VerifierData {
 }
 
 #[derive(Serialize, Deserialize, Clone, PartialEq, Debug)]
-pub struct Groth16VerifierDataSerializable {
+pub struct Groth16VerifierSerializable {
     pub vk_alpha_1: [String; 3],
     pub vk_beta_2: [[String; 2]; 3],
     pub vk_gamma_2: [[String; 2]; 3],
     pub vk_delta_2: [[String; 2]; 3],
-    //    pub vk_alphabeta_12: [[[String; 2]; 3]; 2],
-    #[serde(rename = "nPublic")]
-    pub n_public: u32,
     #[serde(rename = "IC")]
     pub ic: [[String; 3]; 3],
-    pub curve: String,
-    pub protocol: String,
 }
 
-impl Groth16VerifierDataSerializable {
-    pub fn to_vk(&self) -> l2o_common::Result<VerifyingKey<Bn254>> {
+impl Groth16VerifierSerializable {
+    pub fn to_vk(&self) -> anyhow::Result<VerifyingKey<Bn254>> {
         let alpha_g1 = G1Affine::from(G1Projective::new(
             str_to_fq(&self.vk_alpha_1[0])?,
             str_to_fq(&self.vk_alpha_1[1])?,
@@ -212,9 +207,6 @@ impl Groth16VerifierDataSerializable {
                     ic_projective[2].z.to_string(),
                 ],
             ],
-            n_public: 1,
-            curve: "bn128".to_string(),
-            protocol: "groth16".to_string(),
         }
     }
 }
@@ -235,11 +227,10 @@ mod tests {
         let vk_json = include_str!("../../../../../l2o_indexer_ordhook/assets/example_vkey.json");
         let proof_json =
             include_str!("../../../../../l2o_indexer_ordhook/assets/example_proof.json");
-        let p: VerifyingKey<Bn254> =
-            serde_json::from_str::<Groth16VerifierDataSerializable>(vk_json)
-                .unwrap()
-                .to_vk()
-                .unwrap();
+        let p: VerifyingKey<Bn254> = serde_json::from_str::<Groth16VerifierSerializable>(vk_json)
+            .unwrap()
+            .to_vk()
+            .unwrap();
         let proof = serde_json::from_str::<Groth16ProofSerializable>(proof_json)
             .unwrap()
             .to_proof_with_public_inputs_groth16_bn254()
