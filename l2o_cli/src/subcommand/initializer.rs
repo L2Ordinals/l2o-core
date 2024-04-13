@@ -9,6 +9,7 @@ use ark_groth16::ProvingKey;
 use ark_groth16::VerifyingKey;
 use ark_std::rand::rngs::StdRng;
 use ark_std::rand::SeedableRng;
+use k256::schnorr::SigningKey;
 use l2o_common::common::data::hash::Hash256;
 use l2o_common::common::data::hash::L2OHash;
 use l2o_common::common::data::signature::L2OCompactPublicKey;
@@ -21,6 +22,7 @@ use l2o_crypto::proof::groth16::bn128::proof_data::Groth16BN128ProofData;
 use l2o_crypto::proof::groth16::bn128::proof_data::Groth16ProofSerializable;
 use l2o_crypto::proof::groth16::bn128::verifier_data::Groth16VerifierSerializable;
 use l2o_crypto::proof::L2OAVerifierSerializableData;
+use l2o_crypto::signature::schnorr::sign_msg;
 use l2o_crypto::standards::l2o_a::proof::L2OAProofData;
 use l2o_crypto::standards::l2o_a::L2OBlockInscriptionV1;
 use l2o_indexer_ordhook::l2o::inscription::L2OInscription;
@@ -30,7 +32,7 @@ use crate::circuits::BlockCircuit;
 
 pub async fn run(
     _args: &InitializerArgs,
-) -> anyhow::Result<(ProvingKey<Bn254>, VerifyingKey<Bn254>, StdRng)> {
+) -> anyhow::Result<(ProvingKey<Bn254>, VerifyingKey<Bn254>, StdRng, SigningKey)> {
     let deploy_json = include_str!("../../../l2o_indexer_ordhook/assets/deploy.json");
     let block_json = include_str!("../../../l2o_indexer_ordhook/assets/block.json");
     let deploy_data = serde_json::from_str::<L2OInscription>(deploy_json)?;
@@ -39,10 +41,14 @@ pub async fn run(
         L2OInscription::Deploy(deploy) => deploy,
         _ => unreachable!(),
     };
-    let block = match block_data {
+    let mut block = match block_data {
         L2OInscription::Block(block) => block,
         _ => unreachable!(),
     };
+    let signing_key = SigningKey::from_bytes(
+        &hex::decode("60f0a76f41094bade9f7065da0fcb601dbd1c68a21f747e12691ccbe1cae9543").unwrap(),
+    )
+    .unwrap();
 
     let block_proof = block
         .proof
@@ -50,7 +56,7 @@ pub async fn run(
         .try_as_groth_16_proof_serializable()
         .unwrap()
         .to_proof_with_public_inputs_groth16_bn254()?;
-    let block_inscription = L2OBlockInscriptionV1 {
+    let mut block_inscription = L2OBlockInscriptionV1 {
         p: "l2o-a".to_string(),
         op: "Block".to_string(),
 
@@ -80,10 +86,15 @@ pub async fn run(
     };
 
     let block_payload = get_block_payload_bytes(&block_inscription);
-    let block_hash: [Fr; 2] = Sha256Hasher::get_l2_block_hash(&block_inscription).into();
+    let block_hash = Sha256Hasher::get_l2_block_hash(&block_inscription);
+    let public_inputs: [Fr; 2] = block_hash.into();
+    let signature = sign_msg(&signing_key, &block_hash.0)?;
+
+    block_inscription.signature = signature.clone();
+    block.signature = hex::encode(&signature.0);
 
     let block_circuit = BlockCircuit {
-        block_hash,
+        block_hash: public_inputs,
         block_payload,
     };
 
@@ -132,7 +143,7 @@ pub async fn run(
     let proof_json = Groth16ProofSerializable::from_proof_with_public_inputs_groth16_bn254(
         &Groth16BN128ProofData {
             proof,
-            public_inputs: block_hash.to_vec(),
+            public_inputs: public_inputs.to_vec(),
         },
     );
 
@@ -157,5 +168,5 @@ pub async fn run(
         .status()
         .is_ok());
 
-    Ok((pk, vk, rng))
+    Ok((pk, vk, rng, signing_key))
 }

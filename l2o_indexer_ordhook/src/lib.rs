@@ -31,11 +31,11 @@ use l2o_common::common::data::signature::L2OSignature512;
 use l2o_common::standards::l2o_a::actions::deploy::L2ODeployInscription;
 use l2o_common::standards::l2o_a::supported_crypto::L2OAProofType;
 use l2o_common::IndexerOrdHookArgs;
-use l2o_crypto::hash::hash_functions::block_hasher::get_block_payload_bytes;
 use l2o_crypto::hash::hash_functions::sha256::Sha256Hasher;
 use l2o_crypto::hash::traits::L2OBlockHasher;
 use l2o_crypto::proof::groth16::bn128::proof_data::Groth16BN128ProofData;
 use l2o_crypto::proof::groth16::bn128::verifier_data::Groth16BN128VerifierData;
+use l2o_crypto::signature::schnorr::verify_sig;
 use l2o_crypto::standards::l2o_a::proof::L2OAProofData;
 use l2o_crypto::standards::l2o_a::L2OBlockInscriptionV1;
 use l2o_store::core::store::L2OStoreV1Core;
@@ -227,7 +227,8 @@ async fn process_l2o_inscription(
             let mut uncompressed_bytes = Vec::new();
             block_proof.serialize_uncompressed(&mut uncompressed_bytes)?;
 
-            let public_inputs: [Fr; 2] = Sha256Hasher::get_l2_block_hash(&block_inscription).into();
+            let block_hash = Sha256Hasher::get_l2_block_hash(&block_inscription);
+            let public_inputs: [Fr; 2] = block_hash.into();
             if public_inputs.to_vec() != block_proof.public_inputs {
                 anyhow::bail!("public inputs mismatch");
             }
@@ -246,13 +247,8 @@ async fn process_l2o_inscription(
                 &block_proof.public_inputs,
             )?);
 
-            let msg = get_block_payload_bytes(&block_inscription);
             if !public_key.is_zero() {
-                l2o_crypto::signature::schnorr::verify(
-                    &public_key,
-                    &block_inscription.signature,
-                    &msg,
-                )?;
+                verify_sig(&public_key, &block_inscription.signature, &block_hash.0)?;
             }
 
             store

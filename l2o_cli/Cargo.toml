@@ -17,12 +17,14 @@ ark-std               = { workspace = true }
 bitcoin               = { workspace = true }
 clap                  = { workspace = true }
 dotenv                = { workspace = true }
+hex                   = { workspace = true }
 k256                  = { workspace = true }
 l2o-indexer-ordhook   = { path = "../l2o_indexer_ordhook" }
 l2o_common            = { path = "../l2o_common" }
 l2o_crypto            = { path = "../l2o_crypto" }
 l2o_indexer           = { path = "../l2o_indexer" }
 once_cell             = { workspace = true }
+rand_core             = { workspace = true }
 reqwest               = { workspace = true }
 serde_json            = { workspace = true }
 thiserror             = { workspace = true }

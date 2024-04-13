@@ -8,6 +8,7 @@ use ark_groth16::Groth16;
 use ark_groth16::ProvingKey;
 use ark_groth16::VerifyingKey;
 use ark_std::rand::rngs::StdRng;
+use k256::schnorr::SigningKey;
 use l2o_common::common::data::hash::Hash256;
 use l2o_common::common::data::hash::L2OHash;
 use l2o_common::common::data::signature::L2OCompactPublicKey;
@@ -19,6 +20,7 @@ use l2o_crypto::hash::hash_functions::sha256::Sha256Hasher;
 use l2o_crypto::hash::traits::L2OBlockHasher;
 use l2o_crypto::proof::groth16::bn128::proof_data::Groth16BN128ProofData;
 use l2o_crypto::proof::groth16::bn128::proof_data::Groth16ProofSerializable;
+use l2o_crypto::signature::schnorr::sign_msg;
 use l2o_crypto::standards::l2o_a::proof::L2OAProofData;
 use l2o_crypto::standards::l2o_a::L2OBlockInscriptionV1;
 use l2o_indexer_ordhook::l2o::inscription::L2OInscriptionBlock;
@@ -40,6 +42,7 @@ async fn execute_single(
     pk: &ProvingKey<Bn254>,
     _vk: &VerifyingKey<Bn254>,
     rng: &mut StdRng,
+    signing_key: &SigningKey,
 ) -> anyhow::Result<()> {
     let response = client
         .post(&args.indexer_url)
@@ -55,7 +58,7 @@ async fn execute_single(
 
     let prev_block = serde_json::from_value::<L2OBlockInscriptionV1>(response["result"].clone())?;
 
-    let next_block = L2OInscriptionBlock {
+    let mut next_block = L2OInscriptionBlock {
         l2id: prev_block.l2id as u32,
         block_parameters: L2OInscriptionBlockParameters {
             state_root: Hash256::rand().to_hex(),
@@ -68,7 +71,7 @@ async fn execute_single(
             &prev_block.proof.try_as_groth_16_bn_128().unwrap(),
         )
         .into(),
-        signature: prev_block.signature.to_hex(),
+        signature: "aa1a18a79d73e2d7d0c636317b9ffc6d9492cdab3cc9872a15bd3c866d2cf132c7bb8bd90eb69e20e88372eab927e9b09897835edd81d3450a458c725ed581c0".to_string(),
     };
 
     let mock_proof = next_block
@@ -78,7 +81,7 @@ async fn execute_single(
         .unwrap()
         .to_proof_with_public_inputs_groth16_bn254()?;
 
-    let block_inscription = L2OBlockInscriptionV1 {
+    let mut block_inscription = L2OBlockInscriptionV1 {
         p: "l2o-a".to_string(),
         op: "Block".to_string(),
 
@@ -109,16 +112,20 @@ async fn execute_single(
         signature: L2OSignature512::from_hex(&next_block.signature)?,
     };
     let block_payload = get_block_payload_bytes(&block_inscription);
-    let block_hash: [Fr; 2] = Sha256Hasher::get_l2_block_hash(&block_inscription).into();
+    let block_hash = Sha256Hasher::get_l2_block_hash(&block_inscription);
+    let signature = sign_msg(signing_key, &block_hash.0)?;
+    block_inscription.signature = signature.clone();
+    next_block.signature = hex::encode(&signature.0);
+    let public_inputs: [Fr; 2] = block_hash.into();
     let block_circuit = BlockCircuit {
-        block_hash,
+        block_hash: public_inputs,
         block_payload,
     };
     let proof = Groth16::<Bn254>::prove(&pk, block_circuit, rng)?;
     let proof_json = Groth16ProofSerializable::from_proof_with_public_inputs_groth16_bn254(
         &Groth16BN128ProofData {
             proof,
-            public_inputs: block_hash.to_vec(),
+            public_inputs: public_inputs.to_vec(),
         },
     );
     let mut block_value = serde_json::to_value(&next_block)?;
@@ -143,11 +150,11 @@ async fn execute_single(
 }
 
 pub async fn run(args: &SequencerArgs) -> anyhow::Result<()> {
-    let (pk, vk, mut rng) = initializer::run(&InitializerArgs {}).await?;
+    let (pk, vk, mut rng, signing_key) = initializer::run(&InitializerArgs {}).await?;
 
     let client = Client::new();
     loop {
-        if let Err(err) = execute_single(&client, args, &pk, &vk, &mut rng).await {
+        if let Err(err) = execute_single(&client, args, &pk, &vk, &mut rng, &signing_key).await {
             tracing::error!("{}", err);
         }
         tokio::time::sleep(Duration::from_secs(15)).await;

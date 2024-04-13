@@ -20,6 +20,9 @@ impl L2OCompactPublicKey {
     pub fn is_zero(&self) -> bool {
         self.0.iter().all(|&x| x == 0)
     }
+    pub fn zero() -> Self {
+        L2OCompactPublicKey([0u8; 32])
+    }
 }
 
 impl Serialize for L2OCompactPublicKey {
@@ -71,6 +74,9 @@ impl L2OSignature512 {
     }
     pub fn is_zero(&self) -> bool {
         self.0.iter().all(|&x| x == 0)
+    }
+    pub fn zero() -> Self {
+        L2OSignature512([0u8; 64])
     }
 }
 
