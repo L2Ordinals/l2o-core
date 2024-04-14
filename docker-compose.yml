@@ -1,6 +1,6 @@
 version: '3.7'
 services:
-  bitcoind:
+  bitcoin:
     image: ruimarinho/bitcoin-core:latest
     ports:
       - 18443:18443
@@ -24,7 +24,7 @@ services:
       - "-zmqpubrawblock=tcp://0.0.0.0:30001"
       - "-zmqpubrawtx=tcp://0.0.0.0:30001"
     volumes:
-      - "./chaindata/bitcoind:/home/bitcoin/.bitcoin"
+      - "./chaindata/bitcoin:/home/bitcoin/.bitcoin"
     networks:
       testing_net:
         ipv4_address: 172.16.238.11
@@ -53,7 +53,7 @@ services:
       - "--utxos-limit=1000000"
     volumes:
       - "./chaindata/explorer:/app/db"
-      - "./chaindata/bitcoind:/app/.bitcoin"
+      - "./chaindata/bitcoin:/app/.bitcoin"
     networks:
       testing_net:
         ipv4_address: 172.16.238.12
@@ -71,7 +71,7 @@ services:
   #     - "bitcoin-regtest"
   #     - "explorer"
   #   volumes:
-  #     - "./chaindata/bitcoind:/data"
+  #     - "./chaindata/bitcoin:/data"
   #   networks:
   #     testing_net:
   #       ipv4_address: 172.16.238.13
@@ -81,14 +81,23 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
+    environment:
+      - RUST_LOG=info,r1cs=off
+      - RUST_BACKTRACE=1
     ports:
       - 3000:3000
     command:
       - "indexer-ord-hook"
       - "--addr=0.0.0.0:3000"
+      - "--bitcoin-rpc=http://172.16.238.11:18443"
+      - "--bitcoin-rpcuser=devnet"
+      - "--bitcoin-rpcpassword=devnet"
+      - "--db-path=/l2o/db"
     networks:
       testing_net:
         ipv4_address: 172.16.238.14
+    volumes:
+      - "./db:/l2o/db"
     restart: always
     profiles: [full]
 

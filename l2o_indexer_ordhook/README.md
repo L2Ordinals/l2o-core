@@ -1,5 +1,3 @@
-# The Original L2O PoC
-- When you migrate a function delete it from the PoC code base on the dev branch
+# L2O Indexer Ordhook
 
-
-If you have problems with bitcoind regtest in docker see Carter's post on 飞书
+Indexer for L2Ordinals

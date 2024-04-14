@@ -39,7 +39,7 @@
 
 ## Getting Started
 
-Launch bitcoind and electrs API and clean old data
+Launch bitcoin and electrs API and clean old data
 ```bash
 make relaunch 
 ```

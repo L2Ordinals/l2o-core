@@ -42,7 +42,7 @@ shutdown:
 		--remove-orphans > /dev/null 2>&1 || true
 	@sudo rm -fr chaindata || true
 	@sudo rm -fr ordhook-data
-	@rm -fr db
+	@sudo rm -fr db
 	@rm -fr ~/.local/share/ord
 	@rm -fr ~/.bitcoin
 
@@ -147,5 +147,5 @@ image:
 	docker build \
 		--build-arg PROFILE=debug \
 		-c 512 \
-		-t l2orinals/l2o:latest \
+		-t l2ordinals/l2o:latest \
 		-f Dockerfile .
