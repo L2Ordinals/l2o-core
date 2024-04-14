@@ -12,8 +12,6 @@ pub enum BlockNumber {
     /// Latest block
     #[default]
     Latest,
-    /// Finalized block accepted as canonical
-    Finalized,
     /// Block by number from canon chain
     Number(u32),
 }
@@ -36,11 +34,6 @@ impl BlockNumber {
     pub fn is_latest(&self) -> bool {
         matches!(self, BlockNumber::Latest)
     }
-
-    /// Returns `true` if it's "finalized"
-    pub fn is_finalized(&self) -> bool {
-        matches!(self, BlockNumber::Finalized)
-    }
 }
 
 impl<T: Into<u32>> From<T> for BlockNumber {
@@ -56,7 +49,6 @@ impl Serialize for BlockNumber {
     {
         match *self {
             BlockNumber::Number(ref x) => serializer.serialize_str(&format!("0x{x:x}")),
-            BlockNumber::Finalized => serializer.serialize_str("finalized"),
             BlockNumber::Latest => serializer.serialize_str("latest"),
         }
     }
@@ -78,7 +70,6 @@ impl FromStr for BlockNumber {
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         match s {
             "latest" => Ok(Self::Latest),
-            "finalized" => Ok(Self::Finalized),
             // hex
             n if n.starts_with("0x") => u32::from_str_radix(n.trim_start_matches("0x"), 16)
                 .map(Self::Number)
@@ -97,7 +88,6 @@ impl fmt::Display for BlockNumber {
         match self {
             BlockNumber::Number(ref x) => format!("0x{x:x}").fmt(f),
             BlockNumber::Latest => f.write_str("latest"),
-            BlockNumber::Finalized => f.write_str("finalized"),
         }
     }
 }

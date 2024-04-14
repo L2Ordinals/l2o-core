@@ -55,10 +55,6 @@ pub enum ErrorCode {
     InvalidParams,
     /// internal call error
     InternalError,
-    /// Failed to send transaction, See also <https://github.com/MetaMask/eth-rpc-errors/blob/main/src/error-constants.ts>
-    TransactionRejected,
-    /// Custom geth error code, <https://github.com/vapory-legacy/wiki/blob/master/JSON-RPC-Error-Codes-Improvement-Proposal.md>
-    ExecutionError,
     /// Used for server specific errors.
     ServerError(i64),
 }
@@ -72,8 +68,6 @@ impl ErrorCode {
             ErrorCode::MethodNotFound => -32601,
             ErrorCode::InvalidParams => -32602,
             ErrorCode::InternalError => -32603,
-            ErrorCode::TransactionRejected => -32003,
-            ErrorCode::ExecutionError => 3,
             ErrorCode::ServerError(c) => c,
         }
     }
@@ -86,9 +80,7 @@ impl ErrorCode {
             ErrorCode::MethodNotFound => "Method not found",
             ErrorCode::InvalidParams => "Invalid params",
             ErrorCode::InternalError => "Internal error",
-            ErrorCode::TransactionRejected => "Transaction rejected",
             ErrorCode::ServerError(_) => "Server error",
-            ErrorCode::ExecutionError => "Execution error",
         }
     }
 }
@@ -119,8 +111,6 @@ impl From<i64> for ErrorCode {
             -32601 => ErrorCode::MethodNotFound,
             -32602 => ErrorCode::InvalidParams,
             -32603 => ErrorCode::InternalError,
-            -32003 => ErrorCode::TransactionRejected,
-            3 => ErrorCode::ExecutionError,
             _ => ErrorCode::ServerError(code),
         }
     }
