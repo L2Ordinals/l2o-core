@@ -1,3 +1,4 @@
+use l2o_common::standards::l2o_a::supported_crypto::L2OAHashFunction;
 use serde::Deserialize;
 use serde::Serialize;
 
@@ -23,6 +24,12 @@ pub enum RequestParams {
     L2OGetLastBlockInscription(u64),
     #[serde(rename = "l2o_getDeployInscription")]
     L2OGetDeployInscription(u64),
+    #[serde(rename = "l2o_getStateRootAtBlock")]
+    L2OGetStateRootAtBlock((u64, u64, L2OAHashFunction)),
+    #[serde(rename = "l2o_getMerkleProofStateRootAtBlock")]
+    L2OGetMerkleProofStateRootAtBlock((u64, u64, L2OAHashFunction)),
+    #[serde(rename = "l2o_getSuperchainStateRootAtBlock")]
+    L2OGetSuperchainStateRootAtBlock((u64, L2OAHashFunction)),
 }
 
 #[derive(Debug, Clone, Deserialize, Serialize)]

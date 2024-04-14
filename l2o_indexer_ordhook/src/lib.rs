@@ -298,6 +298,44 @@ async fn process_rpc_requests(
                 result: ResponseResult::Success(serde_json::to_value(deploy_inscription)?),
             }
         }
+        RequestParams::L2OGetStateRootAtBlock((l2oid, block_number, hash_function)) => {
+            let state_root =
+                store
+                    .lock()
+                    .await
+                    .get_state_root_at_block(l2oid, block_number, hash_function)?;
+
+            RpcResponse {
+                jsonrpc: rpc::request::Version::V2,
+                id: Some(req.id.clone()),
+                result: ResponseResult::Success(serde_json::to_value(state_root)?),
+            }
+        }
+        RequestParams::L2OGetMerkleProofStateRootAtBlock((l2oid, block_number, hash_function)) => {
+            let merkle_proof_state_root = store.lock().await.get_merkle_proof_state_root_at_block(
+                l2oid,
+                block_number,
+                hash_function,
+            )?;
+
+            RpcResponse {
+                jsonrpc: rpc::request::Version::V2,
+                id: Some(req.id.clone()),
+                result: ResponseResult::Success(serde_json::to_value(merkle_proof_state_root)?),
+            }
+        }
+        RequestParams::L2OGetSuperchainStateRootAtBlock((block_number, hash_function)) => {
+            let superchain_state_root = store
+                .lock()
+                .await
+                .get_superchainroot_at_block(block_number, hash_function)?;
+
+            RpcResponse {
+                jsonrpc: rpc::request::Version::V2,
+                id: Some(req.id.clone()),
+                result: ResponseResult::Success(serde_json::to_value(superchain_state_root)?),
+            }
+        }
     };
     Ok(response)
 }

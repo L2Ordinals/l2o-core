@@ -8,14 +8,23 @@ pub trait L2OStoreV1 {
     fn has_deployed_l2id(&mut self, l2id: u64) -> anyhow::Result<bool>;
     fn get_deploy_inscription(&mut self, l2id: u64) -> anyhow::Result<L2ODeployInscriptionV1>;
     fn get_last_block_inscription(&mut self, l2id: u64) -> anyhow::Result<L2OBlockInscriptionV1>;
-    fn get_state_root_at_block(&mut self, l2id: u64, block_number: u64) -> anyhow::Result<Hash256>;
-    fn get_merkle_proof_state_root(
+    fn get_state_root_at_block(
+        &mut self,
+        l2id: u64,
+        block_number: u64,
+        hash: L2OAHashFunction,
+    ) -> anyhow::Result<Hash256>;
+    fn get_superchainroot_at_block(
+        &mut self,
+        block_number: u64,
+        hash: L2OAHashFunction,
+    ) -> anyhow::Result<Hash256>;
+    fn get_merkle_proof_state_root_at_block(
         &mut self,
         l2id: u64,
         block_number: u64,
         hash: L2OAHashFunction,
     ) -> anyhow::Result<MerkleProofCore<Hash256>>;
-
     fn report_deploy_inscription(
         &mut self,
         deployment: L2ODeployInscriptionV1,

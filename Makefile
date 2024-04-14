@@ -125,6 +125,27 @@ l2o-deploy-info:
 		-H "Content-Type: application/json" \
 		--data '{"method":"l2o_getDeployInscription","params":1,"id":1,"jsonrpc":"2.0"}' | jq
 
+.PHONY: l2o-superchain-root
+l2o-superchain-root:
+	curl http://localhost:3000 \
+		-X POST \
+		-H "Content-Type: application/json" \
+		--data '{"method":"l2o_getSuperchainStateRootAtBlock","params":[1,"Sha256"],"id":1,"jsonrpc":"2.0"}' | jq
+
+.PHONY: l2o-state-root
+l2o-state-root:
+	curl http://localhost:3000 \
+		-X POST \
+		-H "Content-Type: application/json" \
+		--data '{"method":"l2o_getStateRootAtBlock","params":[1,0,"Sha256"],"id":1,"jsonrpc":"2.0"}' | jq
+
+.PHONY: l2o-merkle-proof-state-root
+l2o-merkle-proof-state-root:
+	curl http://localhost:3000 \
+		-X POST \
+		-H "Content-Type: application/json" \
+		--data '{"method":"l2o_getMerkleProofStateRootAtBlock","params":[1,0,"Sha256"],"id":1,"jsonrpc":"2.0"}' | jq
+
 .PHONY: image
 image:
 	docker build \

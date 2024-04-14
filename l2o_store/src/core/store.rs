@@ -12,6 +12,7 @@ use l2o_crypto::hash::hash_functions::sha256::Sha256Hasher;
 use l2o_crypto::hash::merkle::core::MerkleProofCore;
 use l2o_crypto::hash::merkle::store::key::KVQMerkleNodeKey;
 use l2o_crypto::hash::merkle::store::model::KVQMerkleTreeModel;
+use l2o_crypto::hash::traits::L2OHash;
 use l2o_crypto::standards::l2o_a::L2OBlockInscriptionV1;
 use l2o_crypto::standards::l2o_a::L2ODeployInscriptionV1;
 
@@ -82,22 +83,107 @@ impl<S: KVQBinaryStore> L2OStoreV1 for L2OStoreV1Core<S> {
         )
     }
 
-    fn get_state_root_at_block(&mut self, l2id: u64, block_number: u64) -> anyhow::Result<Hash256> {
-        Sha256StateRootTree::<S>::get_node(
-            &self.store,
-            TREE_HEIGHT,
-            &KVQMerkleNodeKey::new(
-                SUB_TABLE_L2_STATE_ROOTS_SHA256,
-                0,
-                0,
-                TREE_HEIGHT as u8,
-                l2id,
-                block_number,
+    fn get_state_root_at_block(
+        &mut self,
+        l2id: u64,
+        block_number: u64,
+        hash: L2OAHashFunction,
+    ) -> anyhow::Result<Hash256> {
+        match hash {
+            L2OAHashFunction::Sha256 => Sha256StateRootTree::<S>::get_node(
+                &self.store,
+                TREE_HEIGHT,
+                &KVQMerkleNodeKey::new(
+                    SUB_TABLE_L2_STATE_ROOTS_SHA256,
+                    0,
+                    0,
+                    TREE_HEIGHT as u8,
+                    l2id,
+                    block_number,
+                ),
             ),
-        )
+            L2OAHashFunction::BLAKE3 => Blake3StateRootTree::<S>::get_node(
+                &self.store,
+                TREE_HEIGHT,
+                &KVQMerkleNodeKey::new(
+                    SUB_TABLE_L2_STATE_ROOTS_BLAKE3,
+                    0,
+                    0,
+                    TREE_HEIGHT as u8,
+                    l2id,
+                    block_number,
+                ),
+            ),
+            L2OAHashFunction::Keccak256 => Keccack256StateRootTree::<S>::get_node(
+                &self.store,
+                TREE_HEIGHT,
+                &KVQMerkleNodeKey::new(
+                    SUB_TABLE_L2_STATE_ROOTS_KECCACK256,
+                    0,
+                    0,
+                    TREE_HEIGHT as u8,
+                    l2id,
+                    block_number,
+                ),
+            ),
+            L2OAHashFunction::PoseidonGoldilocks => {
+                let p = PoseidonGoldilocksStateRootTree::<S>::get_node(
+                    &self.store,
+                    TREE_HEIGHT,
+                    &KVQMerkleNodeKey::new(
+                        SUB_TABLE_L2_STATE_ROOTS_POSEIDON_GOLDILOCKS,
+                        0,
+                        0,
+                        TREE_HEIGHT as u8,
+                        l2id,
+                        block_number,
+                    ),
+                )?;
+                Ok(L2OHash::to_hash_256(&p))
+            }
+        }
     }
 
-    fn get_merkle_proof_state_root(
+    fn get_superchainroot_at_block(
+        &mut self,
+        block_number: u64,
+        hash: L2OAHashFunction,
+    ) -> anyhow::Result<Hash256> {
+        match hash {
+            L2OAHashFunction::Sha256 => Sha256StateRootTree::<S>::get_node(
+                &self.store,
+                TREE_HEIGHT,
+                &KVQMerkleNodeKey::new(SUB_TABLE_L2_STATE_ROOTS_SHA256, 0, 0, 0, 0, block_number),
+            ),
+            L2OAHashFunction::BLAKE3 => Blake3StateRootTree::<S>::get_node(
+                &self.store,
+                TREE_HEIGHT,
+                &KVQMerkleNodeKey::new(SUB_TABLE_L2_STATE_ROOTS_BLAKE3, 0, 0, 0, 0, block_number),
+            ),
+            L2OAHashFunction::Keccak256 => Keccack256StateRootTree::<S>::get_node(
+                &self.store,
+                TREE_HEIGHT,
+                &KVQMerkleNodeKey::new(SUB_TABLE_L2_STATE_ROOTS_KECCACK256, 0, 0, 0, 0, block_number),
+            ),
+            L2OAHashFunction::PoseidonGoldilocks => {
+                let p = PoseidonGoldilocksStateRootTree::<S>::get_node(
+                    &self.store,
+                    TREE_HEIGHT,
+                    &KVQMerkleNodeKey::new(
+                        SUB_TABLE_L2_STATE_ROOTS_POSEIDON_GOLDILOCKS,
+                        0,
+                        0,
+                        0,
+                        0,
+                        block_number,
+                    ),
+                )?;
+                Ok(L2OHash::to_hash_256(&p))
+            }
+        }
+    }
+
+    fn get_merkle_proof_state_root_at_block(
         &mut self,
         l2id: u64,
         block_number: u64,
