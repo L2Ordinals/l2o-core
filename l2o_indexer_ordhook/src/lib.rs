@@ -6,6 +6,9 @@ use ark_bn254::Fr;
 use ark_groth16::Groth16;
 use ark_serialize::CanonicalSerialize;
 use ark_snark::SNARK;
+use bitcoincore_rpc::Auth;
+use bitcoincore_rpc::Client;
+use bitcoincore_rpc::RpcApi;
 use bytes::Buf;
 use bytes::Bytes;
 use chainhook_sdk::types::BitcoinBlockMetadata;
@@ -41,6 +44,11 @@ use l2o_crypto::proof::groth16::bn128::verifier_data::Groth16BN128VerifierData;
 use l2o_crypto::signature::schnorr::verify_sig;
 use l2o_crypto::standards::l2o_a::proof::L2OAProofData;
 use l2o_crypto::standards::l2o_a::L2OBlockInscriptionV1;
+use l2o_rpc_provider::rpc;
+use l2o_rpc_provider::rpc::request::RequestParams;
+use l2o_rpc_provider::rpc::request::RpcRequest;
+use l2o_rpc_provider::rpc::response::ResponseResult;
+use l2o_rpc_provider::rpc::response::RpcResponse;
 use l2o_store::core::store::L2OStoreV1Core;
 use l2o_store::core::traits::L2OStoreV1;
 use l2o_store_rocksdb::KVQRocksDBStore;
@@ -49,15 +57,9 @@ use serde::Serialize;
 use tokio::net::TcpListener;
 use tokio::sync::Mutex;
 
-use crate::rpc::request::RequestParams;
-use crate::rpc::request::RpcRequest;
-use crate::rpc::response::ResponseResult;
-use crate::rpc::response::RpcResponse;
-
 type BoxBody = http_body_util::combinators::BoxBody<Bytes, hyper::Error>;
 
 pub mod l2o;
-pub mod rpc;
 pub mod store;
 
 static NOTFOUND: &[u8] = b"Not Found";
@@ -103,7 +105,8 @@ pub struct BitcoinChainhookOccurrencePayloadV2 {
 
 async fn process_l2o_inscription(
     store: Arc<Mutex<L2OStoreV1Core<KVQRocksDBStore>>>,
-    bitcoin_block: &BitcoinBlockDataV2,
+    bitcoin_rpc: Arc<Client>,
+    _bitcoin_block: &BitcoinBlockDataV2,
     _bitcoin_tx: &BitcoinTransactionDataV2,
     inscription: L2OInscription,
 ) -> anyhow::Result<()> {
@@ -160,6 +163,23 @@ async fn process_l2o_inscription(
                 anyhow::bail!("unsupported proof type");
             };
 
+            let bitcoin_block_hash = bitcoin_rpc
+                .get_block_hash(block.bitcoin_block_number)?
+                .to_string()
+                .trim_start_matches("0x")
+                .to_string();
+            if bitcoin_block_hash != block.bitcoin_block_hash {
+                anyhow::bail!("bitcoin block number mismatch");
+            }
+
+            let superchain_root = store
+                .lock()
+                .await
+                .get_superchainroot_at_block(block.bitcoin_block_number, deploy.hash_function)?;
+            if superchain_root != Hash256::from_hex(&block.superchain_root)? {
+                anyhow::bail!("superchain root mismatch");
+            }
+
             let (start_state_root, end_state_root, start_withdrawal_state_root, public_key) =
                 if let Ok(last_block) = store.lock().await.get_last_block_inscription(l2id) {
                     if u64::from(block.block_parameters.block_number)
@@ -168,7 +188,7 @@ async fn process_l2o_inscription(
                         anyhow::bail!("block must be consecutive");
                     }
 
-                    if bitcoin_block.block_identifier.index <= last_block.bitcoin_block_number {
+                    if block.bitcoin_block_number <= last_block.bitcoin_block_number {
                         anyhow::bail!("bitcoin block must be bigger than previous");
                     }
 
@@ -203,8 +223,8 @@ async fn process_l2o_inscription(
                 l2id,
                 l2_block_number: block.block_parameters.block_number.into(),
 
-                bitcoin_block_number: bitcoin_block.block_identifier.index,
-                bitcoin_block_hash: Hash256::from_hex(&bitcoin_block.block_identifier.hash)?,
+                bitcoin_block_number: block.bitcoin_block_number,
+                bitcoin_block_hash: Hash256::from_hex(&block.bitcoin_block_hash)?,
 
                 public_key: L2OCompactPublicKey::from_hex(&block.block_parameters.public_key)?,
 
@@ -223,7 +243,7 @@ async fn process_l2o_inscription(
                     public_inputs: block_proof.public_inputs.clone(),
                 }),
 
-                superchain_root: Hash256::zero(),
+                superchain_root: superchain_root,
                 signature: L2OSignature512::from_hex(&block.signature)?,
             };
 
@@ -269,6 +289,7 @@ async fn process_l2o_inscription(
                 .lock()
                 .await
                 .set_last_block_inscription(block_inscription)?;
+            tracing::info!("l2id {}'s last block updated", l2id);
 
             return Ok(());
         }
@@ -277,6 +298,7 @@ async fn process_l2o_inscription(
 
 async fn process_rpc_requests(
     store: Arc<Mutex<L2OStoreV1Core<KVQRocksDBStore>>>,
+    _bitcoin_rpc: Arc<Client>,
     req: &RpcRequest,
 ) -> anyhow::Result<RpcResponse> {
     let response = match req.request {
@@ -342,6 +364,7 @@ async fn process_rpc_requests(
 
 async fn process_ordinal_ops(
     store: Arc<Mutex<L2OStoreV1Core<KVQRocksDBStore>>>,
+    bitcoin_rpc: Arc<Client>,
     payload: &BitcoinChainhookOccurrencePayloadV2,
 ) -> anyhow::Result<()> {
     for block in payload.apply.iter() {
@@ -352,7 +375,14 @@ async fn process_ordinal_ops(
                         if revealed.content_type.starts_with("application/json") {
                             let decoded = hex::decode(&revealed.content_bytes[2..])?;
                             let inscription = serde_json::from_slice::<L2OInscription>(&decoded)?;
-                            process_l2o_inscription(store.clone(), block, tx, inscription).await?;
+                            process_l2o_inscription(
+                                store.clone(),
+                                bitcoin_rpc.clone(),
+                                block,
+                                tx,
+                                inscription,
+                            )
+                            .await?;
                         }
                     }
                     OrdinalOperation::InscriptionTransferred(_) => {
@@ -367,6 +397,7 @@ async fn process_ordinal_ops(
 
 async fn handle_ordinal_events(
     store: Arc<Mutex<L2OStoreV1Core<KVQRocksDBStore>>>,
+    bitcoin_rpc: Arc<Client>,
     req: Request<IncomingBody>,
 ) -> anyhow::Result<Response<BoxBody>> {
     // Aggregate the body...
@@ -374,7 +405,7 @@ async fn handle_ordinal_events(
     // Decode as JSON...
     let data =
         serde_json::from_reader::<_, BitcoinChainhookOccurrencePayloadV2>(whole_body.reader())?;
-    process_ordinal_ops(store, &data).await?;
+    process_ordinal_ops(store, bitcoin_rpc, &data).await?;
 
     let response = Response::builder()
         .status(StatusCode::OK)
@@ -385,13 +416,14 @@ async fn handle_ordinal_events(
 
 async fn handle_rpc_requests(
     store: Arc<Mutex<L2OStoreV1Core<KVQRocksDBStore>>>,
+    bitcoin_rpc: Arc<Client>,
     req: Request<IncomingBody>,
 ) -> anyhow::Result<Response<BoxBody>> {
     // Aggregate the body...
     let whole_body = req.collect().await?.aggregate();
     // Decode as JSON...
     let data = serde_json::from_reader::<_, RpcRequest>(whole_body.reader())?;
-    let response = process_rpc_requests(store, &data).await?;
+    let response = process_rpc_requests(store, bitcoin_rpc, &data).await?;
 
     Ok(Response::builder()
         .status(StatusCode::OK)
@@ -401,11 +433,12 @@ async fn handle_rpc_requests(
 
 async fn route(
     store: Arc<Mutex<L2OStoreV1Core<KVQRocksDBStore>>>,
+    bitcoin_rpc: Arc<Client>,
     req: Request<IncomingBody>,
 ) -> anyhow::Result<Response<BoxBody>> {
     match (req.method(), req.uri().path()) {
-        (&Method::POST, "/api/events") => handle_ordinal_events(store, req).await,
-        (&Method::POST, "/") => handle_rpc_requests(store, req).await,
+        (&Method::POST, "/api/events") => handle_ordinal_events(store, bitcoin_rpc, req).await,
+        (&Method::POST, "/") => handle_rpc_requests(store, bitcoin_rpc, req).await,
         _ => {
             // Return 404 not found response.
             Ok(Response::builder()
@@ -426,6 +459,13 @@ pub async fn listen(args: &IndexerOrdHookArgs) -> anyhow::Result<()> {
     let store = Arc::new(Mutex::new(L2OStoreV1Core::new(KVQRocksDBStore::new(
         &args.db_path,
     )?)));
+    let bitcoin_rpc = Arc::new(Client::new(
+        &args.bitcoin_rpc,
+        Auth::UserPass(
+            args.bitcoin_rpcuser.to_string(),
+            args.bitcoin_rpcpassword.to_string(),
+        ),
+    )?);
 
     let listener = TcpListener::bind(&addr).await?;
     tracing::info!("Listening on http://{}", addr);
@@ -433,9 +473,11 @@ pub async fn listen(args: &IndexerOrdHookArgs) -> anyhow::Result<()> {
         let (stream, _) = listener.accept().await?;
         let io = TokioIo::new(stream);
         let store = store.clone();
+        let bitcoin_rpc = bitcoin_rpc.clone();
 
         tokio::task::spawn(async move {
-            let service = service_fn(|req| async { route(store.clone(), req).await });
+            let service =
+                service_fn(|req| async { route(store.clone(), bitcoin_rpc.clone(), req).await });
 
             if let Err(err) = http1::Builder::new().serve_connection(io, service).await {
                 tracing::error!("{:?}", err);

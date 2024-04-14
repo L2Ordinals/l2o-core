@@ -163,7 +163,14 @@ impl<S: KVQBinaryStore> L2OStoreV1 for L2OStoreV1Core<S> {
             L2OAHashFunction::Keccak256 => Keccack256StateRootTree::<S>::get_node(
                 &self.store,
                 TREE_HEIGHT,
-                &KVQMerkleNodeKey::new(SUB_TABLE_L2_STATE_ROOTS_KECCACK256, 0, 0, 0, 0, block_number),
+                &KVQMerkleNodeKey::new(
+                    SUB_TABLE_L2_STATE_ROOTS_KECCACK256,
+                    0,
+                    0,
+                    0,
+                    0,
+                    block_number,
+                ),
             ),
             L2OAHashFunction::PoseidonGoldilocks => {
                 let p = PoseidonGoldilocksStateRootTree::<S>::get_node(

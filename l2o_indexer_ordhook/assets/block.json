@@ -1,4 +1,7 @@
 {
+  "bitcoin_block_hash": "0192aba6b6a128c7622035d91d79fb77ad8f7fb9ca1f533ca2b6a8e3051ece39",
+  "bitcoin_block_number": 100,
+  "superchain_root": "0192aba6b6a128c7622035d91d79fb77ad8f7fb9ca1f533ca2b6a8e3051ece39",
   "block_parameters": {
     "block_number": 0,
     "deposits_root": "8da4ef21b864d2cc526dbdb2a120bd2874c36c9d0a1fb7f8c63d7f7a8b41de8f",

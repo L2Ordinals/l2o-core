@@ -34,6 +34,9 @@ pub struct L2OInscriptionBlock {
     pub l2id: u32,
     pub block_parameters: L2OInscriptionBlockParameters,
     pub proof: L2OAProofSerializableData,
+    pub bitcoin_block_number: u64,
+    pub bitcoin_block_hash: String,
+    pub superchain_root: String,
     pub signature: String,
 }
 

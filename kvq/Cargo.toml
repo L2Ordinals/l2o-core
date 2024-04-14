@@ -10,5 +10,4 @@ anyhow     = { workspace = true }
 hex        = { workspace = true }
 plonky2    = { workspace = true }
 serde      = { workspace = true }
-serde_json = { workspace = true }
 serde_with = { workspace = true }

@@ -9,8 +9,8 @@ pub fn get_block_payload_bytes(block: &L2OBlockInscriptionV1) -> Vec<u8> {
     let mut payload_bytes: Vec<u8> = Vec::new();
     payload_bytes.extend_from_slice(&block.l2id.to_le_bytes());
     payload_bytes.extend_from_slice(&block.l2_block_number.to_le_bytes());
-    // payload_bytes.extend_from_slice(&block.bitcoin_block_number.to_le_bytes());
-    // payload_bytes.extend_from_slice(&block.bitcoin_block_hash.0);
+    payload_bytes.extend_from_slice(&block.bitcoin_block_number.to_le_bytes());
+    payload_bytes.extend_from_slice(&block.bitcoin_block_hash.0);
     payload_bytes.extend_from_slice(&block.public_key.0);
 
     payload_bytes.extend_from_slice(&block.start_state_root.0);
@@ -33,12 +33,11 @@ pub fn get_block_payload_goldilocks_hash_u32_mode(
     payload_bytes.push(GoldilocksField::from_noncanonical_u64(
         block.l2_block_number,
     ));
-    // payload_bytes.push(GoldilocksField::from_noncanonical_u64(
-    //     block.bitcoin_block_number,
-    // ));
+    payload_bytes.push(GoldilocksField::from_noncanonical_u64(
+        block.bitcoin_block_number,
+    ));
 
-    // payload_bytes.extend_from_slice(&hash256_to_goldilocks_u32(&block.
-    // bitcoin_block_hash));
+    payload_bytes.extend_from_slice(&hash256_to_goldilocks_u32(&block.bitcoin_block_hash));
     payload_bytes.extend_from_slice(&hash256_to_goldilocks_u32(&Hash256(block.public_key.0)));
     payload_bytes.extend_from_slice(&hash256_to_goldilocks_u32(&block.start_state_root));
     payload_bytes.extend_from_slice(&hash256_to_goldilocks_u32(&block.end_state_root));

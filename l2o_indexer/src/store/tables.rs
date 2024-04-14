@@ -1,1 +1,0 @@
-const L2_STATE_ROOTS: u16 = 1;

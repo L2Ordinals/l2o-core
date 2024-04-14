@@ -1,4 +1,5 @@
 use std::process::Command;
+use std::sync::Arc;
 
 use ark_bn254::Bn254;
 use ark_bn254::Fr;
@@ -9,11 +10,15 @@ use ark_groth16::ProvingKey;
 use ark_groth16::VerifyingKey;
 use ark_std::rand::rngs::StdRng;
 use ark_std::rand::SeedableRng;
+use bitcoincore_rpc::Auth;
+use bitcoincore_rpc::Client;
+use bitcoincore_rpc::RpcApi;
 use k256::schnorr::SigningKey;
 use l2o_common::common::data::hash::Hash256;
 use l2o_common::common::data::hash::L2OHash;
 use l2o_common::common::data::signature::L2OCompactPublicKey;
 use l2o_common::common::data::signature::L2OSignature512;
+use l2o_common::standards::l2o_a::supported_crypto::L2OAHashFunction;
 use l2o_common::InitializerArgs;
 use l2o_crypto::hash::hash_functions::block_hasher::get_block_payload_bytes;
 use l2o_crypto::hash::hash_functions::sha256::Sha256Hasher;
@@ -26,13 +31,22 @@ use l2o_crypto::signature::schnorr::sign_msg;
 use l2o_crypto::standards::l2o_a::proof::L2OAProofData;
 use l2o_crypto::standards::l2o_a::L2OBlockInscriptionV1;
 use l2o_indexer_ordhook::l2o::inscription::L2OInscription;
+use l2o_rpc_provider::L2OAProvider;
+use l2o_rpc_provider::Provider;
 use serde_json::json;
 
 use crate::circuits::BlockCircuit;
 
 pub async fn run(
-    _args: &InitializerArgs,
-) -> anyhow::Result<(ProvingKey<Bn254>, VerifyingKey<Bn254>, StdRng, SigningKey)> {
+    args: &InitializerArgs,
+) -> anyhow::Result<(
+    ProvingKey<Bn254>,
+    VerifyingKey<Bn254>,
+    StdRng,
+    SigningKey,
+    Arc<Client>,
+    Arc<Provider>,
+)> {
     let deploy_json = include_str!("../../../l2o_indexer_ordhook/assets/deploy.json");
     let block_json = include_str!("../../../l2o_indexer_ordhook/assets/block.json");
     let deploy_data = serde_json::from_str::<L2OInscription>(deploy_json)?;
@@ -45,10 +59,23 @@ pub async fn run(
         L2OInscription::Block(block) => block,
         _ => unreachable!(),
     };
-    let signing_key = SigningKey::from_bytes(
-        &hex::decode("60f0a76f41094bade9f7065da0fcb601dbd1c68a21f747e12691ccbe1cae9543").unwrap(),
-    )
-    .unwrap();
+    let signing_key = SigningKey::from_bytes(&hex::decode(
+        "60f0a76f41094bade9f7065da0fcb601dbd1c68a21f747e12691ccbe1cae9543",
+    )?)?;
+    let bitcoin_rpc = Arc::new(Client::new(
+        &args.bitcoin_rpc,
+        Auth::UserPass(
+            args.bitcoin_rpcuser.to_string(),
+            args.bitcoin_rpcpassword.to_string(),
+        ),
+    )?);
+    let bitcoin_block_number = bitcoin_rpc.get_block_count()? - 1;
+    let bitcoin_block_hash = bitcoin_rpc.get_block_hash(bitcoin_block_number)?;
+
+    let rpc = Arc::new(Provider::new(args.indexer_url.clone()));
+    let superchain_root = rpc
+        .get_superchainroot_at_block(bitcoin_block_number, L2OAHashFunction::Sha256)
+        .await?;
 
     let block_proof = block
         .proof
@@ -63,8 +90,8 @@ pub async fn run(
         l2id: block.l2id.into(),
         l2_block_number: block.block_parameters.block_number.into(),
 
-        bitcoin_block_number: 0,
-        bitcoin_block_hash: Hash256::zero(),
+        bitcoin_block_number: bitcoin_block_number,
+        bitcoin_block_hash: Hash256::from_hex(&bitcoin_block_hash.to_string())?,
 
         public_key: L2OCompactPublicKey::from_hex(&block.block_parameters.public_key)?,
 
@@ -81,7 +108,7 @@ pub async fn run(
             public_inputs: block_proof.public_inputs,
         }),
 
-        superchain_root: Hash256::zero(),
+        superchain_root: superchain_root,
         signature: L2OSignature512::from_hex(&block.signature)?,
     };
 
@@ -132,6 +159,9 @@ pub async fn run(
     let mut block_value = serde_json::to_value(&block)?;
     block_value["p"] = json!("l2o-a");
     block_value["op"] = json!("Block");
+    block_value["bitcoin_block_number"] = json!(block_inscription.bitcoin_block_number);
+    block_value["bitcoin_block_hash"] = json!(block_inscription.bitcoin_block_hash.to_hex());
+    block_value["superchain_root"] = json!(superchain_root.to_hex());
     let processed_vk = Groth16::<Bn254>::process_vk(&vk)?;
     let proof = Groth16::<Bn254>::prove(&pk, block_circuit.clone(), &mut rng)?;
 
@@ -168,5 +198,5 @@ pub async fn run(
         .status()
         .is_ok());
 
-    Ok((pk, vk, rng, signing_key))
+    Ok((pk, vk, rng, signing_key, bitcoin_rpc, rpc))
 }

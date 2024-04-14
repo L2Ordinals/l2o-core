@@ -15,6 +15,8 @@ ark-r1cs-std          = { workspace = true }
 ark-relations         = { workspace = true }
 ark-std               = { workspace = true }
 bitcoin               = { workspace = true }
+bitcoincore-rpc       = { workspace = true }
+bitcoincore-rpc-json  = { workspace = true }
 clap                  = { workspace = true }
 dotenv                = { workspace = true }
 hex                   = { workspace = true }
@@ -22,7 +24,7 @@ k256                  = { workspace = true }
 l2o-indexer-ordhook   = { path = "../l2o_indexer_ordhook" }
 l2o_common            = { path = "../l2o_common" }
 l2o_crypto            = { path = "../l2o_crypto" }
-l2o_indexer           = { path = "../l2o_indexer" }
+l2o_rpc_provider      = { path = "../l2o_rpc_provider" }
 once_cell             = { workspace = true }
 rand_core             = { workspace = true }
 reqwest               = { workspace = true }

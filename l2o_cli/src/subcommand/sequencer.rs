@@ -1,4 +1,5 @@
 use std::process::Command;
+use std::sync::Arc;
 use std::time::Duration;
 
 use ark_bn254::Bn254;
@@ -8,11 +9,12 @@ use ark_groth16::Groth16;
 use ark_groth16::ProvingKey;
 use ark_groth16::VerifyingKey;
 use ark_std::rand::rngs::StdRng;
+use bitcoincore_rpc::RpcApi;
 use k256::schnorr::SigningKey;
 use l2o_common::common::data::hash::Hash256;
-use l2o_common::common::data::hash::L2OHash;
 use l2o_common::common::data::signature::L2OCompactPublicKey;
 use l2o_common::common::data::signature::L2OSignature512;
+use l2o_common::standards::l2o_a::supported_crypto::L2OAHashFunction;
 use l2o_common::InitializerArgs;
 use l2o_common::SequencerArgs;
 use l2o_crypto::hash::hash_functions::block_hasher::get_block_payload_bytes;
@@ -25,40 +27,30 @@ use l2o_crypto::standards::l2o_a::proof::L2OAProofData;
 use l2o_crypto::standards::l2o_a::L2OBlockInscriptionV1;
 use l2o_indexer_ordhook::l2o::inscription::L2OInscriptionBlock;
 use l2o_indexer_ordhook::l2o::inscription::L2OInscriptionBlockParameters;
-use l2o_indexer_ordhook::rpc::request::Id;
-use l2o_indexer_ordhook::rpc::request::RequestParams;
-use l2o_indexer_ordhook::rpc::request::RpcRequest;
-use l2o_indexer_ordhook::rpc::request::Version;
-use reqwest::Client;
+use l2o_rpc_provider::L2OAProvider;
+use l2o_rpc_provider::Provider;
 use serde_json::json;
-use serde_json::Value;
 
 use crate::circuits::BlockCircuit;
 use crate::subcommand::initializer;
 
 async fn execute_single(
-    client: &Client,
     args: &SequencerArgs,
     pk: &ProvingKey<Bn254>,
     _vk: &VerifyingKey<Bn254>,
     rng: &mut StdRng,
     signing_key: &SigningKey,
+    bitcoincore_rpc: Arc<bitcoincore_rpc::Client>,
+    rpc: Arc<Provider>,
 ) -> anyhow::Result<()> {
-    let response = client
-        .post(&args.indexer_url)
-        .json(&RpcRequest {
-            jsonrpc: Version::V2,
-            request: RequestParams::L2OGetLastBlockInscription(args.l2oid),
-            id: Id::Number(1),
-        })
-        .send()
-        .await?
-        .json::<Value>()
+    let prev_block = rpc.get_last_block_inscription(args.l2oid).await?;
+    let bitcoin_block_number = prev_block.bitcoin_block_number + 1;
+    let bitcoin_block_hash = bitcoincore_rpc.get_block_hash(bitcoin_block_number)?;
+    let superchain_root = rpc
+        .get_superchainroot_at_block(bitcoin_block_number, L2OAHashFunction::Sha256)
         .await?;
 
-    let prev_block = serde_json::from_value::<L2OBlockInscriptionV1>(response["result"].clone())?;
-
-    let mut next_block = L2OInscriptionBlock {
+    let mut block = L2OInscriptionBlock {
         l2id: prev_block.l2id as u32,
         block_parameters: L2OInscriptionBlockParameters {
             state_root: Hash256::rand().to_hex(),
@@ -67,6 +59,9 @@ async fn execute_single(
             withdrawals_root: Hash256::rand().to_hex(),
             block_number: (prev_block.l2_block_number + 1) as u32,
         },
+        bitcoin_block_number: bitcoin_block_number,
+        bitcoin_block_hash: bitcoin_block_hash.to_string().trim_start_matches("0x").to_string(),
+        superchain_root: superchain_root.to_hex(),
         proof: Groth16ProofSerializable::from_proof_with_public_inputs_groth16_bn254(
             &prev_block.proof.try_as_groth_16_bn_128().unwrap(),
         )
@@ -74,7 +69,7 @@ async fn execute_single(
         signature: "aa1a18a79d73e2d7d0c636317b9ffc6d9492cdab3cc9872a15bd3c866d2cf132c7bb8bd90eb69e20e88372eab927e9b09897835edd81d3450a458c725ed581c0".to_string(),
     };
 
-    let mock_proof = next_block
+    let proof = block
         .proof
         .clone()
         .try_as_groth_16_proof_serializable()
@@ -85,37 +80,35 @@ async fn execute_single(
         p: "l2o-a".to_string(),
         op: "Block".to_string(),
 
-        l2id: next_block.l2id.into(),
-        l2_block_number: next_block.block_parameters.block_number.into(),
+        l2id: block.l2id.into(),
+        l2_block_number: block.block_parameters.block_number.into(),
 
-        bitcoin_block_number: 0,
-        bitcoin_block_hash: Hash256::zero(),
+        bitcoin_block_number,
+        bitcoin_block_hash: Hash256::from_hex(&block.bitcoin_block_hash)?,
 
-        public_key: L2OCompactPublicKey::from_hex(&next_block.block_parameters.public_key)?,
+        public_key: L2OCompactPublicKey::from_hex(&block.block_parameters.public_key)?,
 
         start_state_root: prev_block.end_state_root.clone(),
-        end_state_root: Hash256::from_hex(&next_block.block_parameters.state_root)?,
+        end_state_root: Hash256::from_hex(&block.block_parameters.state_root)?,
 
-        deposit_state_root: Hash256::from_hex(&next_block.block_parameters.deposits_root)?,
+        deposit_state_root: Hash256::from_hex(&block.block_parameters.deposits_root)?,
 
         start_withdrawal_state_root: prev_block.end_withdrawal_state_root.clone(),
-        end_withdrawal_state_root: Hash256::from_hex(
-            &next_block.block_parameters.withdrawals_root,
-        )?,
+        end_withdrawal_state_root: Hash256::from_hex(&block.block_parameters.withdrawals_root)?,
 
         proof: L2OAProofData::Groth16BN128(Groth16BN128ProofData {
-            proof: mock_proof.proof,
-            public_inputs: mock_proof.public_inputs,
+            proof: proof.proof,
+            public_inputs: proof.public_inputs,
         }),
 
-        superchain_root: Hash256::zero(),
-        signature: L2OSignature512::from_hex(&next_block.signature)?,
+        superchain_root: superchain_root,
+        signature: L2OSignature512::from_hex(&block.signature)?,
     };
     let block_payload = get_block_payload_bytes(&block_inscription);
     let block_hash = Sha256Hasher::get_l2_block_hash(&block_inscription);
     let signature = sign_msg(signing_key, &block_hash.0)?;
     block_inscription.signature = signature.clone();
-    next_block.signature = hex::encode(&signature.0);
+    block.signature = hex::encode(&signature.0);
     let public_inputs: [Fr; 2] = block_hash.into();
     let block_circuit = BlockCircuit {
         block_hash: public_inputs,
@@ -128,11 +121,14 @@ async fn execute_single(
             public_inputs: public_inputs.to_vec(),
         },
     );
-    let mut block_value = serde_json::to_value(&next_block)?;
+    let mut block_value = serde_json::to_value(&block)?;
     block_value["proof"] = json!(proof_json);
 
     block_value["p"] = json!("l2o-a");
     block_value["op"] = json!("Block");
+    block_value["bitcoin_block_number"] = json!(block_inscription.bitcoin_block_number);
+    block_value["bitcoin_block_hash"] = json!(block_inscription.bitcoin_block_hash.to_hex());
+    block_value["superchain_root"] = json!(block_inscription.superchain_root.to_hex());
     std::fs::write(
         "./l2o_indexer_ordhook/assets/block.json",
         serde_json::to_string_pretty(&block_value)?,
@@ -150,11 +146,27 @@ async fn execute_single(
 }
 
 pub async fn run(args: &SequencerArgs) -> anyhow::Result<()> {
-    let (pk, vk, mut rng, signing_key) = initializer::run(&InitializerArgs {}).await?;
+    let (pk, vk, mut rng, signing_key, bitcoincore_rpc, rpc) = initializer::run(&InitializerArgs {
+        indexer_url: args.indexer_url.to_string(),
+        bitcoin_rpc: args.bitcoin_rpc.to_string(),
+        bitcoin_rpcuser: args.bitcoin_rpcuser.to_string(),
+        bitcoin_rpcpassword: args.bitcoin_rpcpassword.to_string(),
+        l2oid: args.l2oid,
+    })
+    .await?;
 
-    let client = Client::new();
     loop {
-        if let Err(err) = execute_single(&client, args, &pk, &vk, &mut rng, &signing_key).await {
+        if let Err(err) = execute_single(
+            args,
+            &pk,
+            &vk,
+            &mut rng,
+            &signing_key,
+            bitcoincore_rpc.clone(),
+            rpc.clone(),
+        )
+        .await
+        {
             tracing::error!("{}", err);
         }
         tokio::time::sleep(Duration::from_secs(15)).await;

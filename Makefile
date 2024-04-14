@@ -91,10 +91,6 @@ ord-reindex:
 .PHONY: run
 run: run-indexer-ordhook run-ordhook run-l2o-sequencer
 
-.PHONY: run-indexer
-run-indexer:
-	@RUST_LOG=${LOG_LEVEL} RUST_BACKTRACE=${TRACE_ENABLED} cargo run --package l2o-cli -- indexer
-
 .PHONY: run-l2o-sequencer
 run-l2o-sequencer:
 	@RUST_LOG=${LOG_LEVEL} RUST_BACKTRACE=${TRACE_ENABLED} cargo run --package l2o-cli -- sequencer
