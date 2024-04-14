@@ -32,7 +32,7 @@ use l2o_common::common::data::hash::L2OHash;
 use l2o_common::common::data::signature::L2OCompactPublicKey;
 use l2o_common::common::data::signature::L2OSignature512;
 use l2o_common::standards::l2o_a::actions::deploy::L2ODeployInscription;
-use l2o_common::standards::l2o_a::supported_crypto::L2OAProofType;
+
 use l2o_common::IndexerOrdHookArgs;
 use l2o_crypto::hash::hash_functions::blake3::Blake3Hasher;
 use l2o_crypto::hash::hash_functions::keccak256::Keccak256Hasher;
@@ -117,8 +117,7 @@ async fn process_l2o_inscription(
                 tracing::debug!("l2o {} already deployed", l2id);
                 return Ok(());
             }
-            let proof_type: L2OAProofType = deploy.proof_type.parse()?;
-            let verifier_data = if proof_type.is_groth_16_bn_128() {
+            let verifier_data = if deploy.vk.is_groth_16_verifier_serializable() {
                 deploy
                     .vk
                     .try_as_groth_16_verifier_serializable()
@@ -134,14 +133,13 @@ async fn process_l2o_inscription(
                 public_key: L2OCompactPublicKey::from_hex(&deploy.public_key)?,
                 start_state_root: Hash256::from_hex(&deploy.start_state_root)?,
                 hash_function: deploy.hash_function.parse()?,
-                proof_type,
                 verifier_data: Groth16BN128VerifierData(verifier_data).into(),
             };
             store
                 .lock()
                 .await
                 .report_deploy_inscription(deploy_inscription)?;
-            tracing::info!("deployed l2o: {}", deploy.l2id);
+            tracing::info!("l2o {} deployed", deploy.l2id);
             Ok(())
         }
         L2OInscription::Block(block) => {
@@ -153,7 +151,7 @@ async fn process_l2o_inscription(
 
             let deploy = store.lock().await.get_deploy_inscription(l2id)?;
 
-            let block_proof = if deploy.proof_type.is_groth_16_bn_128() {
+            let block_proof = if deploy.verifier_data.is_groth_16_bn_128() {
                 block
                     .proof
                     .try_as_groth_16_proof_serializable()
@@ -289,7 +287,7 @@ async fn process_l2o_inscription(
                 .lock()
                 .await
                 .set_last_block_inscription(block_inscription)?;
-            tracing::info!("l2id {}'s last block updated", l2id);
+            tracing::info!("l2id {} block: {}", l2id, block.bitcoin_block_number);
 
             return Ok(());
         }

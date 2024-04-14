@@ -5,7 +5,6 @@ use serde::Serialize;
 use crate::common::data::hash::Hash256;
 use crate::common::data::signature::L2OCompactPublicKey;
 use crate::standards::l2o_a::supported_crypto::L2OAHashFunction;
-use crate::standards::l2o_a::supported_crypto::L2OAProofType;
 
 fn default_p() -> String {
     "l2o-a".to_string()
@@ -32,7 +31,8 @@ where
     pub start_state_root: Hash256,
 
     pub hash_function: L2OAHashFunction,
-    pub proof_type: L2OAProofType,
+
+    #[serde(flatten)]
     pub verifier_data: V,
 }
 

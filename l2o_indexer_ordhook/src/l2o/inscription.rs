@@ -17,7 +17,6 @@ pub struct L2OInscriptionDeploy {
     pub public_key: String,
     pub vk: L2OAVerifierSerializableData,
     pub hash_function: String,
-    pub proof_type: String,
 }
 
 #[derive(Serialize, Deserialize, Clone, PartialEq, Debug)]

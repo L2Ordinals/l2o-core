@@ -42,6 +42,7 @@ where
     pub start_withdrawal_state_root: Hash256,
     pub end_withdrawal_state_root: Hash256,
 
+    #[serde(flatten)]
     pub proof: Proof,
 
     pub superchain_root: Hash256,
