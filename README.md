@@ -23,10 +23,10 @@
     ·
     <a href="https://github.com/L2Ordinals/l2o-core/issues">Request Feature</a>
   </p>
-<h3>Official Partners</h3>
+<h3>Maintainers</h3>
 
   <a href="https://qedprotocol.com">
-    <img src="static/qed-partner.png" alt="QED Protocol" height="83">
+    <img src="static/l2o-maintainers.png" alt="QED Protocol and Friends" height="420">
   </a>
 
 </div>
@@ -67,7 +67,7 @@ make run-l2o-sequencer
 <hr />
 <h4>License</h4>
 
-Copyright 2023 Zero Knowledge Labs Limited
+Copyright 2023-2024 Zero Knowledge Labs Limited
 
 Permission is hereby granted, free of charge, to any person obtaining a copy of this software and associated documentation files (the “Software”), to deal in the Software without restriction, including without limitation the rights to use, copy, modify, merge, publish, distribute, sublicense, and/or sell copies of the Software, and to permit persons to whom the Software is furnished to do so, subject to the following conditions:
 
