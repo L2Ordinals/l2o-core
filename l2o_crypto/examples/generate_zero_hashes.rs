@@ -1,10 +1,15 @@
 use l2o_common::common::data::hash::Hash256;
-use l2o_crypto::hash::{
-    hash_functions::{blake3::Blake3Hasher, keccack256::Keccack256Hasher, sha256::Sha256Hasher, poseidon_goldilocks::PoseidonHasher},
-    merkle::traits::{MerkleHasher, MerkleHasherWithMarkedLeaf, ZERO_HASH_CACHE_SIZE},
-    traits::ZeroableHash,
-};
-use plonky2::{hash::hash_types::{HashOut, RichField}, field::goldilocks_field::GoldilocksField};
+use l2o_crypto::hash::hash_functions::blake3::Blake3Hasher;
+use l2o_crypto::hash::hash_functions::keccak256::Keccak256Hasher;
+use l2o_crypto::hash::hash_functions::poseidon_goldilocks::PoseidonHasher;
+use l2o_crypto::hash::hash_functions::sha256::Sha256Hasher;
+use l2o_crypto::hash::merkle::traits::MerkleHasher;
+use l2o_crypto::hash::merkle::traits::MerkleHasherWithMarkedLeaf;
+use l2o_crypto::hash::merkle::traits::ZERO_HASH_CACHE_SIZE;
+use l2o_crypto::hash::traits::ZeroableHash;
+use plonky2::field::goldilocks_field::GoldilocksField;
+use plonky2::hash::hash_types::HashOut;
+use plonky2::hash::hash_types::RichField;
 
 fn compute_zero_hashes<Hash: ZeroableHash + PartialEq, Hasher: MerkleHasher<Hash>>(
     count: usize,
@@ -87,9 +92,9 @@ impl NamedMerkleHasher for Blake3Hasher {
         "Blake3Hasher"
     }
 }
-impl NamedMerkleHasher for Keccack256Hasher {
+impl NamedMerkleHasher for Keccak256Hasher {
     fn get_zh_hasher_name() -> &'static str {
-        "Keccack256Hasher"
+        "Keccak256Hasher"
     }
 }
 impl NamedMerkleHasher for PoseidonHasher {
@@ -142,14 +147,15 @@ fn get_zero_hashes_for_leaf_hash_str<
 
 pub fn print_goldilocks_zero_hashes() {
     let mut result = "".to_string();
-    result.push_str(&get_zero_hashes_for_hash_str::<HashOut<GoldilocksField>, PoseidonHasher>(
-        ZERO_HASH_CACHE_SIZE,
-    ));
+    result.push_str(&get_zero_hashes_for_hash_str::<
+        HashOut<GoldilocksField>,
+        PoseidonHasher,
+    >(ZERO_HASH_CACHE_SIZE));
     result.push_str(&get_zero_hashes_for_leaf_hash_str::<
         HashOut<GoldilocksField>,
         PoseidonHasher,
     >(ZERO_HASH_CACHE_SIZE));
-    println!("{}", result);
+    tracing::info!("{}", result);
 }
 pub fn print_hash256_zero_hashes() {
     let mut result = "".to_string();
@@ -165,14 +171,13 @@ pub fn print_hash256_zero_hashes() {
     result.push_str(&get_zero_hashes_for_leaf_hash_str::<Hash256, Blake3Hasher>(
         ZERO_HASH_CACHE_SIZE,
     ));
-    result.push_str(&get_zero_hashes_for_hash_str::<Hash256, Keccack256Hasher>(
+    result.push_str(&get_zero_hashes_for_hash_str::<Hash256, Keccak256Hasher>(
         ZERO_HASH_CACHE_SIZE,
     ));
-    result.push_str(&get_zero_hashes_for_leaf_hash_str::<
-        Hash256,
-        Keccack256Hasher,
-    >(ZERO_HASH_CACHE_SIZE));
-    println!("{}", result);
+    result.push_str(
+        &get_zero_hashes_for_leaf_hash_str::<Hash256, Keccak256Hasher>(ZERO_HASH_CACHE_SIZE),
+    );
+    tracing::info!("{}", result);
 }
 
 fn main() {

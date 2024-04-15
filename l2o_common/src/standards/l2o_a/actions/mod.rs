@@ -1,2 +1,2 @@
-pub mod deploy;
 pub mod block;
+pub mod deploy;

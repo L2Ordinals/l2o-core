@@ -1,0 +1,125 @@
+version: '3.7'
+services:
+  bitcoin:
+    image: ruimarinho/bitcoin-core:latest
+    ports:
+      - 18443:18443
+      - 30001:30001
+    command:
+      - "-daemon=0"
+      - "-debug=zmq"
+      - "-debug=rpc"
+      - "-debug=http"
+      - "-regtest=1"
+      - "-rpcbind=0.0.0.0:18443"
+      - "-rpcuser=devnet"
+      - "-rpcpassword=devnet"
+      - "-rpcallowip=0.0.0.0/0"
+      - "-server=1"
+      - "-txindex=1"
+      - "-prune=0"
+      - "-fallbackfee=0.0001"
+      - "-zmqpubhashtx=tcp://0.0.0.0:30001"
+      - "-zmqpubhashblock=tcp://0.0.0.0:30001"
+      - "-zmqpubrawblock=tcp://0.0.0.0:30001"
+      - "-zmqpubrawtx=tcp://0.0.0.0:30001"
+    volumes:
+      - "./chaindata/bitcoin:/home/bitcoin/.bitcoin"
+    networks:
+      testing_net:
+        ipv4_address: 172.16.238.11
+    restart: always
+    profiles: [lite,full]
+
+  electrs:
+    image: blockstream/esplora:electrs-latest
+    ports:
+      - 50000:50000
+      - 50001:50001
+    user: root
+    command:
+      - "/app/electrs_bitcoin/bin/electrs"
+      - "-vvvv"
+      - "--timestamp"
+      - "--daemon-dir=/app/.bitcoin"
+      - "--db-dir=/app/db"
+      - "--network=regtest"
+      - "--http-addr=0.0.0.0:50000"
+      - "--electrum-rpc-addr=0.0.0.0:50001"
+      - "--daemon-rpc-addr=172.16.238.11:18443"
+      - "--cookie=devnet:devnet"
+      - "--electrum-txs-limit=1000000"
+      - "--cors=*"
+      - "--utxos-limit=1000000"
+    volumes:
+      - "./chaindata/explorer:/app/db"
+      - "./chaindata/bitcoin:/app/.bitcoin"
+    networks:
+      testing_net:
+        ipv4_address: 172.16.238.12
+    restart: always
+    profiles: [lite,full]
+
+  # esplora:
+  #   image: blockstream/esplora:latest
+  #   ports:
+  #     - 8094:80
+  #   environment:
+  #     - API_URL=http://172.16.238.12:50000
+  #   command:
+  #     - "/srv/explorer/run.sh"
+  #     - "bitcoin-regtest"
+  #     - "explorer"
+  #   volumes:
+  #     - "./chaindata/bitcoin:/data"
+  #   networks:
+  #     testing_net:
+  #       ipv4_address: 172.16.238.13
+  #   restart: always
+
+  indexer-ord-hook:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    environment:
+      - RUST_LOG=info,r1cs=off
+      - RUST_BACKTRACE=1
+    ports:
+      - 3000:3000
+    command:
+      - "indexer-ord-hook"
+      - "--addr=0.0.0.0:3000"
+      - "--bitcoin-rpc=http://172.16.238.11:18443"
+      - "--bitcoin-rpcuser=devnet"
+      - "--bitcoin-rpcpassword=devnet"
+      - "--db-path=/l2o/db"
+    networks:
+      testing_net:
+        ipv4_address: 172.16.238.14
+    volumes:
+      - "./db:/l2o/db"
+    restart: always
+    profiles: [full]
+
+  ordhook:
+    image: hirosystems/ordhook:latest
+    command:
+      - "service"
+      - "start"
+      - "--post-to=http://172.16.238.14:3000/api/events"
+      - "--config-path=./Ordhook.toml"
+    volumes:
+      - "./ordhook-data:/workspace/ordhook-data"
+      - "./Ordhook.toml:/workspace/Ordhook.toml"
+    networks:
+      testing_net:
+        ipv4_address: 172.16.238.15
+    restart: always
+    profiles: [full]
+
+networks:
+  testing_net:
+    ipam:
+      driver: default
+      config:
+        - subnet: 172.16.238.0/24

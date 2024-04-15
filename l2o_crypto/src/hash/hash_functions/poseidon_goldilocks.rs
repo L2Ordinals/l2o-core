@@ -1,21 +1,18 @@
 use l2o_common::common::data::hash::Hash256;
-use plonky2::{
-    field::{goldilocks_field::GoldilocksField, types::Field},
-    hash::{
-        hash_types::{HashOut, RichField},
-        poseidon::PoseidonHash,
-    },
-    plonk::config::Hasher,
-};
+use plonky2::field::goldilocks_field::GoldilocksField;
+use plonky2::field::types::Field;
+use plonky2::hash::hash_types::HashOut;
+use plonky2::hash::hash_types::RichField;
+use plonky2::hash::poseidon::PoseidonHash;
+use plonky2::plonk::config::Hasher;
 
-use crate::{
-    fields::goldilocks::hash::{hash256_to_goldilocks_hash, hash256_to_goldilocks_u32},
-    hash::{
-        merkle::traits::{MerkleHasher, MerkleHasherWithMarkedLeaf},
-        traits::{L2OBlockHasher, L2OHash},
-    },
-    standards::l2o_a::L2OBlockInscriptionV1,
-};
+use crate::fields::goldilocks::hash::hash256_to_goldilocks_hash;
+use crate::fields::goldilocks::hash::hash256_to_goldilocks_u32;
+use crate::hash::merkle::traits::MerkleHasher;
+use crate::hash::merkle::traits::MerkleHasherWithMarkedLeaf;
+use crate::hash::traits::L2OBlockHasher;
+use crate::hash::traits::L2OHash;
+use crate::standards::l2o_a::L2OBlockInscriptionV1;
 
 pub struct PoseidonGoldilocksHasher;
 
@@ -110,4 +107,3 @@ pub fn get_block_payload_goldilocks_hash_u32_mode(
 
     payload_bytes
 }
-

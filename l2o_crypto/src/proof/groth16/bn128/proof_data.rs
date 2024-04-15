@@ -1,10 +1,19 @@
-use ark_bn254::{Bn254, Fq2, Fr, G1Affine, G1Projective, G2Affine, G2Projective};
-
+use ark_bn254::Bn254;
+use ark_bn254::Fq2;
+use ark_bn254::Fr;
+use ark_bn254::G1Affine;
+use ark_bn254::G1Projective;
+use ark_bn254::G2Affine;
+use ark_bn254::G2Projective;
 use ark_groth16::Proof;
-use ark_serialize::{CanonicalDeserialize, CanonicalSerialize};
-use serde::{Deserialize, Deserializer, Serialize, Serializer};
-
-use super::verifier_data::{str_to_fq, str_to_fr};
+use ark_serialize::CanonicalDeserialize;
+use ark_serialize::CanonicalSerialize;
+use l2o_common::str_to_fq;
+use l2o_common::str_to_fr;
+use serde::Deserialize;
+use serde::Deserializer;
+use serde::Serialize;
+use serde::Serializer;
 
 #[derive(Clone, Debug, PartialEq, CanonicalSerialize, CanonicalDeserialize)]
 pub struct Groth16BN128ProofData {
@@ -30,10 +39,9 @@ impl<'de> Deserialize<'de> for Groth16BN128ProofData {
     {
         use serde::de::Error;
         let raw = Groth16ProofSerializable::deserialize(deserializer)?;
-        let proof = raw.to_proof_with_public_inputs_groth16_bn254();
 
-        if proof.is_ok() {
-            Ok(proof.unwrap())
+        if let Ok(proof) = raw.to_proof_with_public_inputs_groth16_bn254() {
+            Ok(proof)
         } else {
             Err(Error::custom("invalid Groth16BN128ProofData JSON"))
         }
@@ -41,7 +49,7 @@ impl<'de> Deserialize<'de> for Groth16BN128ProofData {
 }
 
 #[derive(Serialize, Deserialize, Clone, PartialEq, Debug)]
-struct Groth16ProofSerializable {
+pub struct Groth16ProofSerializable {
     pub pi_a: [String; 3],
     pub pi_b: [[String; 2]; 3],
     pub pi_c: [String; 3],
@@ -49,7 +57,7 @@ struct Groth16ProofSerializable {
 }
 
 impl Groth16ProofSerializable {
-    pub fn to_proof_groth16_bn254(&self) -> anyhow::Result<Proof<Bn254>, ()> {
+    pub fn to_proof_groth16_bn254(&self) -> anyhow::Result<Proof<Bn254>> {
         let a_g1 = G1Affine::from(G1Projective::new(
             str_to_fq(&self.pi_a[0])?,
             str_to_fq(&self.pi_a[1])?,
@@ -78,7 +86,7 @@ impl Groth16ProofSerializable {
     }
     pub fn to_proof_with_public_inputs_groth16_bn254(
         &self,
-    ) -> anyhow::Result<Groth16BN128ProofData, ()> {
+    ) -> l2o_common::Result<Groth16BN128ProofData> {
         let proof = self.to_proof_groth16_bn254()?;
         let mut public_inputs: Vec<Fr> = Vec::new();
         for pi in self.public_inputs.iter() {

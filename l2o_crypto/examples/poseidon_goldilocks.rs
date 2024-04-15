@@ -1,12 +1,11 @@
-use kvq::{adapters::standard::KVQStandardAdapter, memory::simple::KVQSimpleMemoryBackingStore};
-use l2o_crypto::hash::{
-    hash_functions::poseidon_goldilocks::PoseidonHasher,
-    merkle::store::{key::KVQMerkleNodeKey, model::KVQMerkleTreeModel},
-};
-use plonky2::{
-    field::{goldilocks_field::GoldilocksField, types::Sample},
-    hash::hash_types::HashOut,
-};
+use kvq::adapters::standard::KVQStandardAdapter;
+use kvq::memory::simple::KVQSimpleMemoryBackingStore;
+use l2o_crypto::hash::hash_functions::poseidon_goldilocks::PoseidonHasher;
+use l2o_crypto::hash::merkle::store::key::KVQMerkleNodeKey;
+use l2o_crypto::hash::merkle::store::model::KVQMerkleTreeModel;
+use plonky2::field::goldilocks_field::GoldilocksField;
+use plonky2::field::types::Sample;
+use plonky2::hash::hash_types::HashOut;
 
 type DemoModel<const TABLE_TYPE: u16> = KVQMerkleTreeModel<
     TABLE_TYPE,
@@ -39,7 +38,7 @@ fn main() {
         HashOut::rand(),
     )
     .unwrap();
-    println!("verify: {}", r.verify::<PoseidonHasher>());
+    tracing::info!("verify: {}", r.verify::<PoseidonHasher>());
 
-    println!("delta: {}", serde_json::to_string(&r).unwrap());
+    tracing::info!("delta: {}", serde_json::to_string(&r).unwrap());
 }

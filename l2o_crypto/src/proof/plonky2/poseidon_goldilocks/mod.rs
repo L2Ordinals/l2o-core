@@ -1,12 +1,13 @@
-use plonky2::{
-    field::goldilocks_field::GoldilocksField,
-    hash::{hash_types::HashOut, merkle_tree::MerkleCap, poseidon::PoseidonHash},
-    plonk::{
-        circuit_data::VerifierOnlyCircuitData, config::PoseidonGoldilocksConfig,
-        proof::ProofWithPublicInputs,
-    },
-};
-use serde::{Deserialize, Deserializer, Serialize};
+use plonky2::field::goldilocks_field::GoldilocksField;
+use plonky2::hash::hash_types::HashOut;
+use plonky2::hash::merkle_tree::MerkleCap;
+use plonky2::hash::poseidon::PoseidonHash;
+use plonky2::plonk::circuit_data::VerifierOnlyCircuitData;
+use plonky2::plonk::config::PoseidonGoldilocksConfig;
+use plonky2::plonk::proof::ProofWithPublicInputs;
+use serde::Deserialize;
+use serde::Deserializer;
+use serde::Serialize;
 
 pub type Plonky2PoseidonGoldilocksProofData =
     ProofWithPublicInputs<GoldilocksField, PoseidonGoldilocksConfig, 2>;

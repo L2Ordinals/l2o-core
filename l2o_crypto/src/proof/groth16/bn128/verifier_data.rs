@@ -1,8 +1,15 @@
-use std::str::FromStr;
-
-use ark_bn254::{Bn254, Fq, Fq2, Fr, G1Affine, G1Projective, G2Affine, G2Projective};
+use ark_bn254::Bn254;
+use ark_bn254::Fq2;
+use ark_bn254::G1Affine;
+use ark_bn254::G1Projective;
+use ark_bn254::G2Affine;
+use ark_bn254::G2Projective;
 use ark_groth16::VerifyingKey;
-use serde::{Deserialize, Deserializer, Serialize, Serializer};
+use l2o_common::str_to_fq;
+use serde::Deserialize;
+use serde::Deserializer;
+use serde::Serialize;
+use serde::Serializer;
 
 #[derive(Clone, PartialEq, Debug)]
 pub struct Groth16BN128VerifierData(pub VerifyingKey<Bn254>);
@@ -12,7 +19,7 @@ impl Serialize for Groth16BN128VerifierData {
     where
         S: Serializer,
     {
-        let raw = Groth16VerifierDataSerializable::from_vk(&self.0);
+        let raw = Groth16VerifierSerializable::from_vk(&self.0);
 
         raw.serialize(serializer)
     }
@@ -24,11 +31,10 @@ impl<'de> Deserialize<'de> for Groth16BN128VerifierData {
         D: Deserializer<'de>,
     {
         use serde::de::Error;
-        let raw = Groth16VerifierDataSerializable::deserialize(deserializer)?;
-        let vk = raw.to_vk();
+        let raw = Groth16VerifierSerializable::deserialize(deserializer)?;
 
-        if vk.is_ok() {
-            Ok(Groth16BN128VerifierData(vk.unwrap()))
+        if let Ok(vk) = raw.to_vk() {
+            Ok(Groth16BN128VerifierData(vk))
         } else {
             Err(Error::custom("invalid Groth16BN128VerifierData JSON"))
         }
@@ -36,24 +42,17 @@ impl<'de> Deserialize<'de> for Groth16BN128VerifierData {
 }
 
 #[derive(Serialize, Deserialize, Clone, PartialEq, Debug)]
-struct Groth16VerifierDataSerializable {
+pub struct Groth16VerifierSerializable {
     pub vk_alpha_1: [String; 3],
     pub vk_beta_2: [[String; 2]; 3],
     pub vk_gamma_2: [[String; 2]; 3],
     pub vk_delta_2: [[String; 2]; 3],
-    //    pub vk_alphabeta_12: [[[String; 2]; 3]; 2],
-    pub ic: [[String; 3]; 2],
+    #[serde(rename = "IC")]
+    pub ic: [[String; 3]; 3],
 }
 
-pub fn str_to_fq(s: &str) -> anyhow::Result<Fq, ()> {
-    Fq::from_str(s)
-}
-pub fn str_to_fr(s: &str) -> Result<Fr, ()> {
-    Fr::from_str(s)
-}
-
-impl Groth16VerifierDataSerializable {
-    pub fn to_vk(&self) -> anyhow::Result<VerifyingKey<Bn254>, ()> {
+impl Groth16VerifierSerializable {
+    pub fn to_vk(&self) -> anyhow::Result<VerifyingKey<Bn254>> {
         let alpha_g1 = G1Affine::from(G1Projective::new(
             str_to_fq(&self.vk_alpha_1[0])?,
             str_to_fq(&self.vk_alpha_1[1])?,
@@ -115,13 +114,12 @@ impl Groth16VerifierDataSerializable {
 
         let mut gamma_abc_g1: Vec<G1Affine> = Vec::new();
         for coords in self.ic.iter() {
-
-          let c = G1Affine::from(G1Projective::new(
-              str_to_fq(&coords[0])?,
-              str_to_fq(&coords[1])?,
-              str_to_fq(&coords[2])?,
-          ));
-          gamma_abc_g1.push(c);
+            let c = G1Affine::from(G1Projective::new(
+                str_to_fq(&coords[0])?,
+                str_to_fq(&coords[1])?,
+                str_to_fq(&coords[2])?,
+            ));
+            gamma_abc_g1.push(c);
         }
 
         Ok(VerifyingKey::<Bn254> {
@@ -143,6 +141,7 @@ impl Groth16VerifierDataSerializable {
             .iter()
             .map(|x| G1Projective::from(*x))
             .collect::<Vec<_>>();
+
         Self {
             vk_alpha_1: [
                 vk_alpha_1_projective.x.to_string(),
@@ -202,18 +201,47 @@ impl Groth16VerifierDataSerializable {
                     ic_projective[1].y.to_string(),
                     ic_projective[1].z.to_string(),
                 ],
+                [
+                    ic_projective[2].x.to_string(),
+                    ic_projective[2].y.to_string(),
+                    ic_projective[2].z.to_string(),
+                ],
             ],
         }
     }
 }
 
+#[cfg(test)]
+mod tests {
+    use ark_bn254::Bn254;
+    use ark_groth16::Groth16;
+    use ark_groth16::VerifyingKey;
+    use ark_serialize::CanonicalSerialize;
+    use ark_snark::SNARK;
 
+    use super::*;
+    use crate::proof::groth16::bn128::proof_data::Groth16ProofSerializable;
 
+    #[test]
+    fn test_serialize_verify() {
+        let vk_json = include_str!("../../../../../l2o_indexer_ordhook/assets/example_vkey.json");
+        let proof_json =
+            include_str!("../../../../../l2o_indexer_ordhook/assets/example_proof.json");
+        let p: VerifyingKey<Bn254> = serde_json::from_str::<Groth16VerifierSerializable>(vk_json)
+            .unwrap()
+            .to_vk()
+            .unwrap();
+        let proof = serde_json::from_str::<Groth16ProofSerializable>(proof_json)
+            .unwrap()
+            .to_proof_with_public_inputs_groth16_bn254()
+            .unwrap();
 
-#[derive(Serialize, Deserialize, Clone, PartialEq, Debug)]
-struct Groth16ProofSerializable {
-    pub pi_a: [String; 3],
-    pub pi_b: [String; 3],
-    pub pi_c: [String; 3],
-    pub public_inputs: Vec<String>,
+        let p2 = Groth16::<Bn254>::process_vk(&p).unwrap();
+        let mut uncompressed_bytes = Vec::new();
+        p.serialize_uncompressed(&mut uncompressed_bytes).unwrap();
+        tracing::info!("{:?}", p);
+        tracing::info!("{}", uncompressed_bytes.len());
+        let r = Groth16::<Bn254>::verify_proof(&p2, &proof.proof, &proof.public_inputs).unwrap();
+        assert_eq!(r, true, "verify proof")
+    }
 }

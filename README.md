@@ -1,7 +1,6 @@
 <!-- Improved compatibility of back to top link: See: https://github.com/othneildrew/Best-README-Template/pull/73 -->
+
 <a name="readme-top"></a>
-
-
 
 <!-- PROJECT LOGO -->
 <br />
@@ -32,11 +31,38 @@
 
 </div>
 
+## Requirements
 
+- bitcoin-cli
+- ord
+- ordhook
 
-<h4>This repo is a work in progress!</h4>
-Code from the early proof of concept is being migrated to build out a full reference implementation of L2O.
+## Getting Started
 
+Launch bitcoin and electrs API and clean old data
+```bash
+make relaunch 
+```
+
+Initialize and fund the ord wallet
+```bash
+make ord-init
+```
+
+Start the indexer service
+```bash
+make run-indexer-ordhook 
+```
+
+Start the ordhook service
+```bash
+make run-ordhook
+```
+
+Start the mock l2 sequencer which keeps generating groth16 proofs
+```bash
+make run-l2o-sequencer
+```
 
 <hr />
 <h4>License</h4>
