@@ -3,9 +3,9 @@ use plonky2::field::goldilocks_field::GoldilocksField;
 use plonky2::field::types::Field;
 
 use crate::fields::goldilocks::hash::hash256_to_goldilocks_u32;
-use crate::standards::l2o_a::L2OBlockInscriptionV1;
+use crate::standards::l2o_a::L2OABlockInscriptionV1;
 
-pub fn get_block_payload_bytes(block: &L2OBlockInscriptionV1) -> Vec<u8> {
+pub fn get_block_payload_bytes(block: &L2OABlockInscriptionV1) -> Vec<u8> {
     let mut payload_bytes: Vec<u8> = Vec::new();
     payload_bytes.extend_from_slice(&block.l2id.to_le_bytes());
     payload_bytes.extend_from_slice(&block.l2_block_number.to_le_bytes());
@@ -26,7 +26,7 @@ pub fn get_block_payload_bytes(block: &L2OBlockInscriptionV1) -> Vec<u8> {
 }
 
 pub fn get_block_payload_goldilocks_hash_u32_mode(
-    block: &L2OBlockInscriptionV1,
+    block: &L2OABlockInscriptionV1,
 ) -> Vec<GoldilocksField> {
     let mut payload_bytes: Vec<GoldilocksField> = Vec::new();
     payload_bytes.push(GoldilocksField::from_canonical_u64(block.l2id));

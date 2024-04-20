@@ -13,6 +13,8 @@ use bytes::Buf;
 use bytes::Bytes;
 use chainhook_sdk::types::BitcoinBlockMetadata;
 use chainhook_sdk::types::BlockIdentifier;
+use chainhook_sdk::types::OrdinalInscriptionTransferData;
+use chainhook_sdk::types::OrdinalInscriptionTransferDestination;
 use chainhook_sdk::types::OrdinalOperation;
 use chainhook_sdk::types::TransactionIdentifier;
 use http_body_util::BodyExt;
@@ -26,13 +28,11 @@ use hyper::Request;
 use hyper::Response;
 use hyper::StatusCode;
 use hyper_util::rt::TokioIo;
-use l2o::inscription::L2OInscription;
 use l2o_common::common::data::hash::Hash256;
 use l2o_common::common::data::hash::L2OHash;
 use l2o_common::common::data::signature::L2OCompactPublicKey;
 use l2o_common::common::data::signature::L2OSignature512;
-use l2o_common::standards::l2o_a::actions::deploy::L2ODeployInscription;
-
+use l2o_common::standards::l2o_a::actions::deploy::L2OADeployInscription;
 use l2o_common::IndexerOrdHookArgs;
 use l2o_crypto::hash::hash_functions::blake3::Blake3Hasher;
 use l2o_crypto::hash::hash_functions::keccak256::Keccak256Hasher;
@@ -43,23 +43,29 @@ use l2o_crypto::proof::groth16::bn128::proof_data::Groth16BN128ProofData;
 use l2o_crypto::proof::groth16::bn128::verifier_data::Groth16BN128VerifierData;
 use l2o_crypto::signature::schnorr::verify_sig;
 use l2o_crypto::standards::l2o_a::proof::L2OAProofData;
-use l2o_crypto::standards::l2o_a::L2OBlockInscriptionV1;
+use l2o_crypto::standards::l2o_a::L2OABlockInscriptionV1;
 use l2o_rpc_provider::rpc;
 use l2o_rpc_provider::rpc::request::RequestParams;
 use l2o_rpc_provider::rpc::request::RpcRequest;
 use l2o_rpc_provider::rpc::response::ResponseResult;
 use l2o_rpc_provider::rpc::response::RpcResponse;
 use l2o_store::core::store::L2OStoreV1Core;
+use l2o_store::core::store::BRC20_BURN_ADDRESS;
 use l2o_store::core::traits::L2OStoreV1;
 use l2o_store_rocksdb::KVQRocksDBStore;
 use serde::Deserialize;
 use serde::Serialize;
+use standards::l2o_a::inscription::L2OAInscription;
 use tokio::net::TcpListener;
 use tokio::sync::Mutex;
 
+use crate::standards::brc20::inscription::BRC20Inscription;
+use crate::standards::brc21::inscription::BRC21Inscription;
+use crate::standards::L2OInscription;
+
 type BoxBody = http_body_util::combinators::BoxBody<Bytes, hyper::Error>;
 
-pub mod l2o;
+pub mod standards;
 pub mod store;
 
 static NOTFOUND: &[u8] = b"Not Found";
@@ -103,15 +109,46 @@ pub struct BitcoinChainhookOccurrencePayloadV2 {
     pub rollback: Vec<BitcoinBlockDataV2>,
 }
 
-async fn process_l2o_inscription(
+async fn process_brc21_inscription(
     store: Arc<Mutex<L2OStoreV1Core<KVQRocksDBStore>>>,
     bitcoin_rpc: Arc<Client>,
     _bitcoin_block: &BitcoinBlockDataV2,
     _bitcoin_tx: &BitcoinTransactionDataV2,
-    inscription: L2OInscription,
+    inscription: BRC21Inscription,
 ) -> anyhow::Result<()> {
     match inscription {
-        L2OInscription::Deploy(deploy) => {
+        BRC21Inscription::L2Deposit(l2deposit) => todo!(),
+        BRC21Inscription::L2Withdraw(l2withdraw) => todo!(),
+        BRC21Inscription::Transfer(transfer) => {}
+    }
+    Ok(())
+}
+
+async fn process_brc20_inscription(
+    store: Arc<Mutex<L2OStoreV1Core<KVQRocksDBStore>>>,
+    bitcoin_rpc: Arc<Client>,
+    _bitcoin_block: &BitcoinBlockDataV2,
+    _bitcoin_tx: &BitcoinTransactionDataV2,
+    inscription: BRC20Inscription,
+) -> anyhow::Result<()> {
+    match inscription {
+        BRC20Inscription::Transfer(transfer) => {
+            tracing::info!("{:?}", transfer);
+        }
+        _ => {}
+    }
+    Ok(())
+}
+
+async fn process_l2o_a_inscription(
+    store: Arc<Mutex<L2OStoreV1Core<KVQRocksDBStore>>>,
+    bitcoin_rpc: Arc<Client>,
+    _bitcoin_block: &BitcoinBlockDataV2,
+    _bitcoin_tx: &BitcoinTransactionDataV2,
+    inscription: L2OAInscription,
+) -> anyhow::Result<()> {
+    match inscription {
+        L2OAInscription::Deploy(deploy) => {
             let l2id: u64 = deploy.l2id.into();
             if store.lock().await.has_deployed_l2id(l2id)? {
                 tracing::debug!("l2o {} already deployed", l2id);
@@ -126,7 +163,7 @@ async fn process_l2o_inscription(
             } else {
                 anyhow::bail!("unsupported verifier type");
             };
-            let deploy_inscription = L2ODeployInscription {
+            let deploy_inscription = L2OADeployInscription {
                 p: "l2o-a".to_string(),
                 op: "Deploy".to_string(),
                 l2id,
@@ -142,7 +179,7 @@ async fn process_l2o_inscription(
             tracing::info!("l2o {} deployed", deploy.l2id);
             Ok(())
         }
-        L2OInscription::Block(block) => {
+        L2OAInscription::Block(block) => {
             let l2id: u64 = block.l2id.into();
             if !store.lock().await.has_deployed_l2id(l2id)? {
                 tracing::debug!("l2o {} not deployed yet", l2id);
@@ -214,7 +251,7 @@ async fn process_l2o_inscription(
                     )
                 };
 
-            let block_inscription = L2OBlockInscriptionV1 {
+            let block_inscription = L2OABlockInscriptionV1 {
                 p: "l2o-a".to_string(),
                 op: "Block".to_string(),
 
@@ -360,7 +397,7 @@ async fn process_rpc_requests(
     Ok(response)
 }
 
-async fn process_ordinal_ops(
+async fn process_events(
     store: Arc<Mutex<L2OStoreV1Core<KVQRocksDBStore>>>,
     bitcoin_rpc: Arc<Client>,
     payload: &BitcoinChainhookOccurrencePayloadV2,
@@ -373,18 +410,42 @@ async fn process_ordinal_ops(
                         if revealed.content_type.starts_with("application/json") {
                             let decoded = hex::decode(&revealed.content_bytes[2..])?;
                             let inscription = serde_json::from_slice::<L2OInscription>(&decoded)?;
-                            process_l2o_inscription(
-                                store.clone(),
-                                bitcoin_rpc.clone(),
-                                block,
-                                tx,
-                                inscription,
-                            )
-                            .await?;
+                            match inscription {
+                                L2OInscription::BRC21(inscription) => {
+                                    process_brc21_inscription(
+                                        store.clone(),
+                                        bitcoin_rpc.clone(),
+                                        block,
+                                        tx,
+                                        inscription,
+                                    )
+                                    .await?
+                                }
+                                L2OInscription::L2OA(inscription) => {
+                                    process_l2o_a_inscription(
+                                        store.clone(),
+                                        bitcoin_rpc.clone(),
+                                        block,
+                                        tx,
+                                        inscription,
+                                    )
+                                    .await?;
+                                }
+                                L2OInscription::BRC20(inscription) => {
+                                    process_brc20_inscription(
+                                        store.clone(),
+                                        bitcoin_rpc.clone(),
+                                        block,
+                                        tx,
+                                        inscription,
+                                    )
+                                    .await?;
+                                }
+                            }
                         }
                     }
-                    OrdinalOperation::InscriptionTransferred(_) => {
-                        tracing::info!("xfer")
+                    OrdinalOperation::InscriptionTransferred(transfer_data) => {
+                        tracing::info!("transfer {:?}", transfer_data);
                     }
                 }
             }
@@ -403,7 +464,7 @@ async fn handle_ordinal_events(
     // Decode as JSON...
     let data =
         serde_json::from_reader::<_, BitcoinChainhookOccurrencePayloadV2>(whole_body.reader())?;
-    process_ordinal_ops(store, bitcoin_rpc, &data).await?;
+    process_events(store, bitcoin_rpc, &data).await?;
 
     let response = Response::builder()
         .status(StatusCode::OK)

@@ -16,7 +16,7 @@ fn default_op() -> String {
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(bound = "V: Serialize, for<'de2> V: Deserialize<'de2>")]
-pub struct L2ODeployInscription<V>
+pub struct L2OADeployInscription<V>
 where
     V: Serialize,
     for<'de2> V: Deserialize<'de2>,
@@ -36,7 +36,7 @@ where
     pub verifier_data: V,
 }
 
-impl<V: Serialize + Clone + PartialEq> KVQSerializable for L2ODeployInscription<V>
+impl<V: Serialize + Clone + PartialEq> KVQSerializable for L2OADeployInscription<V>
 where
     for<'de2> V: Deserialize<'de2>,
 {

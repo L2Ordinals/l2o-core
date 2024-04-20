@@ -2250,6 +2250,14 @@ dependencies = [
 ]
 
 [[package]]
+name = "l2o_derive"
+version = "0.1.0"
+
+[[package]]
+name = "l2o_macros"
+version = "0.1.0"
+
+[[package]]
 name = "l2o_rpc_provider"
 version = "0.1.0"
 dependencies = [
@@ -2257,6 +2265,7 @@ dependencies = [
  "async-trait",
  "l2o_common",
  "l2o_crypto",
+ "l2o_macros",
  "reqwest",
  "serde",
  "serde_json",
@@ -2271,6 +2280,7 @@ dependencies = [
  "kvq",
  "l2o_common",
  "l2o_crypto",
+ "l2o_macros",
  "serde",
  "serde_json",
  "serde_with",

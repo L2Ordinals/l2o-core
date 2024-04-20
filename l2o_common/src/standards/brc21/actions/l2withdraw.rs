@@ -1,38 +1,30 @@
 use serde::Deserialize;
 use serde::Serialize;
 
-use crate::common::data::hash::MerkleProofCommonHash256;
-
-fn default_p() -> String {
-    "brc-21".to_string()
-}
-fn default_op() -> String {
-    "l2withdraw".to_string()
-}
-
-#[derive(Clone, PartialEq, Serialize, Deserialize)]
-pub struct BRC21L2Withdraw {
-    #[serde(default = "default_p")]
-    pub p: String,
-    #[serde(default = "default_op")]
-    pub op: String,
-
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[serde(bound = "MerkleProof: Serialize, for<'de2> MerkleProof: Deserialize<'de2>")]
+pub struct BRC21L2Withdraw<MerkleProof>
+where
+    MerkleProof: Serialize,
+    for<'de2> MerkleProof: Deserialize<'de2>,
+{
     pub tick: String,
+    pub to: String,
     pub amt: String,
-    pub proof: MerkleProofCommonHash256,
+    pub proof: MerkleProof,
 }
 
-impl BRC21L2Withdraw {
-    pub fn new(tick: String, amt: String, proof: MerkleProofCommonHash256) -> Self {
+impl<MerkleProof> BRC21L2Withdraw<MerkleProof>
+where
+    MerkleProof: Serialize,
+    for<'de2> MerkleProof: Deserialize<'de2>,
+{
+    pub fn new(tick: String, to: String, amt: String, proof: MerkleProof) -> Self {
         BRC21L2Withdraw {
-            p: "brc-21".to_string(),
-            op: "l2withdraw".to_string(),
             tick,
+            to,
             amt,
             proof,
         }
-    }
-    pub fn is_valid(&self) -> bool {
-        self.p == "brc-21" && self.op == "l2withdraw"
     }
 }

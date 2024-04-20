@@ -29,8 +29,8 @@ use l2o_crypto::proof::groth16::bn128::verifier_data::Groth16VerifierSerializabl
 use l2o_crypto::proof::L2OAVerifierSerializableData;
 use l2o_crypto::signature::schnorr::sign_msg;
 use l2o_crypto::standards::l2o_a::proof::L2OAProofData;
-use l2o_crypto::standards::l2o_a::L2OBlockInscriptionV1;
-use l2o_indexer_ordhook::l2o::inscription::L2OInscription;
+use l2o_crypto::standards::l2o_a::L2OABlockInscriptionV1;
+use l2o_indexer_ordhook::standards::l2o_a::inscription::L2OAInscription;
 use l2o_rpc_provider::L2OAProvider;
 use l2o_rpc_provider::Provider;
 use serde_json::json;
@@ -49,14 +49,14 @@ pub async fn run(
 )> {
     let deploy_json = include_str!("../../../l2o_indexer_ordhook/assets/deploy.json");
     let block_json = include_str!("../../../l2o_indexer_ordhook/assets/block.json");
-    let deploy_data = serde_json::from_str::<L2OInscription>(deploy_json)?;
-    let block_data = serde_json::from_str::<L2OInscription>(block_json)?;
+    let deploy_data = serde_json::from_str::<L2OAInscription>(deploy_json)?;
+    let block_data = serde_json::from_str::<L2OAInscription>(block_json)?;
     let mut deploy = match deploy_data {
-        L2OInscription::Deploy(deploy) => deploy,
+        L2OAInscription::Deploy(deploy) => deploy,
         _ => unreachable!(),
     };
     let mut block = match block_data {
-        L2OInscription::Block(block) => block,
+        L2OAInscription::Block(block) => block,
         _ => unreachable!(),
     };
     let signing_key = SigningKey::from_bytes(&hex::decode(
@@ -83,7 +83,7 @@ pub async fn run(
         .try_as_groth_16_proof_serializable()
         .unwrap()
         .to_proof_with_public_inputs_groth16_bn254()?;
-    let mut block_inscription = L2OBlockInscriptionV1 {
+    let mut block_inscription = L2OABlockInscriptionV1 {
         p: "l2o-a".to_string(),
         op: "Block".to_string(),
 

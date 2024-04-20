@@ -12,7 +12,7 @@ use crate::hash::merkle::traits::MerkleHasher;
 use crate::hash::merkle::traits::MerkleHasherWithMarkedLeaf;
 use crate::hash::traits::L2OBlockHasher;
 use crate::hash::traits::L2OHash;
-use crate::standards::l2o_a::L2OBlockInscriptionV1;
+use crate::standards::l2o_a::L2OABlockInscriptionV1;
 
 pub struct PoseidonGoldilocksHasher;
 
@@ -40,7 +40,7 @@ impl<F: RichField> MerkleHasherWithMarkedLeaf<HashOut<F>> for PoseidonHasher {
 }
 
 impl L2OBlockHasher for PoseidonHasher {
-    fn get_l2_block_hash(block: &L2OBlockInscriptionV1) -> Hash256 {
+    fn get_l2_block_hash(block: &L2OABlockInscriptionV1) -> Hash256 {
         let payload_a = HashOut {
             elements: [
                 GoldilocksField::from_canonical_u64(block.l2id),
@@ -80,7 +80,7 @@ impl L2OBlockHasher for PoseidonHasher {
 }
 
 pub fn get_block_payload_goldilocks_hash_u32_mode(
-    block: &L2OBlockInscriptionV1,
+    block: &L2OABlockInscriptionV1,
 ) -> Vec<GoldilocksField> {
     let mut payload_bytes: Vec<GoldilocksField> = Vec::new();
     payload_bytes.push(GoldilocksField::from_canonical_u64(block.l2id));

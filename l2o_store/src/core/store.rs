@@ -1,5 +1,6 @@
 use kvq::adapters::standard::KVQStandardAdapter;
 use kvq::traits::KVQBinaryStore;
+use kvq::traits::KVQPair;
 use kvq::traits::KVQStoreAdapter;
 use l2o_common::common::data::hash::Hash256;
 use l2o_common::standards::l2o_a::supported_crypto::L2OAHashFunction;
@@ -11,10 +12,14 @@ use l2o_crypto::hash::hash_functions::poseidon_goldilocks::PoseidonHasher;
 use l2o_crypto::hash::hash_functions::sha256::Sha256Hasher;
 use l2o_crypto::hash::merkle::core::MerkleProofCore;
 use l2o_crypto::hash::merkle::store::key::KVQMerkleNodeKey;
+use l2o_crypto::hash::merkle::store::key::KVQTreeIdentifier;
+use l2o_crypto::hash::merkle::store::key::KVQTreeNodePosition;
 use l2o_crypto::hash::merkle::store::model::KVQMerkleTreeModel;
 use l2o_crypto::hash::traits::L2OHash;
-use l2o_crypto::standards::l2o_a::L2OBlockInscriptionV1;
-use l2o_crypto::standards::l2o_a::L2ODeployInscriptionV1;
+use l2o_crypto::standards::l2o_a::L2OABlockInscriptionV1;
+use l2o_crypto::standards::l2o_a::L2OADeployInscriptionV1;
+use l2o_macros::get_state;
+use l2o_macros::set_state;
 
 use super::tables::L2ODeploymentsKey;
 use super::tables::L2OLatestBlockKey;
@@ -25,40 +30,57 @@ use super::tables::SUB_TABLE_L2_STATE_ROOTS_POSEIDON_GOLDILOCKS;
 use super::tables::SUB_TABLE_L2_STATE_ROOTS_SHA256;
 use super::tables::TABLE_L2_STATE_ROOTS;
 use super::traits::L2OStoreV1;
+use crate::core::tables::L2OBRC21BalancesKey;
 
+const TREE_HEIGHT: u8 = 32;
+
+pub const BRC20_BURN_ADDRESS: &'static str =
+    "bc1p11111111111111111111111111111111111111111111111111114olvt2";
+
+pub const SHA256_STATE_ROOT_TREE_ID: KVQTreeIdentifier =
+    KVQTreeIdentifier::new(SUB_TABLE_L2_STATE_ROOTS_SHA256, 0, 0);
 type Sha256StateRootTree<S> = KVQMerkleTreeModel<
     TABLE_L2_STATE_ROOTS,
+    TREE_HEIGHT,
     false,
     S,
-    KVQStandardAdapter<S, L2OStateRootsMerkleNodeKey, Hash256>,
     Hash256,
     Sha256Hasher,
+    KVQStandardAdapter<S, L2OStateRootsMerkleNodeKey, Hash256>,
 >;
-type Keccack256StateRootTree<S> = KVQMerkleTreeModel<
+pub const KECCAK256_STATE_ROOT_TREE_ID: KVQTreeIdentifier =
+    KVQTreeIdentifier::new(SUB_TABLE_L2_STATE_ROOTS_KECCACK256, 0, 0);
+type Keccak256StateRootTree<S> = KVQMerkleTreeModel<
     TABLE_L2_STATE_ROOTS,
+    TREE_HEIGHT,
     false,
     S,
-    KVQStandardAdapter<S, L2OStateRootsMerkleNodeKey, Hash256>,
     Hash256,
     Keccak256Hasher,
+    KVQStandardAdapter<S, L2OStateRootsMerkleNodeKey, Hash256>,
 >;
+pub const BLAKE3_STATE_ROOT_TREE_ID: KVQTreeIdentifier =
+    KVQTreeIdentifier::new(SUB_TABLE_L2_STATE_ROOTS_BLAKE3, 0, 0);
 type Blake3StateRootTree<S> = KVQMerkleTreeModel<
     TABLE_L2_STATE_ROOTS,
+    TREE_HEIGHT,
     false,
     S,
-    KVQStandardAdapter<S, L2OStateRootsMerkleNodeKey, Hash256>,
     Hash256,
     Blake3Hasher,
+    KVQStandardAdapter<S, L2OStateRootsMerkleNodeKey, Hash256>,
 >;
+pub const POSEIDONGOLDILOCKS_STATE_ROOT_TREE_ID: KVQTreeIdentifier =
+    KVQTreeIdentifier::new(SUB_TABLE_L2_STATE_ROOTS_POSEIDON_GOLDILOCKS, 0, 0);
 type PoseidonGoldilocksStateRootTree<S> = KVQMerkleTreeModel<
     TABLE_L2_STATE_ROOTS,
+    TREE_HEIGHT,
     false,
     S,
-    KVQStandardAdapter<S, L2OStateRootsMerkleNodeKey, GHashOut>,
     GHashOut,
     PoseidonHasher,
+    KVQStandardAdapter<S, L2OStateRootsMerkleNodeKey, GHashOut>,
 >;
-const TREE_HEIGHT: usize = 32;
 
 pub struct L2OStoreV1Core<S: KVQBinaryStore> {
     pub store: S,
@@ -69,15 +91,15 @@ impl<S: KVQBinaryStore> L2OStoreV1Core<S> {
     }
 }
 impl<S: KVQBinaryStore> L2OStoreV1 for L2OStoreV1Core<S> {
-    fn get_deploy_inscription(&mut self, l2id: u64) -> anyhow::Result<L2ODeployInscriptionV1> {
-        KVQStandardAdapter::<S, L2ODeploymentsKey, L2ODeployInscriptionV1>::get_exact(
+    fn get_deploy_inscription(&mut self, l2id: u64) -> anyhow::Result<L2OADeployInscriptionV1> {
+        KVQStandardAdapter::<S, L2ODeploymentsKey, L2OADeployInscriptionV1>::get_exact(
             &self.store,
             &L2ODeploymentsKey::new(l2id),
         )
     }
 
-    fn get_last_block_inscription(&mut self, l2id: u64) -> anyhow::Result<L2OBlockInscriptionV1> {
-        KVQStandardAdapter::<S, L2OLatestBlockKey, L2OBlockInscriptionV1>::get_exact(
+    fn get_last_block_inscription(&mut self, l2id: u64) -> anyhow::Result<L2OABlockInscriptionV1> {
+        KVQStandardAdapter::<S, L2OLatestBlockKey, L2OABlockInscriptionV1>::get_exact(
             &self.store,
             &L2OLatestBlockKey::new(l2id),
         )
@@ -89,59 +111,16 @@ impl<S: KVQBinaryStore> L2OStoreV1 for L2OStoreV1Core<S> {
         block_number: u64,
         hash: L2OAHashFunction,
     ) -> anyhow::Result<Hash256> {
-        match hash {
-            L2OAHashFunction::Sha256 => Sha256StateRootTree::<S>::get_node(
-                &self.store,
-                TREE_HEIGHT,
-                &KVQMerkleNodeKey::new(
-                    SUB_TABLE_L2_STATE_ROOTS_SHA256,
-                    0,
-                    0,
-                    TREE_HEIGHT as u8,
-                    l2id,
-                    block_number,
-                ),
-            ),
-            L2OAHashFunction::BLAKE3 => Blake3StateRootTree::<S>::get_node(
-                &self.store,
-                TREE_HEIGHT,
-                &KVQMerkleNodeKey::new(
-                    SUB_TABLE_L2_STATE_ROOTS_BLAKE3,
-                    0,
-                    0,
-                    TREE_HEIGHT as u8,
-                    l2id,
-                    block_number,
-                ),
-            ),
-            L2OAHashFunction::Keccak256 => Keccack256StateRootTree::<S>::get_node(
-                &self.store,
-                TREE_HEIGHT,
-                &KVQMerkleNodeKey::new(
-                    SUB_TABLE_L2_STATE_ROOTS_KECCACK256,
-                    0,
-                    0,
-                    TREE_HEIGHT as u8,
-                    l2id,
-                    block_number,
-                ),
-            ),
-            L2OAHashFunction::PoseidonGoldilocks => {
-                let p = PoseidonGoldilocksStateRootTree::<S>::get_node(
-                    &self.store,
-                    TREE_HEIGHT,
-                    &KVQMerkleNodeKey::new(
-                        SUB_TABLE_L2_STATE_ROOTS_POSEIDON_GOLDILOCKS,
-                        0,
-                        0,
-                        TREE_HEIGHT as u8,
-                        l2id,
-                        block_number,
-                    ),
-                )?;
-                Ok(L2OHash::to_hash_256(&p))
-            }
-        }
+        let checkpoint_id = block_number;
+        let pos = KVQTreeNodePosition::new(TREE_HEIGHT, l2id);
+        get_state!(
+            hash,
+            self.store,
+            checkpoint_id,
+            pos,
+            get_node,
+            L2OHash::to_hash_256
+        )
     }
 
     fn get_superchainroot_at_block(
@@ -149,45 +128,16 @@ impl<S: KVQBinaryStore> L2OStoreV1 for L2OStoreV1Core<S> {
         block_number: u64,
         hash: L2OAHashFunction,
     ) -> anyhow::Result<Hash256> {
-        match hash {
-            L2OAHashFunction::Sha256 => Sha256StateRootTree::<S>::get_node(
-                &self.store,
-                TREE_HEIGHT,
-                &KVQMerkleNodeKey::new(SUB_TABLE_L2_STATE_ROOTS_SHA256, 0, 0, 0, 0, block_number),
-            ),
-            L2OAHashFunction::BLAKE3 => Blake3StateRootTree::<S>::get_node(
-                &self.store,
-                TREE_HEIGHT,
-                &KVQMerkleNodeKey::new(SUB_TABLE_L2_STATE_ROOTS_BLAKE3, 0, 0, 0, 0, block_number),
-            ),
-            L2OAHashFunction::Keccak256 => Keccack256StateRootTree::<S>::get_node(
-                &self.store,
-                TREE_HEIGHT,
-                &KVQMerkleNodeKey::new(
-                    SUB_TABLE_L2_STATE_ROOTS_KECCACK256,
-                    0,
-                    0,
-                    0,
-                    0,
-                    block_number,
-                ),
-            ),
-            L2OAHashFunction::PoseidonGoldilocks => {
-                let p = PoseidonGoldilocksStateRootTree::<S>::get_node(
-                    &self.store,
-                    TREE_HEIGHT,
-                    &KVQMerkleNodeKey::new(
-                        SUB_TABLE_L2_STATE_ROOTS_POSEIDON_GOLDILOCKS,
-                        0,
-                        0,
-                        0,
-                        0,
-                        block_number,
-                    ),
-                )?;
-                Ok(L2OHash::to_hash_256(&p))
-            }
-        }
+        let checkpoint_id = block_number;
+        let pos = KVQTreeNodePosition::root();
+        get_state!(
+            hash,
+            self.store,
+            checkpoint_id,
+            pos,
+            get_node,
+            L2OHash::to_hash_256
+        )
     }
 
     fn get_merkle_proof_state_root_at_block(
@@ -196,62 +146,23 @@ impl<S: KVQBinaryStore> L2OStoreV1 for L2OStoreV1Core<S> {
         block_number: u64,
         hash: L2OAHashFunction,
     ) -> anyhow::Result<MerkleProofCore<Hash256>> {
-        match hash {
-            L2OAHashFunction::Sha256 => Sha256StateRootTree::<S>::get_leaf(
-                &mut self.store,
-                &KVQMerkleNodeKey::new(
-                    SUB_TABLE_L2_STATE_ROOTS_SHA256,
-                    0,
-                    0,
-                    TREE_HEIGHT as u8,
-                    l2id,
-                    block_number,
-                ),
-            ),
-            L2OAHashFunction::BLAKE3 => Blake3StateRootTree::<S>::get_leaf(
-                &mut self.store,
-                &KVQMerkleNodeKey::new(
-                    SUB_TABLE_L2_STATE_ROOTS_BLAKE3,
-                    0,
-                    0,
-                    TREE_HEIGHT as u8,
-                    l2id,
-                    block_number,
-                ),
-            ),
-            L2OAHashFunction::Keccak256 => Keccack256StateRootTree::<S>::get_leaf(
-                &mut self.store,
-                &KVQMerkleNodeKey::new(
-                    SUB_TABLE_L2_STATE_ROOTS_KECCACK256,
-                    0,
-                    0,
-                    TREE_HEIGHT as u8,
-                    l2id,
-                    block_number,
-                ),
-            ),
-            L2OAHashFunction::PoseidonGoldilocks => {
-                let p = PoseidonGoldilocksStateRootTree::<S>::get_leaf(
-                    &mut self.store,
-                    &KVQMerkleNodeKey::new(
-                        SUB_TABLE_L2_STATE_ROOTS_POSEIDON_GOLDILOCKS,
-                        0,
-                        0,
-                        TREE_HEIGHT as u8,
-                        l2id,
-                        block_number,
-                    ),
-                )?;
-                Ok(p.into())
-            }
-        }
+        let checkpoint_id = block_number;
+        let pos = KVQTreeNodePosition::new(TREE_HEIGHT, l2id);
+        get_state!(
+            hash,
+            self.store,
+            checkpoint_id,
+            pos,
+            get_leaf,
+            MerkleProofCore::<Hash256>::from
+        )
     }
 
     fn report_deploy_inscription(
         &mut self,
-        deployment: L2ODeployInscriptionV1,
+        deployment: L2OADeployInscriptionV1,
     ) -> anyhow::Result<()> {
-        KVQStandardAdapter::<S, L2ODeploymentsKey, L2ODeployInscriptionV1>::set(
+        KVQStandardAdapter::<S, L2ODeploymentsKey, L2OADeployInscriptionV1>::set(
             &mut self.store,
             L2ODeploymentsKey::new(deployment.l2id),
             deployment,
@@ -259,71 +170,24 @@ impl<S: KVQBinaryStore> L2OStoreV1 for L2OStoreV1Core<S> {
         Ok(())
     }
 
-    fn set_last_block_inscription(&mut self, block: L2OBlockInscriptionV1) -> anyhow::Result<()> {
+    fn set_last_block_inscription(&mut self, block: L2OABlockInscriptionV1) -> anyhow::Result<()> {
         let end_state_root = block.end_state_root;
-        let glv = hash256_to_goldilocks_hash(&end_state_root);
-        let block_num = block.bitcoin_block_number;
-        let l2id = block.l2id;
+        let checkpoint_id = block.bitcoin_block_number;
+        let pos = KVQTreeNodePosition::new(TREE_HEIGHT, block.l2id);
 
-        KVQStandardAdapter::<S, L2OLatestBlockKey, L2OBlockInscriptionV1>::set(
+        KVQStandardAdapter::<S, L2OLatestBlockKey, L2OABlockInscriptionV1>::set(
             &mut self.store,
             L2OLatestBlockKey::new(block.l2id),
             block,
         )?;
-        Sha256StateRootTree::<S>::set_leaf(
-            &mut self.store,
-            &KVQMerkleNodeKey::new(
-                SUB_TABLE_L2_STATE_ROOTS_SHA256,
-                0,
-                0,
-                TREE_HEIGHT as u8,
-                l2id,
-                block_num,
-            ),
-            end_state_root,
-        )?;
-        Blake3StateRootTree::<S>::set_leaf(
-            &mut self.store,
-            &KVQMerkleNodeKey::new(
-                SUB_TABLE_L2_STATE_ROOTS_BLAKE3,
-                0,
-                0,
-                TREE_HEIGHT as u8,
-                l2id,
-                block_num,
-            ),
-            end_state_root,
-        )?;
-        Keccack256StateRootTree::<S>::set_leaf(
-            &mut self.store,
-            &KVQMerkleNodeKey::new(
-                SUB_TABLE_L2_STATE_ROOTS_KECCACK256,
-                0,
-                0,
-                TREE_HEIGHT as u8,
-                l2id,
-                block_num,
-            ),
-            end_state_root,
-        )?;
-        PoseidonGoldilocksStateRootTree::<S>::set_leaf(
-            &mut self.store,
-            &KVQMerkleNodeKey::new(
-                SUB_TABLE_L2_STATE_ROOTS_POSEIDON_GOLDILOCKS,
-                0,
-                0,
-                TREE_HEIGHT as u8,
-                l2id,
-                block_num,
-            ),
-            glv,
-        )?;
+
+        set_state!(self.store, checkpoint_id, pos, end_state_root);
 
         Ok(())
     }
 
     fn has_deployed_l2id(&mut self, l2id: u64) -> anyhow::Result<bool> {
-        let r = KVQStandardAdapter::<S, L2ODeploymentsKey, L2ODeployInscriptionV1>::get_exact(
+        let r = KVQStandardAdapter::<S, L2ODeploymentsKey, L2OADeployInscriptionV1>::get_exact(
             &mut self.store,
             &L2ODeploymentsKey::new(l2id),
         );
@@ -331,5 +195,37 @@ impl<S: KVQBinaryStore> L2OStoreV1 for L2OStoreV1Core<S> {
             Ok(_) => Ok(true),
             Err(_) => Ok(false),
         }
+    }
+
+    fn get_brc21_balance(&mut self, tick: String, address: String) -> anyhow::Result<u64> {
+        KVQStandardAdapter::<S, L2OBRC21BalancesKey, u64>::get_exact(
+            &self.store,
+            &L2OBRC21BalancesKey::new(tick, address),
+        )
+    }
+    fn transfer_brc21(
+        &mut self,
+        tick: String,
+        from: String,
+        to: String,
+        amount: u64,
+    ) -> anyhow::Result<()> {
+        let from_old_balance = Self::get_brc21_balance(self, tick.clone(), from.clone())?;
+        let to_old_balance = Self::get_brc21_balance(self, tick.clone(), to.clone())?;
+        let mut updates = vec![KVQPair {
+            key: L2OBRC21BalancesKey::new(tick.clone(), to),
+            value: to_old_balance
+                .checked_add(amount)
+                .ok_or(anyhow::anyhow!("Arithmetic: Overflow"))?,
+        }];
+        if from.as_str() != BRC20_BURN_ADDRESS {
+            updates.push(KVQPair {
+                key: L2OBRC21BalancesKey::new(tick.clone(), from),
+                value: from_old_balance
+                    .checked_sub(amount)
+                    .ok_or(anyhow::anyhow!("Arithmetic: Underflow"))?,
+            })
+        }
+        KVQStandardAdapter::<S, L2OBRC21BalancesKey, u64>::set_many(&mut self.store, &updates)
     }
 }

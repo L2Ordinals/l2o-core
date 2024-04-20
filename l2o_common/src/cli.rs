@@ -15,6 +15,7 @@ pub struct IndexerOrdHookArgs {
 }
 
 #[derive(Clone, Args)]
+#[cfg(debug_assertions)]
 pub struct SequencerArgs {
     #[clap(short, env, long, default_value = "http://localhost:3000", env)]
     pub indexer_url: String,
@@ -29,6 +30,7 @@ pub struct SequencerArgs {
 }
 
 #[derive(Clone, Args)]
+#[cfg(debug_assertions)]
 pub struct InitializerArgs {
     #[clap(short, env, long, default_value = "http://localhost:3000", env)]
     pub indexer_url: String,

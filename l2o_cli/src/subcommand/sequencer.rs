@@ -24,9 +24,9 @@ use l2o_crypto::proof::groth16::bn128::proof_data::Groth16BN128ProofData;
 use l2o_crypto::proof::groth16::bn128::proof_data::Groth16ProofSerializable;
 use l2o_crypto::signature::schnorr::sign_msg;
 use l2o_crypto::standards::l2o_a::proof::L2OAProofData;
-use l2o_crypto::standards::l2o_a::L2OBlockInscriptionV1;
-use l2o_indexer_ordhook::l2o::inscription::L2OInscriptionBlock;
-use l2o_indexer_ordhook::l2o::inscription::L2OInscriptionBlockParameters;
+use l2o_crypto::standards::l2o_a::L2OABlockInscriptionV1;
+use l2o_indexer_ordhook::standards::l2o_a::inscription::L2OAInscriptionBlock;
+use l2o_indexer_ordhook::standards::l2o_a::inscription::L2OAInscriptionBlockParameters;
 use l2o_rpc_provider::L2OAProvider;
 use l2o_rpc_provider::Provider;
 use serde_json::json;
@@ -50,9 +50,9 @@ async fn execute_single(
         .get_superchainroot_at_block(bitcoin_block_number, L2OAHashFunction::Sha256)
         .await?;
 
-    let mut block = L2OInscriptionBlock {
+    let mut block = L2OAInscriptionBlock {
         l2id: prev_block.l2id as u32,
-        block_parameters: L2OInscriptionBlockParameters {
+        block_parameters: L2OAInscriptionBlockParameters {
             state_root: Hash256::rand().to_hex(),
             public_key: prev_block.public_key.to_hex(),
             deposits_root: Hash256::rand().to_hex(),
@@ -76,7 +76,7 @@ async fn execute_single(
         .unwrap()
         .to_proof_with_public_inputs_groth16_bn254()?;
 
-    let mut block_inscription = L2OBlockInscriptionV1 {
+    let mut block_inscription = L2OABlockInscriptionV1 {
         p: "l2o-a".to_string(),
         op: "Block".to_string(),
 

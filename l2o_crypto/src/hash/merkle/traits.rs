@@ -8,14 +8,17 @@ pub trait MerkleHasherWithMarkedLeaf<Hash: PartialEq>: MerkleHasher<Hash> {
 pub trait MerkleZeroHasher<Hash: PartialEq>: MerkleHasher<Hash> {
     fn get_zero_hash(reverse_level: usize) -> Hash;
 }
-pub trait BaseMerkleZeroHasherWithMarkedLeaf<Hash: PartialEq>:
+pub trait MerkleZeroHasherWithMarkedLeaf<Hash: PartialEq>:
     MerkleHasherWithMarkedLeaf<Hash>
 {
     fn get_zero_hash_marked(reverse_level: usize) -> Hash;
 }
-pub trait MerkleZeroHasherWithMarkedLeaf<Hash: PartialEq>:
-    BaseMerkleZeroHasherWithMarkedLeaf<Hash> + MerkleZeroHasher<Hash>
+
+pub trait GeneralMerkleZeroHasher<Hash: PartialEq>:
+    MerkleZeroHasher<Hash> + MerkleHasherWithMarkedLeaf<Hash>
 {
+    fn get_zero_hash_marked_if(reverse_level: usize, marked: bool) -> Hash;
+    fn two_to_one_marked_if(left: &Hash, right: &Hash, marked: bool) -> Hash;
 }
 
 pub const ZERO_HASH_CACHE_SIZE: usize = 128;
@@ -49,7 +52,7 @@ impl<Hash: PartialEq + Copy, T: MerkleZeroHasherWithCache<Hash>> MerkleZeroHashe
 }
 
 impl<Hash: PartialEq + Copy, T: MerkleZeroHasherWithCacheMarkedLeaf<Hash>>
-    BaseMerkleZeroHasherWithMarkedLeaf<Hash> for T
+    MerkleZeroHasherWithMarkedLeaf<Hash> for T
 {
     fn get_zero_hash_marked(reverse_level: usize) -> Hash {
         if reverse_level < ZERO_HASH_CACHE_SIZE {
@@ -61,9 +64,22 @@ impl<Hash: PartialEq + Copy, T: MerkleZeroHasherWithCacheMarkedLeaf<Hash>>
     }
 }
 
-impl<
-        Hash: PartialEq + Copy,
-        T: MerkleZeroHasherWithCacheMarkedLeaf<Hash> + MerkleZeroHasherWithCache<Hash>,
-    > MerkleZeroHasherWithMarkedLeaf<Hash> for T
+impl<Hash: PartialEq + Copy, T: MerkleZeroHasher<Hash> + MerkleZeroHasherWithMarkedLeaf<Hash>>
+    GeneralMerkleZeroHasher<Hash> for T
 {
+    fn get_zero_hash_marked_if(reverse_level: usize, marked: bool) -> Hash {
+        if marked {
+            T::get_zero_hash_marked(reverse_level)
+        } else {
+            T::get_zero_hash(reverse_level)
+        }
+    }
+
+    fn two_to_one_marked_if(left: &Hash, right: &Hash, marked: bool) -> Hash {
+        if marked {
+            T::two_to_one_marked_leaf(left, right)
+        } else {
+            T::two_to_one(left, right)
+        }
+    }
 }
