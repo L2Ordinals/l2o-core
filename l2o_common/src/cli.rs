@@ -1,7 +1,7 @@
 use clap::Args;
 
 #[derive(Clone, Args)]
-pub struct IndexerOrdHookArgs {
+pub struct IndexerArgs {
     #[clap(short, env, long, default_value = "0.0.0.0:3000", env)]
     pub addr: String,
     #[clap(env, long, default_value = "http://localhost:18443", env)]

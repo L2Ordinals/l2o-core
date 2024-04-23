@@ -51,7 +51,7 @@ make ord-init
 
 Start the indexer service
 ```bash
-make run-indexer-ordhook 
+make run-indexer 
 ```
 
 Start the ordhook service

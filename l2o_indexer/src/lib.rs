@@ -13,8 +13,6 @@ use bytes::Buf;
 use bytes::Bytes;
 use chainhook_sdk::types::BitcoinBlockMetadata;
 use chainhook_sdk::types::BlockIdentifier;
-use chainhook_sdk::types::OrdinalInscriptionTransferData;
-use chainhook_sdk::types::OrdinalInscriptionTransferDestination;
 use chainhook_sdk::types::OrdinalOperation;
 use chainhook_sdk::types::TransactionIdentifier;
 use http_body_util::BodyExt;
@@ -33,7 +31,7 @@ use l2o_common::common::data::hash::L2OHash;
 use l2o_common::common::data::signature::L2OCompactPublicKey;
 use l2o_common::common::data::signature::L2OSignature512;
 use l2o_common::standards::l2o_a::actions::deploy::L2OADeployInscription;
-use l2o_common::IndexerOrdHookArgs;
+use l2o_common::IndexerArgs;
 use l2o_crypto::hash::hash_functions::blake3::Blake3Hasher;
 use l2o_crypto::hash::hash_functions::keccak256::Keccak256Hasher;
 use l2o_crypto::hash::hash_functions::poseidon_goldilocks::PoseidonHasher;
@@ -50,7 +48,6 @@ use l2o_rpc_provider::rpc::request::RpcRequest;
 use l2o_rpc_provider::rpc::response::ResponseResult;
 use l2o_rpc_provider::rpc::response::RpcResponse;
 use l2o_store::core::store::L2OStoreV1Core;
-use l2o_store::core::store::BRC20_BURN_ADDRESS;
 use l2o_store::core::traits::L2OStoreV1;
 use l2o_store_rocksdb::KVQRocksDBStore;
 use serde::Deserialize;
@@ -110,23 +107,23 @@ pub struct BitcoinChainhookOccurrencePayloadV2 {
 }
 
 async fn process_brc21_inscription(
-    store: Arc<Mutex<L2OStoreV1Core<KVQRocksDBStore>>>,
-    bitcoin_rpc: Arc<Client>,
+    _store: Arc<Mutex<L2OStoreV1Core<KVQRocksDBStore>>>,
+    _bitcoin_rpc: Arc<Client>,
     _bitcoin_block: &BitcoinBlockDataV2,
     _bitcoin_tx: &BitcoinTransactionDataV2,
     inscription: BRC21Inscription,
 ) -> anyhow::Result<()> {
     match inscription {
-        BRC21Inscription::L2Deposit(l2deposit) => todo!(),
-        BRC21Inscription::L2Withdraw(l2withdraw) => todo!(),
-        BRC21Inscription::Transfer(transfer) => {}
+        BRC21Inscription::L2Deposit(_l2deposit) => todo!(),
+        BRC21Inscription::L2Withdraw(_l2withdraw) => todo!(),
+        BRC21Inscription::Transfer(_transfer) => {}
     }
     Ok(())
 }
 
 async fn process_brc20_inscription(
-    store: Arc<Mutex<L2OStoreV1Core<KVQRocksDBStore>>>,
-    bitcoin_rpc: Arc<Client>,
+    _store: Arc<Mutex<L2OStoreV1Core<KVQRocksDBStore>>>,
+    _bitcoin_rpc: Arc<Client>,
     _bitcoin_block: &BitcoinBlockDataV2,
     _bitcoin_tx: &BitcoinTransactionDataV2,
     inscription: BRC20Inscription,
@@ -513,7 +510,7 @@ fn full<T: Into<Bytes>>(chunk: T) -> BoxBody {
         .boxed()
 }
 
-pub async fn listen(args: &IndexerOrdHookArgs) -> anyhow::Result<()> {
+pub async fn listen(args: &IndexerArgs) -> anyhow::Result<()> {
     let addr: SocketAddr = args.addr.parse()?;
     let store = Arc::new(Mutex::new(L2OStoreV1Core::new(KVQRocksDBStore::new(
         &args.db_path,

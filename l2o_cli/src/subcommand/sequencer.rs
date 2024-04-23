@@ -25,8 +25,8 @@ use l2o_crypto::proof::groth16::bn128::proof_data::Groth16ProofSerializable;
 use l2o_crypto::signature::schnorr::sign_msg;
 use l2o_crypto::standards::l2o_a::proof::L2OAProofData;
 use l2o_crypto::standards::l2o_a::L2OABlockInscriptionV1;
-use l2o_indexer_ordhook::standards::l2o_a::inscription::L2OAInscriptionBlock;
-use l2o_indexer_ordhook::standards::l2o_a::inscription::L2OAInscriptionBlockParameters;
+use l2o_indexer::standards::l2o_a::inscription::L2OAInscriptionBlock;
+use l2o_indexer::standards::l2o_a::inscription::L2OAInscriptionBlockParameters;
 use l2o_rpc_provider::L2OAProvider;
 use l2o_rpc_provider::Provider;
 use serde_json::json;
@@ -130,15 +130,12 @@ async fn execute_single(
     block_value["bitcoin_block_hash"] = json!(block_inscription.bitcoin_block_hash.to_hex());
     block_value["superchain_root"] = json!(block_inscription.superchain_root.to_hex());
     std::fs::write(
-        "./l2o_indexer_ordhook/assets/block.json",
+        "./l2o_indexer/assets/block.json",
         serde_json::to_string_pretty(&block_value)?,
     )?;
 
     assert!(Command::new("make")
-        .args([
-            "FILE=./l2o_indexer_ordhook/assets/block.json",
-            "ord-inscribe",
-        ])
+        .args(["FILE=./l2o_indexer/assets/block.json", "ord-inscribe",])
         .status()
         .is_ok());
 

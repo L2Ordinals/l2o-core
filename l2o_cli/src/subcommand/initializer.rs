@@ -30,7 +30,7 @@ use l2o_crypto::proof::L2OAVerifierSerializableData;
 use l2o_crypto::signature::schnorr::sign_msg;
 use l2o_crypto::standards::l2o_a::proof::L2OAProofData;
 use l2o_crypto::standards::l2o_a::L2OABlockInscriptionV1;
-use l2o_indexer_ordhook::standards::l2o_a::inscription::L2OAInscription;
+use l2o_indexer::standards::l2o_a::inscription::L2OAInscription;
 use l2o_rpc_provider::L2OAProvider;
 use l2o_rpc_provider::Provider;
 use serde_json::json;
@@ -47,8 +47,8 @@ pub async fn run(
     Arc<Client>,
     Arc<Provider>,
 )> {
-    let deploy_json = include_str!("../../../l2o_indexer_ordhook/assets/deploy.json");
-    let block_json = include_str!("../../../l2o_indexer_ordhook/assets/block.json");
+    let deploy_json = include_str!("../../../l2o_indexer/assets/deploy.json");
+    let block_json = include_str!("../../../l2o_indexer/assets/block.json");
     let deploy_data = serde_json::from_str::<L2OAInscription>(deploy_json)?;
     let block_data = serde_json::from_str::<L2OAInscription>(block_json)?;
     let mut deploy = match deploy_data {
@@ -144,15 +144,12 @@ pub async fn run(
     deploy_value["p"] = json!("l2o-a");
     deploy_value["op"] = json!("Deploy");
     std::fs::write(
-        "./l2o_indexer_ordhook/assets/deploy.json",
+        "./l2o_indexer/assets/deploy.json",
         serde_json::to_string_pretty(&deploy_value)?,
     )?;
 
     assert!(Command::new("make")
-        .args([
-            "FILE=./l2o_indexer_ordhook/assets/deploy.json",
-            "ord-inscribe",
-        ])
+        .args(["FILE=./l2o_indexer/assets/deploy.json", "ord-inscribe",])
         .status()
         .is_ok());
 
@@ -186,15 +183,12 @@ pub async fn run(
 
     block_value["proof"] = json!(proof_json);
     std::fs::write(
-        "./l2o_indexer_ordhook/assets/block.json",
+        "./l2o_indexer/assets/block.json",
         serde_json::to_string_pretty(&block_value)?,
     )?;
 
     assert!(Command::new("make")
-        .args([
-            "FILE=./l2o_indexer_ordhook/assets/block.json",
-            "ord-inscribe",
-        ])
+        .args(["FILE=./l2o_indexer/assets/block.json", "ord-inscribe",])
         .status()
         .is_ok());
 

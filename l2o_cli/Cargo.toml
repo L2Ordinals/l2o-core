@@ -21,7 +21,7 @@ clap                  = { workspace = true }
 dotenv                = { workspace = true }
 hex                   = { workspace = true }
 k256                  = { workspace = true }
-l2o-indexer-ordhook   = { path = "../l2o_indexer_ordhook" }
+l2o-indexer   = { path = "../l2o_indexer" }
 l2o_common            = { path = "../l2o_common" }
 l2o_crypto            = { path = "../l2o_crypto" }
 l2o_rpc_provider      = { path = "../l2o_rpc_provider" }

@@ -6,7 +6,7 @@ mod subcommand;
 use clap::Parser;
 use error::Result;
 
-use crate::subcommand::indexer_ordhook;
+use crate::subcommand::indexer;
 #[cfg(debug_assertions)]
 use crate::subcommand::initializer;
 #[cfg(debug_assertions)]
@@ -21,7 +21,7 @@ async fn main() -> Result<()> {
 
     let cli = Cli::parse();
     match cli.command {
-        Commands::IndexerOrdHook(args) => indexer_ordhook::run(&args).await?,
+        Commands::Indexer(args) => indexer::run(&args).await?,
         #[cfg(debug_assertions)]
         Commands::Sequencer(args) => sequencer::run(&args).await?,
         #[cfg(debug_assertions)]
