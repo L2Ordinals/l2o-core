@@ -27,6 +27,7 @@ l2o_crypto           = { path = "../l2o_crypto" }
 l2o_rpc_provider     = { path = "../l2o_rpc_provider" }
 l2o_store            = { path = "../l2o_store" }
 l2o_store_rocksdb    = { path = "../l2o_store_rocksdb" }
+reqwest              = { workspace = true }
 serde                = { workspace = true }
 serde_json           = { workspace = true }
 serde_with           = { workspace = true }

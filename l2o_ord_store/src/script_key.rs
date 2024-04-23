@@ -21,12 +21,20 @@ pub enum ScriptKey {
 impl ScriptKey {
     #[allow(unused)]
     pub fn from_address(address: Address) -> Self {
-        ScriptKey::Address(Address::new(address.network, address.payload))
+        ScriptKey::Address(Address::new(
+            address.network().clone(),
+            address.payload().clone(),
+        ))
     }
     pub fn from_script(script: &Script, chain: Chain) -> Self {
         chain
             .address_from_script(script)
-            .map(|address| Self::Address(Address::new(address.network, address.payload)))
+            .map(|address| {
+                Self::Address(Address::new(
+                    address.network().clone(),
+                    address.payload().clone(),
+                ))
+            })
             .unwrap_or(ScriptKey::ScriptHash {
                 script_hash: script.script_hash(),
                 is_op_return: script.is_op_return(),
@@ -70,7 +78,7 @@ mod tests {
     fn test_script_key_from_script() {
         let script = Address::from_str("bc1qhvd6suvqzjcu9pxjhrwhtrlj85ny3n2mqql5w4")
             .unwrap()
-            .payload
+            .payload()
             .script_pubkey();
         assert_eq!(
             ScriptKey::from_script(&script, Chain::Mainnet),

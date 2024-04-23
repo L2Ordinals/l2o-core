@@ -261,6 +261,7 @@ impl RawEnvelope {
 #[cfg(test)]
 mod tests {
     use bitcoin::absolute::LockTime;
+    use bitcoin::transaction::Version;
     use bitcoin::OutPoint;
     use bitcoin::ScriptBuf;
     use bitcoin::Sequence;
@@ -273,7 +274,7 @@ mod tests {
 
     fn parse(witnesses: &[Witness]) -> Vec<ParsedEnvelope> {
         ParsedEnvelope::from_transaction(&Transaction {
-            version: 2,
+            version: Version::TWO,
             lock_time: LockTime::ZERO,
             input: witnesses
                 .iter()
@@ -899,7 +900,7 @@ mod tests {
 
     #[test]
     fn pushnum_opcodes_are_parsed_correctly() {
-        const PUSHNUMS: &[(opcodes::All, u8)] = &[
+        const PUSHNUMS: &[(opcodes::Opcode, u8)] = &[
             (opcodes::all::OP_PUSHNUM_NEG1, 0x81),
             (opcodes::all::OP_PUSHNUM_1, 1),
             (opcodes::all::OP_PUSHNUM_2, 2),

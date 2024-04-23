@@ -3,6 +3,7 @@ use bitcoin::opcodes;
 use bitcoin::script::PushBytesBuf;
 use bitcoin::script::{self};
 use bitcoin::Address;
+use bitcoin::Amount;
 use bitcoin::BlockHash;
 use bitcoin::OutPoint;
 use bitcoin::ScriptBuf;
@@ -114,7 +115,7 @@ pub fn tx_in(previous_output: OutPoint) -> TxIn {
 
 pub fn tx_out(value: u64, address: Address) -> TxOut {
     TxOut {
-        value,
+        value: Amount::from_sat(value),
         script_pubkey: address.script_pubkey(),
     }
 }
