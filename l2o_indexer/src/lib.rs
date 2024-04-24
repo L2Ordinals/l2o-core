@@ -1,3 +1,5 @@
+use std::cmp::Ordering;
+use std::fmt::Display;
 use std::net::SocketAddr;
 use std::sync::Arc;
 use std::time::Duration;
@@ -7,7 +9,10 @@ use ark_bn254::Fr;
 use ark_groth16::Groth16;
 use ark_serialize::CanonicalSerialize;
 use ark_snark::SNARK;
+use base64::Engine;
 use bitcoin::Block;
+use bitcoin::Transaction;
+use bitcoin::Txid;
 use bitcoincore_rpc::Auth;
 use bitcoincore_rpc::Client;
 use bitcoincore_rpc::RpcApi;
@@ -28,6 +33,9 @@ use hyper::Request;
 use hyper::Response;
 use hyper::StatusCode;
 use hyper_util::rt::TokioIo;
+use jsonrpc_core::types::Request as JsonRpcRequest;
+use jsonrpc_core::types::Response as JsonRpcResponse;
+use jsonrpc_core::Success;
 use l2o_common::common::data::hash::Hash256;
 use l2o_common::common::data::hash::L2OHash;
 use l2o_common::common::data::signature::L2OCompactPublicKey;
@@ -44,6 +52,7 @@ use l2o_crypto::proof::groth16::bn128::verifier_data::Groth16BN128VerifierData;
 use l2o_crypto::signature::schnorr::verify_sig;
 use l2o_crypto::standards::l2o_a::proof::L2OAProofData;
 use l2o_crypto::standards::l2o_a::L2OABlockInscriptionV1;
+use l2o_macros::quick;
 use l2o_rpc_provider::rpc;
 use l2o_rpc_provider::rpc::request::RequestParams;
 use l2o_rpc_provider::rpc::request::RpcRequest;
@@ -54,9 +63,9 @@ use l2o_store::core::traits::L2OStoreV1;
 use l2o_store_rocksdb::KVQRocksDBStore;
 use serde::Deserialize;
 use serde::Serialize;
+use serde_json::json;
 use standards::l2o_a::inscription::L2OAInscription;
 use tokio::net::TcpListener;
-
 use tokio::sync::Mutex;
 
 use crate::standards::brc20::inscription::BRC20Inscription;
@@ -118,13 +127,19 @@ fn full<T: Into<Bytes>>(chunk: T) -> BoxBody {
 
 pub struct Indexer {
     addr: SocketAddr,
+    http_client: Arc<reqwest::blocking::Client>,
+    bitcoin_rpc_url: &'static str,
+    bitcoin_rpc_auth: &'static str,
     bitcoin_rpc: Arc<Client>,
     store: Arc<Mutex<L2OStoreV1Core<KVQRocksDBStore>>>,
 }
 impl Clone for Indexer {
     fn clone(&self) -> Self {
         Self {
-            addr: self.addr.clone(),
+            addr: self.addr,
+            http_client: Arc::clone(&self.http_client),
+            bitcoin_rpc_url: self.bitcoin_rpc_url,
+            bitcoin_rpc_auth: self.bitcoin_rpc_auth,
             bitcoin_rpc: Arc::clone(&self.bitcoin_rpc),
             store: Arc::clone(&self.store),
         }
@@ -132,11 +147,18 @@ impl Clone for Indexer {
 }
 
 impl Indexer {
-    pub fn new(args: &IndexerArgs) -> anyhow::Result<Self> {
+    pub fn new(args: IndexerArgs) -> anyhow::Result<Self> {
         let addr: SocketAddr = args.addr.parse()?;
         let store = Arc::new(Mutex::new(L2OStoreV1Core::new(KVQRocksDBStore::new(
             &args.db_path,
         )?)));
+        let bitcoin_rpc_auth = format!(
+            "Basic {}",
+            &base64::engine::general_purpose::STANDARD.encode(format!(
+                "{}:{}",
+                args.bitcoin_rpcuser, args.bitcoin_rpcpassword
+            ),)
+        );
         let bitcoin_rpc = Arc::new(Client::new(
             &args.bitcoin_rpc,
             Auth::UserPass(
@@ -144,9 +166,13 @@ impl Indexer {
                 args.bitcoin_rpcpassword.to_string(),
             ),
         )?);
+        let http_client = Arc::new(reqwest::blocking::Client::new());
 
         Ok(Indexer {
             addr,
+            http_client,
+            bitcoin_rpc_url: Box::leak(args.bitcoin_rpc.into_boxed_str()),
+            bitcoin_rpc_auth: Box::leak(bitcoin_rpc_auth.into_boxed_str()),
             bitcoin_rpc,
             store,
         })
@@ -524,42 +550,111 @@ impl Indexer {
         }
     }
 
-    pub async fn get_block_with_retries(
+    pub fn get_block_with_retries(
         client: &Client,
         height: u32,
         index_sats: bool,
         first_inscription_height: u32,
     ) -> anyhow::Result<Block> {
-        let mut errors = 0;
+        let block_hash = Self::retry(|| client.get_block_hash(height.into()))?;
+        if index_sats || height >= first_inscription_height {
+            Ok(Self::retry(|| client.get_block(&block_hash))?)
+        } else {
+            Ok(Block {
+                header: Self::retry(|| client.get_block_header(&block_hash))?,
+                txdata: Vec::new(),
+            })
+        }
+    }
+
+    pub async fn get_transactions_with_retries(
+        &self,
+        txids: &Vec<Txid>,
+    ) -> anyhow::Result<Vec<Transaction>> {
+        use jsonrpc_core::types::*;
+
+        if txids.is_empty() {
+            return Ok(Vec::new());
+        }
+
+        let requests = JsonRpcRequest::Batch(
+            txids
+                .iter()
+                .enumerate()
+                .map(|(i, txid)| {
+                    Call::MethodCall(MethodCall {
+                        jsonrpc: Some(Version::V2),
+                        method: "getrawtransaction".to_string(),
+                        params: Params::Array(vec![json!(txid)]),
+                        id: Id::Num(i as u64),
+                    })
+                })
+                .collect(),
+        );
+
+        let responses = Self::retry(|| self.bitcoin_raw_rpc_call(&requests))?;
+
+        responses
+            .into_iter()
+            .map(|response| {
+                let hex = match response.result {
+                    Value::String(hex) => hex,
+                    _ => return Err(anyhow::anyhow!("invalid response")),
+                };
+
+                let tx = bitcoin::consensus::deserialize(&hex::decode(&hex)?)?;
+                Ok(tx)
+            })
+            .collect()
+    }
+
+    fn bitcoin_raw_rpc_call(&self, request: &JsonRpcRequest) -> anyhow::Result<Vec<Success>> {
+        use jsonrpc_core::types::*;
+
+        let resp = self
+            .http_client
+            .post(self.bitcoin_rpc_url)
+            .header("Authorization", self.bitcoin_rpc_auth)
+            .json(request)
+            .send()?
+            .json::<JsonRpcResponse>()?;
+
+        let unwrap_output = |output: Output| match output {
+            Output::Success(r) => Ok(r),
+            Output::Failure(f) => Err(f.error),
+        };
+
+        let mut res = match resp {
+            JsonRpcResponse::Single(output) => vec![unwrap_output(output)?],
+            JsonRpcResponse::Batch(outputs) => outputs
+                .into_iter()
+                .map(|output| unwrap_output(output))
+                .collect::<Result<Vec<Success>, Error>>()?,
+        };
+
+        res.sort_by(|a, b| match (&a.id, &b.id) {
+            (&Id::Num(a), &Id::Num(b)) => a.cmp(&b),
+            _ => Ordering::Equal,
+        });
+
+        Ok(res)
+    }
+
+    fn retry<T, E: Display>(f: impl Fn() -> Result<T, E>) -> Result<T, E> {
+        let mut retries = 0;
         loop {
-            match client.get_block_hash(height.into()) {
-                Ok(hash) => {
-                    if index_sats || height >= first_inscription_height {
-                        return Ok(client.get_block(&hash)?);
-                    } else {
-                        return Ok(Block {
-                            header: client.get_block_header(&hash)?,
-                            txdata: Vec::new(),
-                        });
-                    }
-                }
-                Err(err) => {
-                    if cfg!(test) {
-                        return Err(err.into());
-                    }
+            let err = quick!(f());
 
-                    errors += 1;
-                    let seconds = 1 << errors;
-                    tracing::warn!("failed to fetch block {height}, retrying in {seconds}s: {err}");
+            retries += 1;
+            let seconds = 1 << retries;
+            tracing::warn!("retrying in {seconds}s: {err}");
 
-                    if seconds > 120 {
-                        tracing::error!("would sleep for more than 120s, giving up");
-                        return Err(err.into());
-                    }
-
-                    tokio::time::sleep(Duration::from_secs(seconds)).await;
-                }
+            if seconds > 120 {
+                tracing::error!("would sleep for more than 120s, giving up");
+                return Err(err);
             }
+
+            std::thread::sleep(Duration::from_secs(seconds));
         }
     }
 }

@@ -86,6 +86,7 @@ regex = "1.6.0"
 reqwest = { version = "0.11.22", default-features = false, features = [
   "json",
   "rustls",
+  "blocking"
 ] }
 rmp-serde = "1.2.0"
 rocksdb = { version = "0.21.0", features = ["serde", "multi-threaded-cf"] }

@@ -104,3 +104,15 @@ macro_rules! rpc_call {
         )?)
     }};
 }
+
+// https://www.reddit.com/r/rust/comments/17ln23t/change_my_mind_rust_should_use_the_operator_to/
+// ¿
+#[macro_export]
+macro_rules! quick {
+    ($fn_result:expr) => {{
+        match $fn_result {
+            Ok(res) => return Ok(res),
+            Err(err) => err,
+        }
+    }};
+}

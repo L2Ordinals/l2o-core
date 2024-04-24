@@ -12,6 +12,7 @@ ark-ec               = { workspace = true }
 ark-groth16          = { workspace = true }
 ark-serialize        = { workspace = true }
 ark-snark            = { workspace = true }
+base64               = { workspace = true }
 bitcoin              = { workspace = true }
 bitcoincore-rpc      = { workspace = true }
 bitcoincore-rpc-json = { workspace = true }
@@ -22,8 +23,10 @@ hex                  = { workspace = true }
 http-body-util       = { workspace = true }
 hyper                = { workspace = true }
 hyper-util           = { workspace = true }
+jsonrpc-core         = { workspace = true }
 l2o_common           = { path = "../l2o_common" }
 l2o_crypto           = { path = "../l2o_crypto" }
+l2o_macros           = { path = "../l2o_macros" }
 l2o_rpc_provider     = { path = "../l2o_rpc_provider" }
 l2o_store            = { path = "../l2o_store" }
 l2o_store_rocksdb    = { path = "../l2o_store_rocksdb" }

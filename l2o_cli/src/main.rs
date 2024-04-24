@@ -21,7 +21,7 @@ async fn main() -> Result<()> {
 
     let cli = Cli::parse();
     match cli.command {
-        Commands::Indexer(args) => indexer::run(&args).await?,
+        Commands::Indexer(args) => indexer::run(args).await?,
         #[cfg(debug_assertions)]
         Commands::Sequencer(args) => sequencer::run(&args).await?,
         #[cfg(debug_assertions)]

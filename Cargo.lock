@@ -2161,6 +2161,21 @@ dependencies = [
 ]
 
 [[package]]
+name = "jsonrpc-core"
+version = "18.0.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "14f7f76aef2d054868398427f6c54943cf3d1caa9a7ec7d0c38d69df97a965eb"
+dependencies = [
+ "futures",
+ "futures-executor",
+ "futures-util",
+ "log",
+ "serde",
+ "serde_derive",
+ "serde_json",
+]
+
+[[package]]
 name = "k256"
 version = "0.13.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2249,6 +2264,7 @@ dependencies = [
  "ark-groth16",
  "ark-serialize",
  "ark-snark",
+ "base64 0.21.5",
  "bitcoin",
  "bitcoincore-rpc",
  "bitcoincore-rpc-json",
@@ -2259,8 +2275,10 @@ dependencies = [
  "http-body-util",
  "hyper 1.2.0",
  "hyper-util",
+ "jsonrpc-core",
  "l2o_common",
  "l2o_crypto",
+ "l2o_macros",
  "l2o_rpc_provider",
  "l2o_store",
  "l2o_store_rocksdb",
