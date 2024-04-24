@@ -6,6 +6,7 @@ pub mod executor;
 pub mod index;
 pub mod log;
 pub mod reader;
+pub mod resolver;
 pub mod script_key;
 pub mod table;
 pub mod tick;

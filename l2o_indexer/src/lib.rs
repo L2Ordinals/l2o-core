@@ -1,7 +1,10 @@
 use std::cmp::Ordering;
+use std::collections::HashMap;
 use std::fmt::Display;
 use std::net::SocketAddr;
+use std::sync::mpsc;
 use std::sync::Arc;
+use std::thread;
 use std::time::Duration;
 
 use ark_bn254::Bn254;
@@ -53,6 +56,7 @@ use l2o_crypto::signature::schnorr::verify_sig;
 use l2o_crypto::standards::l2o_a::proof::L2OAProofData;
 use l2o_crypto::standards::l2o_a::L2OABlockInscriptionV1;
 use l2o_macros::quick;
+use l2o_ord_store::index::BlockData;
 use l2o_rpc_provider::rpc;
 use l2o_rpc_provider::rpc::request::RequestParams;
 use l2o_rpc_provider::rpc::request::RpcRequest;
@@ -74,11 +78,9 @@ use crate::standards::L2OInscription;
 
 type BoxBody = http_body_util::combinators::BoxBody<Bytes, hyper::Error>;
 
-pub mod ctx;
 pub mod processor;
 pub mod standards;
 pub mod store;
-pub mod table;
 
 static NOTFOUND: &[u8] = b"Not Found";
 
@@ -135,6 +137,7 @@ pub struct Indexer {
     bitcoin_rpc: Arc<Client>,
     store: Arc<Mutex<L2OStoreV1Core<KVQRocksDBStore>>>,
 }
+
 impl Clone for Indexer {
     fn clone(&self) -> Self {
         Self {
@@ -154,6 +157,7 @@ impl Indexer {
         let store = Arc::new(Mutex::new(L2OStoreV1Core::new(KVQRocksDBStore::new(
             &args.db_path,
         )?)));
+        let (tx, rx) = mpsc::channel::<Block>();
         let bitcoin_rpc_auth = format!(
             "Basic {}",
             &base64::engine::general_purpose::STANDARD.encode(format!(
@@ -170,14 +174,44 @@ impl Indexer {
         )?);
         let http_client = Arc::new(reqwest::blocking::Client::new());
 
-        Ok(Indexer {
+        let indexer = Indexer {
             addr,
             http_client,
             bitcoin_rpc_url: Box::leak(args.bitcoin_rpc.into_boxed_str()),
             bitcoin_rpc_auth: Box::leak(bitcoin_rpc_auth.into_boxed_str()),
             bitcoin_rpc,
             store,
-        })
+        };
+        let indexer_cloned = indexer.clone();
+
+        thread::spawn(move || loop {
+            if let Err(err) = indexer_cloned
+                .get_block_with_retries(0, false, 0)
+                .and_then(|block| Ok(tx.send(block)?))
+            {
+                tracing::error!("{:?}", err);
+            }
+            thread::sleep(Duration::from_secs(3));
+        });
+
+        thread::spawn(move || loop {
+            match rx.recv() {
+                Ok(block) => {
+                    l2o_ord_store::index::index_block(
+                        "index",
+                        0,
+                        &BlockData::from(block),
+                        HashMap::new(),
+                    )
+                    .unwrap();
+                }
+                Err(err) => {
+                    tracing::error!("{:?}", err);
+                }
+            }
+        });
+
+        Ok(indexer)
     }
 
     pub async fn listen(&self) -> anyhow::Result<()> {
@@ -554,17 +588,17 @@ impl Indexer {
     }
 
     pub fn get_block_with_retries(
-        client: &Client,
+        &self,
         height: u32,
         index_sats: bool,
         first_inscription_height: u32,
     ) -> anyhow::Result<Block> {
-        let block_hash = Self::retry(|| client.get_block_hash(height.into()))?;
+        let block_hash = Self::retry(|| self.bitcoin_rpc.get_block_hash(height.into()))?;
         if index_sats || height >= first_inscription_height {
-            Ok(Self::retry(|| client.get_block(&block_hash))?)
+            Ok(Self::retry(|| self.bitcoin_rpc.get_block(&block_hash))?)
         } else {
             Ok(Block {
-                header: Self::retry(|| client.get_block_header(&block_hash))?,
+                header: Self::retry(|| self.bitcoin_rpc.get_block_header(&block_hash))?,
                 txdata: Vec::new(),
             })
         }

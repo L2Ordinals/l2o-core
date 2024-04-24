@@ -17,6 +17,7 @@ use redb::TableDefinition;
 
 use crate::balance::Balance;
 use crate::entry::Entry;
+use crate::entry::HeaderValue;
 use crate::entry::OutPointValue;
 use crate::entry::SatPointValue;
 use crate::entry::TxidValue;
@@ -28,6 +29,7 @@ use crate::tick::Tick;
 use crate::token_info::TokenInfo;
 
 define_table! { OUTPOINT_TO_ENTRY, &OutPointValue, &[u8]}
+define_table! { HEIGHT_TO_BLOCK_HEADER, u32, &HeaderValue }
 
 define_table! { BRC20_BALANCES, &str, &[u8] }
 define_table! { BRC20_TOKEN, &str, &[u8] }

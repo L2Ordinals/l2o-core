@@ -47,7 +47,7 @@ impl Operation {
 
 #[derive(Debug, PartialEq, Clone, Deserialize, Serialize)]
 #[serde(tag = "op")]
-enum RawOperation {
+pub enum RawOperation {
     #[serde(rename = "deploy")]
     Deploy(Deploy),
     #[serde(rename = "mint")]
@@ -56,7 +56,7 @@ enum RawOperation {
     Transfer(Transfer),
 }
 
-fn deserialize_brc20(s: &str) -> Result<RawOperation, JSONError> {
+pub fn deserialize_brc20(s: &str) -> Result<RawOperation, JSONError> {
     let value: Value = serde_json::from_str(s).map_err(|_| JSONError::InvalidJson)?;
     if value.get("p") != Some(&json!(PROTOCOL_LITERAL)) {
         return Err(JSONError::NotBRC20Json);

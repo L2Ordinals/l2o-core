@@ -84,7 +84,7 @@ impl ExecutionMessage {
     pub fn execute(context: &mut Context, msg: &ExecutionMessage) -> anyhow::Result<Receipt> {
         tracing::debug!(
             "BRC20 execute message:
-    {:?}",
+            {:?}",
             msg
         );
         let event = match &msg.op {
