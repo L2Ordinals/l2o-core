@@ -2,26 +2,33 @@ use std::path::Path;
 
 use kvq::traits::KVQBinaryStore;
 use kvq::traits::KVQPair;
+use redb::Database;
+use redb::ReadableTable;
 use redb::TableDefinition;
 
+const TABLE: TableDefinition<&'static [u8], &'static [u8]> = TableDefinition::new("kv");
 
 pub struct KVQReDBStore {
-    db: TableDefinition<Vec<u8>, Vec<u8>>,
+    db: Database,
 }
 impl KVQReDBStore {
     pub fn new<P: AsRef<Path>>(path: P) -> anyhow::Result<Self> {
         Ok(Self {
-            db: TransactionDB::open_default(path)?,
+            db: Database::create(path)?,
         })
     }
 }
 
 impl KVQBinaryStore for KVQReDBStore {
     fn get_exact(&self, key: &Vec<u8>) -> anyhow::Result<Vec<u8>> {
-        match self.db.get(key)? {
-            Some(v) => Ok(v),
-            None => anyhow::bail!("Key not found"),
-        }
+        let rxn = self.db.begin_read()?;
+        let table = rxn.open_table(TABLE)?;
+        let res = table
+            .get(key.as_slice())?
+            .ok_or(anyhow::anyhow!("Key not found"))?
+            .value()
+            .to_vec();
+        Ok(res)
     }
 
     fn get_many_exact(&self, keys: &[Vec<u8>]) -> anyhow::Result<Vec<Vec<u8>>> {
@@ -34,12 +41,16 @@ impl KVQBinaryStore for KVQReDBStore {
     }
 
     fn set(&mut self, key: Vec<u8>, value: Vec<u8>) -> anyhow::Result<()> {
-        self.db.put(key, value)?;
-        Ok(())
+        self.set_ref(&key, &value)
     }
 
     fn set_ref(&mut self, key: &Vec<u8>, value: &Vec<u8>) -> anyhow::Result<()> {
-        self.db.put(key.clone(), value.clone())?;
+        let wxn = self.db.begin_write()?;
+        {
+            let mut table = wxn.open_table(TABLE)?;
+            table.insert(key.as_slice(), value.as_slice())?;
+        }
+        wxn.commit()?;
         Ok(())
     }
 
@@ -47,39 +58,61 @@ impl KVQBinaryStore for KVQReDBStore {
         &mut self,
         items: &[KVQPair<&'a Vec<u8>, &'a Vec<u8>>],
     ) -> anyhow::Result<()> {
-        let txn = self.db.transaction();
-        for item in items {
-            txn.put(item.key.clone(), item.value.clone())?;
+        let wxn = self.db.begin_write()?;
+        {
+            let mut table = wxn.open_table(TABLE)?;
+            for item in items {
+                table.insert(item.key.as_slice(), item.value.as_slice())?;
+            }
         }
-        Ok(txn.commit()?)
+        Ok(wxn.commit()?)
     }
 
     fn set_many_vec(&mut self, items: Vec<KVQPair<Vec<u8>, Vec<u8>>>) -> anyhow::Result<()> {
-        let txn = self.db.transaction();
-        for item in items {
-            txn.put(item.key, item.value)?;
-        }
-        Ok(txn.commit()?)
+        self.set_many_ref(
+            items
+                .iter()
+                .map(|x| KVQPair {
+                    key: &x.key,
+                    value: &x.value,
+                })
+                .collect::<Vec<_>>()
+                .as_slice(),
+        )
     }
 
     fn delete(&mut self, key: &Vec<u8>) -> anyhow::Result<bool> {
-        match self.db.delete(key) {
-            Ok(_) => Ok(true),
-            Err(e) if e.kind() == ErrorKind::NotFound => Ok(true),
-            Err(e) => anyhow::bail!(e),
-        }
+        let wxn = self.db.begin_write()?;
+        let res = {
+            let mut table = wxn.open_table(TABLE)?;
+
+            let res = table.remove(key.as_slice())?.is_some();
+            res
+        };
+
+        wxn.commit()?;
+        Ok(res)
     }
 
     fn delete_many(&mut self, keys: &[Vec<u8>]) -> anyhow::Result<Vec<bool>> {
-        let mut result = Vec::with_capacity(keys.len());
-        for key in keys {
-            let r = self.delete(key)?;
-            result.push(r);
-        }
+        let wxn = self.db.begin_write()?;
+        let result = {
+            let mut table = wxn.open_table(TABLE)?;
+
+            let mut result = Vec::with_capacity(keys.len());
+            for key in keys {
+                let r = table.remove(key.as_slice())?;
+                result.push(r.is_some());
+            }
+            result
+        };
+        wxn.commit()?;
         Ok(result)
     }
 
     fn get_leq(&self, key: &Vec<u8>, fuzzy_bytes: usize) -> anyhow::Result<Option<Vec<u8>>> {
+        let rxn = self.db.begin_read()?;
+        let table = rxn.open_table(TABLE)?;
         let key_end = key.to_vec();
         let mut base_key = key.to_vec();
         let key_len = base_key.len();
@@ -93,17 +126,12 @@ impl KVQBinaryStore for KVQReDBStore {
             base_key[key_len - i - 1] = 0;
         }
 
-        let rq = self
-            .db
-            .prefix_iterator(base_key)
-            .take_while(|v| match v {
-                Ok((k, _)) if k.as_ref() < &key_end => true,
-                _ => false,
-            })
-            .last();
+        let rq = table
+            .range(base_key.as_slice()..key_end.as_slice())?
+            .next_back();
 
         match rq {
-            Some(Ok((_, v))) => Ok(Some(v.to_vec())),
+            Some(Ok((_, v))) => Ok(Some(v.value().to_vec())),
             _ => Ok(None),
         }
     }
@@ -113,6 +141,8 @@ impl KVQBinaryStore for KVQReDBStore {
         key: &Vec<u8>,
         fuzzy_bytes: usize,
     ) -> anyhow::Result<Option<KVQPair<Vec<u8>, Vec<u8>>>> {
+        let rxn = self.db.begin_read()?;
+        let table = rxn.open_table(TABLE)?;
         let key_end = key.to_vec();
         let mut base_key = key.to_vec();
         let key_len = base_key.len();
@@ -126,19 +156,14 @@ impl KVQBinaryStore for KVQReDBStore {
             base_key[key_len - i - 1] = 0;
         }
 
-        let rq = self
-            .db
-            .prefix_iterator(base_key)
-            .take_while(|v| match v {
-                Ok((k, _)) if k.as_ref() < &key_end => true,
-                _ => false,
-            })
-            .last();
+        let rq = table
+            .range(base_key.as_slice()..key_end.as_slice())?
+            .next_back();
 
         match rq {
             Some(Ok((k, v))) => Ok(Some(KVQPair {
-                key: k.to_vec(),
-                value: v.to_vec(),
+                key: k.value().to_vec(),
+                value: v.value().to_vec(),
             })),
             _ => Ok(None),
         }

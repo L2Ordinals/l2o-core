@@ -10,7 +10,7 @@ members = [
   "l2o_cli",
   "l2o_macros",
   "l2o_derive",
-  # "l2o_store_redb",
+  "l2o_store_redb",
   "l2o_ord",
   "l2o_ord_store",
 ]

@@ -2414,6 +2414,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "l2o_store_redb"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "kvq",
+ "redb",
+]
+
+[[package]]
 name = "l2o_store_rocksdb"
 version = "0.1.0"
 dependencies = [
