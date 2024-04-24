@@ -6,7 +6,7 @@ use serde::Deserializer;
 use serde::Serialize;
 use serde_json::Value;
 
-use crate::operation::SELF_ISSUANCE_TICK_LENGTH;
+use crate::SELF_ISSUANCE_TICK_LENGTH;
 
 #[derive(Debug, PartialEq, Clone, Serialize)]
 pub struct Deploy {

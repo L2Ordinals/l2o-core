@@ -3,15 +3,14 @@ use std::fmt::Formatter;
 use std::str::FromStr;
 
 use l2o_ord::error::BRC20Error;
+use l2o_ord::MAX_TICK_BYTE_COUNT;
+use l2o_ord::ORIGINAL_TICK_LENGTH;
+use l2o_ord::SELF_ISSUANCE_TICK_LENGTH;
 use serde::de;
 use serde::Deserialize;
 use serde::Deserializer;
 use serde::Serialize;
 use serde::Serializer;
-
-pub const ORIGINAL_TICK_LENGTH: usize = 4;
-pub const SELF_ISSUANCE_TICK_LENGTH: usize = 5;
-pub const MAX_TICK_BYTE_COUNT: usize = SELF_ISSUANCE_TICK_LENGTH;
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
 pub struct Tick(Box<[u8]>);

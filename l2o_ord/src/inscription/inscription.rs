@@ -288,8 +288,6 @@ impl Inscription {
     }
 
     pub fn to_witness(&self) -> Witness {
-        use bitcoin::Witness;
-
         let builder = script::Builder::new();
 
         let script = self.append_reveal_script(builder);

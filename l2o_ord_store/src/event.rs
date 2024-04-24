@@ -1,5 +1,6 @@
 use l2o_ord::error::BRC20Error;
 use l2o_ord::inscription::inscription_id::InscriptionId;
+use l2o_ord::operation::OperationType;
 use l2o_ord::sat_point::SatPoint;
 use serde::Deserialize;
 use serde::Serialize;
@@ -7,14 +8,6 @@ use serde::Serialize;
 use crate::script_key::ScriptKey;
 use crate::tick::Tick;
 
-#[derive(Debug, Clone, PartialEq, Deserialize, Serialize, strum::Display)]
-#[strum(serialize_all = "camelCase")]
-pub enum OperationType {
-    Deploy,
-    Mint,
-    InscribeTransfer,
-    Transfer,
-}
 #[derive(Debug, Clone, PartialEq, Deserialize, Serialize)]
 pub struct Receipt {
     pub inscription_id: InscriptionId,

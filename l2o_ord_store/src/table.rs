@@ -1,14 +1,23 @@
+use std::io;
+
 use anyhow::Result;
+use bitcoin::consensus::Decodable;
 use bitcoin::OutPoint;
+use bitcoin::TxOut;
 use bitcoin::Txid;
+use l2o_macros::define_multimap_table;
+use l2o_macros::define_table;
 use l2o_ord::sat_point::SatPoint;
 use redb::MultimapTable;
+use redb::MultimapTableDefinition;
 use redb::ReadableMultimapTable;
 use redb::ReadableTable;
 use redb::Table;
+use redb::TableDefinition;
 
 use crate::balance::Balance;
 use crate::entry::Entry;
+use crate::entry::OutPointValue;
 use crate::entry::SatPointValue;
 use crate::entry::TxidValue;
 use crate::event::Receipt;
@@ -17,6 +26,14 @@ use crate::script_key::ScriptKey;
 use crate::tick::LowerTick;
 use crate::tick::Tick;
 use crate::token_info::TokenInfo;
+
+define_table! { OUTPOINT_TO_ENTRY, &OutPointValue, &[u8]}
+
+define_table! { BRC20_BALANCES, &str, &[u8] }
+define_table! { BRC20_TOKEN, &str, &[u8] }
+define_table! { BRC20_EVENTS, &TxidValue, &[u8] }
+define_table! { BRC20_SATPOINT_TO_TRANSFERABLE_ASSETS, &SatPointValue, &[u8] }
+define_multimap_table! { BRC20_ADDRESS_TICKER_TO_TRANSFERABLE_ASSETS, &str, &SatPointValue }
 
 fn min_script_tick_id_key(script: &ScriptKey, tick: &Tick) -> String {
     script_tick_key(script, tick)
@@ -309,4 +326,14 @@ pub fn remove_transferable_asset(
         )?;
     }
     Ok(())
+}
+
+// OUTPOINT_TO_ENTRY
+pub fn get_txout_by_outpoint<T>(table: &T, outpoint: &OutPoint) -> Result<Option<TxOut>>
+where
+    T: ReadableTable<&'static OutPointValue, &'static [u8]>,
+{
+    Ok(table
+        .get(&outpoint.store())?
+        .map(|x| Decodable::consensus_decode(&mut io::Cursor::new(x.value())).unwrap()))
 }

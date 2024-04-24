@@ -74,9 +74,11 @@ use crate::standards::L2OInscription;
 
 type BoxBody = http_body_util::combinators::BoxBody<Bytes, hyper::Error>;
 
+pub mod ctx;
 pub mod processor;
 pub mod standards;
 pub mod store;
+pub mod table;
 
 static NOTFOUND: &[u8] = b"Not Found";
 
@@ -219,23 +221,24 @@ impl Indexer {
                 for ordinal_operation in tx.metadata.ordinal_operations.iter() {
                     match ordinal_operation {
                         OrdinalOperation::InscriptionRevealed(revealed) => {
-                            if revealed.content_type.starts_with("application/json") {
-                                let decoded = hex::decode(&revealed.content_bytes[2..])?;
-                                let inscription =
-                                    serde_json::from_slice::<L2OInscription>(&decoded)?;
-                                match inscription {
-                                    L2OInscription::BRC21(inscription) => {
-                                        self.process_brc21_inscription(block, tx, inscription)
-                                            .await?
-                                    }
-                                    L2OInscription::L2OA(inscription) => {
-                                        self.process_l2o_a_inscription(block, tx, inscription)
-                                            .await?;
-                                    }
-                                    L2OInscription::BRC20(inscription) => {
-                                        self.process_brc20_inscription(block, tx, inscription)
-                                            .await?;
-                                    }
+                            if !revealed.content_type.starts_with("application/json") {
+                                continue;
+                            }
+
+                            let decoded = hex::decode(&revealed.content_bytes[2..])?;
+                            let inscription = serde_json::from_slice::<L2OInscription>(&decoded)?;
+                            match inscription {
+                                L2OInscription::BRC21(inscription) => {
+                                    self.process_brc21_inscription(block, tx, inscription)
+                                        .await?
+                                }
+                                L2OInscription::L2OA(inscription) => {
+                                    self.process_l2o_a_inscription(block, tx, inscription)
+                                        .await?;
+                                }
+                                L2OInscription::BRC20(inscription) => {
+                                    self.process_brc20_inscription(block, tx, inscription)
+                                        .await?;
                                 }
                             }
                         }

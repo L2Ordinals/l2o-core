@@ -8,14 +8,11 @@ use crate::inscription::inscription_id::InscriptionId;
 use crate::operation::deploy::Deploy;
 use crate::operation::mint::Mint;
 use crate::operation::transfer::Transfer;
+use crate::PROTOCOL_LITERAL;
 
 pub mod deploy;
 pub mod mint;
 pub mod transfer;
-
-pub const ORIGINAL_TICK_LENGTH: usize = 4;
-pub const SELF_ISSUANCE_TICK_LENGTH: usize = 5;
-pub const PROTOCOL_LITERAL: &str = "brc-20";
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum Operation {
@@ -26,6 +23,26 @@ pub enum Operation {
     },
     InscribeTransfer(Transfer),
     Transfer(Transfer),
+}
+
+#[derive(Debug, Clone, PartialEq, Deserialize, Serialize, strum::Display)]
+#[strum(serialize_all = "camelCase")]
+pub enum OperationType {
+    Deploy,
+    Mint,
+    InscribeTransfer,
+    Transfer,
+}
+
+impl Operation {
+    pub fn op_type(&self) -> OperationType {
+        match self {
+            Operation::Deploy(_) => OperationType::Deploy,
+            Operation::Mint { .. } => OperationType::Mint,
+            Operation::InscribeTransfer(_) => OperationType::InscribeTransfer,
+            Operation::Transfer(_) => OperationType::Transfer,
+        }
+    }
 }
 
 #[derive(Debug, PartialEq, Clone, Deserialize, Serialize)]

@@ -498,6 +498,19 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "98f7eed2b2781a6f0b5c903471d48e15f56fb4e1165df8a9a2337fd1a59d45ea"
 
 [[package]]
+name = "bigdecimal"
+version = "0.4.3"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "9324c8014cd04590682b34f1e9448d38f0674d0f7b2dc553331016ef0e4e9ebc"
+dependencies = [
+ "autocfg",
+ "libm",
+ "num-bigint",
+ "num-integer",
+ "num-traits",
+]
+
+[[package]]
 name = "binascii"
 version = "0.1.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2215,6 +2228,7 @@ version = "0.1.0"
 dependencies = [
  "anyhow",
  "hex",
+ "l2o_macros",
  "plonky2",
  "serde",
  "serde_with",
@@ -2279,9 +2293,12 @@ dependencies = [
  "l2o_common",
  "l2o_crypto",
  "l2o_macros",
+ "l2o_ord",
+ "l2o_ord_store",
  "l2o_rpc_provider",
  "l2o_store",
  "l2o_store_rocksdb",
+ "redb",
  "reqwest",
  "serde",
  "serde_json",
@@ -2354,6 +2371,7 @@ name = "l2o_ord"
 version = "0.1.0"
 dependencies = [
  "anyhow",
+ "bigdecimal",
  "bitcoin",
  "brotli",
  "ciborium",
@@ -2361,10 +2379,12 @@ dependencies = [
  "http 0.2.12",
  "lazy_static",
  "mp4",
+ "once_cell",
  "redb",
  "regex",
  "serde",
  "serde_json",
+ "strum 0.26.2",
  "tempfile",
  "thiserror",
 ]
@@ -2374,14 +2394,17 @@ name = "l2o_ord_store"
 version = "0.1.0"
 dependencies = [
  "anyhow",
+ "bigdecimal",
  "bitcoin",
  "hex",
+ "l2o_macros",
  "l2o_ord",
  "redb",
  "rmp-serde",
  "serde",
  "serde_json",
  "strum 0.26.2",
+ "tracing",
 ]
 
 [[package]]
@@ -2458,6 +2481,12 @@ dependencies = [
  "cfg-if",
  "windows-targets 0.52.4",
 ]
+
+[[package]]
+name = "libm"
+version = "0.2.8"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "4ec2a862134d2a7d32d7983ddcdd1c4923530833c9f2ea1a44fc5fa473989058"
 
 [[package]]
 name = "libredox"

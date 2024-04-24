@@ -1,17 +1,11 @@
+use l2o_macros::impl_kvq_serialize;
 use plonky2::field::goldilocks_field::GoldilocksField;
 use plonky2::field::types::Field;
 use plonky2::hash::hash_types::HashOut;
 
 use super::traits::KVQSerializable;
 
-impl KVQSerializable for u64 {
-    fn to_bytes(&self) -> anyhow::Result<Vec<u8>> {
-        Ok(self.to_le_bytes().to_vec())
-    }
-    fn from_bytes(bytes: &[u8]) -> anyhow::Result<Self> {
-        Ok(u64::from_le_bytes(bytes.try_into()?))
-    }
-}
+impl_kvq_serialize!(u8, u32, u64, u128);
 
 impl<const SIZE: usize> KVQSerializable for [u8; SIZE] {
     fn to_bytes(&self) -> anyhow::Result<Vec<u8>> {
