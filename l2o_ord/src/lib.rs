@@ -4,15 +4,23 @@ use crate::decimal::Decimal;
 
 pub mod chain;
 pub mod decimal;
+pub mod decimal_sat;
+pub mod degree;
+pub mod epoch;
 pub mod error;
+pub mod height;
 pub mod inscription;
 pub mod media;
 pub mod operation;
+pub mod rarity;
+pub mod sat;
 pub mod sat_point;
 pub mod serde_helpers;
 pub mod tag;
 pub mod test_helpers;
 
+pub const CYCLE_EPOCHS: u32 = 6;
+pub const COIN_VALUE: u64 = 100_000_000;
 pub const ORIGINAL_TICK_LENGTH: usize = 4;
 pub const SELF_ISSUANCE_TICK_LENGTH: usize = 5;
 pub const MAX_TICK_BYTE_COUNT: usize = SELF_ISSUANCE_TICK_LENGTH;

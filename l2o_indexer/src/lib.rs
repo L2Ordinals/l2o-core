@@ -1,8 +1,9 @@
 use std::cmp::Ordering;
-use std::collections::HashMap;
 use std::fmt::Display;
 use std::net::SocketAddr;
 use std::sync::mpsc;
+use std::sync::mpsc::Receiver;
+use std::sync::mpsc::SyncSender;
 use std::sync::Arc;
 use std::thread;
 use std::time::Duration;
@@ -14,7 +15,9 @@ use ark_serialize::CanonicalSerialize;
 use ark_snark::SNARK;
 use base64::Engine;
 use bitcoin::Block;
+use bitcoin::OutPoint;
 use bitcoin::Transaction;
+use bitcoin::TxOut;
 use bitcoin::Txid;
 use bitcoincore_rpc::Auth;
 use bitcoincore_rpc::Client;
@@ -56,7 +59,10 @@ use l2o_crypto::signature::schnorr::verify_sig;
 use l2o_crypto::standards::l2o_a::proof::L2OAProofData;
 use l2o_crypto::standards::l2o_a::L2OABlockInscriptionV1;
 use l2o_macros::quick;
-use l2o_ord_store::index::BlockData;
+use l2o_ord::height::Height;
+use l2o_ord_store::rtx::Rtx;
+use l2o_ord_store::wtx::BlockData;
+use l2o_ord_store::wtx::Wtx;
 use l2o_rpc_provider::rpc;
 use l2o_rpc_provider::rpc::request::RequestParams;
 use l2o_rpc_provider::rpc::request::RpcRequest;
@@ -65,6 +71,7 @@ use l2o_rpc_provider::rpc::response::RpcResponse;
 use l2o_store::core::store::L2OStoreV1Core;
 use l2o_store::core::traits::L2OStoreV1;
 use l2o_store_rocksdb::KVQRocksDBStore;
+use redb::Database;
 use serde::Deserialize;
 use serde::Serialize;
 use serde_json::json;
@@ -131,22 +138,24 @@ fn full<T: Into<Bytes>>(chunk: T) -> BoxBody {
 
 pub struct Indexer {
     addr: SocketAddr,
-    http_client: Arc<reqwest::blocking::Client>,
+    http: Arc<reqwest::blocking::Client>,
+    kv: Arc<Mutex<L2OStoreV1Core<KVQRocksDBStore>>>,
+    db: Arc<Database>,
     bitcoin_rpc_url: &'static str,
     bitcoin_rpc_auth: &'static str,
     bitcoin_rpc: Arc<Client>,
-    store: Arc<Mutex<L2OStoreV1Core<KVQRocksDBStore>>>,
 }
 
 impl Clone for Indexer {
     fn clone(&self) -> Self {
         Self {
             addr: self.addr,
-            http_client: Arc::clone(&self.http_client),
+            http: Arc::clone(&self.http),
+            kv: Arc::clone(&self.kv),
+            db: Arc::clone(&self.db),
             bitcoin_rpc_url: self.bitcoin_rpc_url,
             bitcoin_rpc_auth: self.bitcoin_rpc_auth,
             bitcoin_rpc: Arc::clone(&self.bitcoin_rpc),
-            store: Arc::clone(&self.store),
         }
     }
 }
@@ -154,10 +163,10 @@ impl Clone for Indexer {
 impl Indexer {
     pub fn new(args: IndexerArgs) -> anyhow::Result<Self> {
         let addr: SocketAddr = args.addr.parse()?;
-        let store = Arc::new(Mutex::new(L2OStoreV1Core::new(KVQRocksDBStore::new(
+        let kv = Arc::new(Mutex::new(L2OStoreV1Core::new(KVQRocksDBStore::new(
             &args.db_path,
         )?)));
-        let (tx, rx) = mpsc::channel::<Block>();
+        let db = Arc::new(Database::create(&args.redb_path)?);
         let bitcoin_rpc_auth = format!(
             "Basic {}",
             &base64::engine::general_purpose::STANDARD.encode(format!(
@@ -172,41 +181,40 @@ impl Indexer {
                 args.bitcoin_rpcpassword.to_string(),
             ),
         )?);
-        let http_client = Arc::new(reqwest::blocking::Client::new());
+        let http = Arc::new(reqwest::blocking::Client::new());
 
         let indexer = Indexer {
             addr,
-            http_client,
+            http,
+            kv,
+            db,
             bitcoin_rpc_url: Box::leak(args.bitcoin_rpc.into_boxed_str()),
             bitcoin_rpc_auth: Box::leak(bitcoin_rpc_auth.into_boxed_str()),
             bitcoin_rpc,
-            store,
         };
-        let indexer_cloned = indexer.clone();
+        let height = indexer
+            .db
+            .begin_read()?
+            .block_height()?
+            .unwrap_or(Height(0));
+        let indexer_clone = indexer.clone();
 
-        thread::spawn(move || loop {
-            if let Err(err) = indexer_cloned
-                .get_block_with_retries(0, false, 0)
-                .and_then(|block| Ok(tx.send(block)?))
-            {
-                tracing::error!("{:?}", err);
-            }
-            thread::sleep(Duration::from_secs(3));
-        });
+        thread::spawn(move || {
+            let (sender, receiver) = indexer_clone.spawn_fetcher().unwrap();
 
-        thread::spawn(move || loop {
-            match rx.recv() {
-                Ok(block) => {
-                    l2o_ord_store::index::index_block(
-                        "index",
-                        0,
-                        &BlockData::from(block),
-                        HashMap::new(),
-                    )
-                    .unwrap();
-                }
-                Err(err) => {
-                    tracing::error!("{:?}", err);
+            loop {
+                if let Err(err) = indexer_clone
+                    .get_block_with_retries(height.n(), false, 0)
+                    .and_then(|block| {
+                        let mut wxn = indexer_clone.db.begin_write()?;
+
+                        wxn.index_block(&BlockData::from(block), &sender, &receiver)?;
+
+                        wxn.commit()?;
+                        Ok(())
+                    })
+                {
+                    tracing::error!("index error: {}", err);
                 }
             }
         });
@@ -230,6 +238,65 @@ impl Indexer {
                 }
             });
         }
+    }
+
+    pub fn spawn_fetcher(&self) -> anyhow::Result<(SyncSender<OutPoint>, Receiver<TxOut>)> {
+        // Not sure if any block has more than 20k inputs, but none so far after first
+        // inscription block
+        const CHANNEL_BUFFER_SIZE: usize = 20_000;
+        let (outpoint_sender, outpoint_receiver) =
+            mpsc::sync_channel::<OutPoint>(CHANNEL_BUFFER_SIZE);
+        let (txout_sender, tx_out_receiver) = mpsc::sync_channel::<TxOut>(CHANNEL_BUFFER_SIZE);
+
+        // Batch 2048 missing inputs at a time. Arbitrarily chosen for now, maybe higher
+        // or lower can be faster? Did rudimentary benchmarks with 1024 and 4096
+        // and time was roughly the same.
+        const BATCH_SIZE: usize = 2048;
+        // Default rpcworkqueue in bitcoind is 16, meaning more than 16 concurrent
+        // requests will be rejected. Since we are already requesting blocks on
+        // a separate thread, and we don't want to break if anything else runs a
+        // request, we keep this to 12.
+        const PARALLEL_REQUESTS: usize = 12;
+
+        let self_cloned = self.clone();
+        std::thread::spawn(move || {
+            loop {
+                let Ok(outpoint) = outpoint_receiver.recv() else {
+                    tracing::debug!("Outpoint channel closed");
+                    return;
+                };
+                // There's no try_iter on tokio::sync::mpsc::Receiver like
+                // std::sync::mpsc::Receiver. So we just loop until
+                // BATCH_SIZE doing try_recv until it returns None.
+                let mut outpoints = vec![outpoint];
+                for _ in 0..BATCH_SIZE - 1 {
+                    let Ok(outpoint) = outpoint_receiver.try_recv() else {
+                        break;
+                    };
+                    outpoints.push(outpoint);
+                }
+                // Break outpoints into chunks for parallel requests
+                let chunk_size = (outpoints.len() / PARALLEL_REQUESTS) + 1;
+                let mut results = Vec::with_capacity(PARALLEL_REQUESTS);
+                for chunk in outpoints.chunks(chunk_size) {
+                    let txids = chunk.iter().map(|outpoint| outpoint.txid).collect();
+                    let result =
+                        Self::retry(|| self_cloned.get_transactions_with_retries(&txids)).unwrap();
+                    results.push(result);
+                }
+                // Send all tx output values back in order
+                for (i, tx) in results.iter().flatten().enumerate() {
+                    let Ok(_) = txout_sender
+                        .send(tx.output[usize::try_from(outpoints[i].vout).unwrap()].clone())
+                    else {
+                        tracing::error!("Value channel closed unexpectedly");
+                        return;
+                    };
+                }
+            }
+        });
+
+        Ok((outpoint_sender, tx_out_receiver))
     }
 
     pub async fn process_brc21_inscription(
@@ -295,7 +362,7 @@ impl Indexer {
         match inscription {
             L2OAInscription::Deploy(deploy) => {
                 let l2id: u64 = deploy.l2id.into();
-                if self.store.lock().await.has_deployed_l2id(l2id)? {
+                if self.kv.lock().await.has_deployed_l2id(l2id)? {
                     tracing::debug!("l2o {} already deployed", l2id);
                     return Ok(());
                 }
@@ -317,7 +384,7 @@ impl Indexer {
                     hash_function: deploy.hash_function.parse()?,
                     verifier_data: Groth16BN128VerifierData(verifier_data).into(),
                 };
-                self.store
+                self.kv
                     .lock()
                     .await
                     .report_deploy_inscription(deploy_inscription)?;
@@ -326,12 +393,12 @@ impl Indexer {
             }
             L2OAInscription::Block(block) => {
                 let l2id: u64 = block.l2id.into();
-                if !self.store.lock().await.has_deployed_l2id(l2id)? {
+                if !self.kv.lock().await.has_deployed_l2id(l2id)? {
                     tracing::debug!("l2o {} not deployed yet", l2id);
                     return Ok(());
                 }
 
-                let deploy = self.store.lock().await.get_deploy_inscription(l2id)?;
+                let deploy = self.kv.lock().await.get_deploy_inscription(l2id)?;
 
                 let block_proof = if deploy.verifier_data.is_groth_16_bn_128() {
                     block
@@ -353,7 +420,7 @@ impl Indexer {
                     anyhow::bail!("bitcoin block number mismatch");
                 }
 
-                let superchain_root = self.store.lock().await.get_superchainroot_at_block(
+                let superchain_root = self.kv.lock().await.get_superchainroot_at_block(
                     block.bitcoin_block_number,
                     deploy.hash_function,
                 )?;
@@ -362,8 +429,7 @@ impl Indexer {
                 }
 
                 let (start_state_root, end_state_root, start_withdrawal_state_root, public_key) =
-                    if let Ok(last_block) = self.store.lock().await.get_last_block_inscription(l2id)
-                    {
+                    if let Ok(last_block) = self.kv.lock().await.get_last_block_inscription(l2id) {
                         if u64::from(block.block_parameters.block_number)
                             != last_block.l2_block_number + 1
                         {
@@ -467,7 +533,7 @@ impl Indexer {
                     verify_sig(&public_key, &block_inscription.signature, &block_hash.0)?;
                 }
 
-                self.store
+                self.kv
                     .lock()
                     .await
                     .set_last_block_inscription(block_inscription)?;
@@ -496,15 +562,15 @@ impl Indexer {
     pub async fn process_rpc_requests(&self, req: &RpcRequest) -> anyhow::Result<RpcResponse> {
         let response = match req.request {
             RequestParams::L2OGetLastBlockInscription(l2oid) => {
-                let last_block = self.store.lock().await.get_last_block_inscription(l2oid)?;
+                let last_block = self.kv.lock().await.get_last_block_inscription(l2oid)?;
                 serde_json::to_value(last_block)?
             }
             RequestParams::L2OGetDeployInscription(l2oid) => {
-                let deploy_inscription = self.store.lock().await.get_deploy_inscription(l2oid)?;
+                let deploy_inscription = self.kv.lock().await.get_deploy_inscription(l2oid)?;
                 serde_json::to_value(deploy_inscription)?
             }
             RequestParams::L2OGetStateRootAtBlock((l2oid, block_number, hash_function)) => {
-                let state_root = self.store.lock().await.get_state_root_at_block(
+                let state_root = self.kv.lock().await.get_state_root_at_block(
                     l2oid,
                     block_number,
                     hash_function,
@@ -517,7 +583,7 @@ impl Indexer {
                 hash_function,
             )) => {
                 let merkle_proof_state_root = self
-                    .store
+                    .kv
                     .lock()
                     .await
                     .get_merkle_proof_state_root_at_block(l2oid, block_number, hash_function)?;
@@ -525,7 +591,7 @@ impl Indexer {
             }
             RequestParams::L2OGetSuperchainStateRootAtBlock((block_number, hash_function)) => {
                 let superchain_state_root = self
-                    .store
+                    .kv
                     .lock()
                     .await
                     .get_superchainroot_at_block(block_number, hash_function)?;
@@ -595,7 +661,8 @@ impl Indexer {
     ) -> anyhow::Result<Block> {
         let block_hash = Self::retry(|| self.bitcoin_rpc.get_block_hash(height.into()))?;
         if index_sats || height >= first_inscription_height {
-            Ok(Self::retry(|| self.bitcoin_rpc.get_block(&block_hash))?)
+            let block = Self::retry(|| self.bitcoin_rpc.get_block(&block_hash))?;
+            Ok(block)
         } else {
             Ok(Block {
                 header: Self::retry(|| self.bitcoin_rpc.get_block_header(&block_hash))?,
@@ -604,7 +671,7 @@ impl Indexer {
         }
     }
 
-    pub async fn get_transactions_with_retries(
+    pub fn get_transactions_with_retries(
         &self,
         txids: &Vec<Txid>,
     ) -> anyhow::Result<Vec<Transaction>> {
@@ -649,7 +716,7 @@ impl Indexer {
         use jsonrpc_core::types::*;
 
         let resp = self
-            .http_client
+            .http
             .post(self.bitcoin_rpc_url)
             .header("Authorization", self.bitcoin_rpc_auth)
             .json(request)

@@ -7,14 +7,15 @@ version = "0.1.0"
 
 [dependencies]
 anyhow     = { workspace = true }
+bigdecimal = { workspace = true }
 bitcoin    = { workspace = true }
 hex        = { workspace = true }
 l2o_macros = { path = "../l2o_macros" }
 l2o_ord    = { path = "../l2o_ord" }
+rayon      = { workspace = true }
 redb       = { workspace = true }
 rmp-serde  = { workspace = true }
 serde      = { workspace = true }
 serde_json = { workspace = true }
 strum      = { workspace = true }
 tracing    = { workspace = true }
-bigdecimal = { workspace = true }

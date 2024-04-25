@@ -7,6 +7,7 @@ use bitcoin::TxOut;
 use bitcoin::Txid;
 use l2o_macros::define_multimap_table;
 use l2o_macros::define_table;
+use l2o_ord::inscription::inscription_id::InscriptionId;
 use l2o_ord::sat_point::SatPoint;
 use redb::MultimapTable;
 use redb::MultimapTableDefinition;
@@ -18,6 +19,9 @@ use redb::TableDefinition;
 use crate::balance::Balance;
 use crate::entry::Entry;
 use crate::entry::HeaderValue;
+use crate::entry::InscriptionEntry;
+use crate::entry::InscriptionEntryValue;
+use crate::entry::InscriptionIdValue;
 use crate::entry::OutPointValue;
 use crate::entry::SatPointValue;
 use crate::entry::TxidValue;
@@ -28,8 +32,20 @@ use crate::tick::LowerTick;
 use crate::tick::Tick;
 use crate::token_info::TokenInfo;
 
-define_table! { OUTPOINT_TO_ENTRY, &OutPointValue, &[u8]}
 define_table! { HEIGHT_TO_BLOCK_HEADER, u32, &HeaderValue }
+define_table! { HEIGHT_TO_LAST_SEQUENCE_NUMBER, u32, u32 }
+
+define_table! { SAT_TO_SATPOINT, u64, &SatPointValue }
+define_multimap_table! { SAT_TO_SEQUENCE_NUMBER, u64, u32 }
+define_multimap_table! { SATPOINT_TO_SEQUENCE_NUMBER, &SatPointValue, u32 }
+
+define_table! { OUTPOINT_TO_ENTRY, &OutPointValue, &[u8]}
+define_table! { OUTPOINT_TO_SAT_RANGES, &OutPointValue, &[u8] }
+
+define_table! { INSCRIPTION_ID_TO_SEQUENCE_NUMBER, InscriptionIdValue, u32 }
+define_table! { INSCRIPTION_NUMBER_TO_SEQUENCE_NUMBER, i32, u32 }
+define_table! { SEQUENCE_NUMBER_TO_INSCRIPTION_ENTRY, u32, InscriptionEntryValue }
+define_table! { SEQUENCE_NUMBER_TO_SATPOINT, u32, &SatPointValue }
 
 define_table! { BRC20_BALANCES, &str, &[u8] }
 define_table! { BRC20_TOKEN, &str, &[u8] }
@@ -214,7 +230,7 @@ where
         let satpoint = SatPoint::load(*satpoint_guard.value());
         transferable_assets.push((
             satpoint,
-            rmp_serde::from_slice::<TransferableLog>(asset.value()).unwrap(),
+            rmp_serde::from_slice::<TransferableLog>(asset.value())?,
         ));
     }
     Ok(transferable_assets)
@@ -338,4 +354,58 @@ where
     Ok(table
         .get(&outpoint.store())?
         .map(|x| Decodable::consensus_decode(&mut io::Cursor::new(x.value())).unwrap()))
+}
+
+pub fn full_inscriptions_on_output<'a: 'tx, 'tx>(
+    satpoint_to_sequence_number: &'a impl ReadableMultimapTable<&'static SatPointValue, u32>,
+    sequence_number_to_inscription_entry: &'a impl ReadableTable<u32, InscriptionEntryValue>,
+    outpoint: OutPoint,
+) -> Result<Vec<(u32, SatPoint, InscriptionId)>> {
+    let start = SatPoint {
+        outpoint,
+        offset: 0,
+    }
+    .store();
+
+    let end = SatPoint {
+        outpoint,
+        offset: u64::MAX,
+    }
+    .store();
+
+    let mut inscriptions = Vec::new();
+
+    for range in satpoint_to_sequence_number.range::<&[u8; 44]>(&start..=&end)? {
+        let (satpoint, sequence_numbers) = range?;
+        for sequence_number_result in sequence_numbers {
+            let sequence_number = sequence_number_result?.value();
+            let entry = sequence_number_to_inscription_entry
+                .get(sequence_number)?
+                .unwrap();
+            inscriptions.push((
+                sequence_number,
+                SatPoint::load(*satpoint.value()),
+                InscriptionEntry::load(entry.value()).id,
+            ));
+        }
+    }
+
+    inscriptions.sort_by_key(|(sequence_number, _, _)| *sequence_number);
+
+    Ok(inscriptions)
+}
+
+pub fn inscriptions_on_output<'a: 'tx, 'tx>(
+    satpoint_to_sequence_number: &'a impl ReadableMultimapTable<&'static SatPointValue, u32>,
+    sequence_number_to_inscription_entry: &'a impl ReadableTable<u32, InscriptionEntryValue>,
+    outpoint: OutPoint,
+) -> Result<Vec<(SatPoint, InscriptionId)>> {
+    Ok(full_inscriptions_on_output(
+        satpoint_to_sequence_number,
+        sequence_number_to_inscription_entry,
+        outpoint,
+    )?
+    .into_iter()
+    .map(|(_sequence_number, satpoint, inscription_id)| (satpoint, inscription_id))
+    .collect())
 }

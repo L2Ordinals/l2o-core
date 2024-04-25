@@ -23,7 +23,7 @@ use crate::token_info::TokenInfo;
 
 impl<'a, 'db, 'txn> Context<'a, 'db, 'txn> {
     pub fn get_balances(&self, script_key: &ScriptKey) -> anyhow::Result<Vec<Balance>> {
-        get_balances(self.BRC20_BALANCES, script_key)
+        get_balances(self.brc20_balances, script_key)
     }
 
     pub fn get_balance(
@@ -31,19 +31,19 @@ impl<'a, 'db, 'txn> Context<'a, 'db, 'txn> {
         script_key: &ScriptKey,
         tick: &Tick,
     ) -> anyhow::Result<Option<Balance>> {
-        get_balance(self.BRC20_BALANCES, script_key, tick)
+        get_balance(self.brc20_balances, script_key, tick)
     }
 
     pub fn get_token_info(&self, tick: &Tick) -> anyhow::Result<Option<TokenInfo>> {
-        get_token_info(self.BRC20_TOKEN, tick)
+        get_token_info(self.brc20_token, tick)
     }
 
     pub fn get_tokens_info(&self) -> anyhow::Result<Vec<TokenInfo>> {
-        get_tokens_info(self.BRC20_TOKEN)
+        get_tokens_info(self.brc20_token)
     }
 
     pub fn get_transaction_receipts(&self, txid: &Txid) -> anyhow::Result<Option<Vec<Receipt>>> {
-        get_transaction_receipts(self.BRC20_EVENTS, txid)
+        get_transaction_receipts(self.brc20_events, txid)
     }
 
     pub fn get_transferable_assets_by_account(
@@ -51,8 +51,8 @@ impl<'a, 'db, 'txn> Context<'a, 'db, 'txn> {
         script: &ScriptKey,
     ) -> anyhow::Result<Vec<(SatPoint, TransferableLog)>> {
         get_transferable_assets_by_account(
-            self.BRC20_ADDRESS_TICKER_TO_TRANSFERABLE_ASSETS,
-            self.BRC20_SATPOINT_TO_TRANSFERABLE_ASSETS,
+            self.brc20_address_ticker_to_transferable_assets,
+            self.brc20_satpoint_to_transferable_assets,
             script,
         )
     }
@@ -63,8 +63,8 @@ impl<'a, 'db, 'txn> Context<'a, 'db, 'txn> {
         tick: &Tick,
     ) -> anyhow::Result<Vec<(SatPoint, TransferableLog)>> {
         get_transferable_assets_by_account_ticker(
-            self.BRC20_ADDRESS_TICKER_TO_TRANSFERABLE_ASSETS,
-            self.BRC20_SATPOINT_TO_TRANSFERABLE_ASSETS,
+            self.brc20_address_ticker_to_transferable_assets,
+            self.brc20_satpoint_to_transferable_assets,
             script,
             tick,
         )
@@ -74,14 +74,14 @@ impl<'a, 'db, 'txn> Context<'a, 'db, 'txn> {
         &self,
         satpoint: &SatPoint,
     ) -> anyhow::Result<Option<TransferableLog>> {
-        get_transferable_assets_by_satpoint(self.BRC20_SATPOINT_TO_TRANSFERABLE_ASSETS, satpoint)
+        get_transferable_assets_by_satpoint(self.brc20_satpoint_to_transferable_assets, satpoint)
     }
 
     pub fn get_transferable_assets_by_outpoint(
         &self,
         outpoint: OutPoint,
     ) -> anyhow::Result<Vec<(SatPoint, TransferableLog)>> {
-        get_transferable_assets_by_outpoint(self.BRC20_SATPOINT_TO_TRANSFERABLE_ASSETS, outpoint)
+        get_transferable_assets_by_outpoint(self.brc20_satpoint_to_transferable_assets, outpoint)
     }
 
     pub fn get_script_key_on_satpoint(
@@ -89,7 +89,7 @@ impl<'a, 'db, 'txn> Context<'a, 'db, 'txn> {
         satpoint: &SatPoint,
         chain: Chain,
     ) -> anyhow::Result<ScriptKey> {
-        if let Some(tx_out) = get_txout_by_outpoint(self.OUTPOINT_TO_ENTRY, &satpoint.outpoint)? {
+        if let Some(tx_out) = get_txout_by_outpoint(self.outpoint_to_entry, &satpoint.outpoint)? {
             Ok(ScriptKey::from_script(&tx_out.script_pubkey, chain))
         } else {
             Err(anyhow::anyhow!(

@@ -4,7 +4,7 @@ use std::str::FromStr;
 use serde::Deserialize;
 use serde::Deserializer;
 
-pub(crate) struct DeserializeFromStr<T: FromStr>(pub(crate) T);
+pub struct DeserializeFromStr<T: FromStr>(pub T);
 
 impl<'de, T: FromStr> Deserialize<'de> for DeserializeFromStr<T>
 where

@@ -7,10 +7,10 @@ use l2o_ord::operation::Operation;
 use crate::entry::Entry;
 use crate::entry::SatPointValue;
 use crate::executor::Message;
-use crate::index::deserialize_brc20_operation;
-use crate::index::Action;
-use crate::index::InscriptionOp;
 use crate::log::TransferableLog;
+use crate::wtx::deserialize_brc20_operation;
+use crate::wtx::Action;
+use crate::wtx::InscriptionOp;
 
 impl Message {
     pub fn resolve(

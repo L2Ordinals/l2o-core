@@ -5,7 +5,7 @@ use bitcoin::constants::MAX_SCRIPT_ELEMENT_SIZE;
 use bitcoin::script;
 
 #[derive(Copy, Clone)]
-pub(crate) enum Tag {
+pub enum Tag {
     Pointer,
     #[allow(unused)]
     Unbound,
@@ -25,7 +25,7 @@ impl Tag {
         matches!(self, Self::Metadata)
     }
 
-    pub(crate) fn bytes(self) -> &'static [u8] {
+    pub fn bytes(self) -> &'static [u8] {
         match self {
             Self::Pointer => &[2],
             Self::Unbound => &[66],
@@ -40,7 +40,7 @@ impl Tag {
         }
     }
 
-    pub(crate) fn encode(self, builder: &mut script::Builder, value: &Option<Vec<u8>>) {
+    pub fn encode(self, builder: &mut script::Builder, value: &Option<Vec<u8>>) {
         if let Some(value) = value {
             let mut tmp = script::Builder::new();
             mem::swap(&mut tmp, builder);
@@ -61,7 +61,7 @@ impl Tag {
         }
     }
 
-    pub(crate) fn remove_field(self, fields: &mut BTreeMap<&[u8], Vec<&[u8]>>) -> Option<Vec<u8>> {
+    pub fn remove_field(self, fields: &mut BTreeMap<&[u8], Vec<&[u8]>>) -> Option<Vec<u8>> {
         if self.is_chunked() {
             let value = fields.remove(self.bytes())?;
 

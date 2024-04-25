@@ -28,7 +28,7 @@ impl Default for InscriptionId {
 }
 
 impl InscriptionId {
-    pub(crate) fn value(self) -> Vec<u8> {
+    pub fn value(self) -> Vec<u8> {
         let index = self.index.to_le_bytes();
         let mut index_slice = index.as_slice();
 
