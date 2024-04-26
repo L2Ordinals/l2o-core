@@ -1,19 +1,19 @@
 use std::collections::BTreeMap;
 use std::collections::HashMap;
 use std::collections::HashSet;
-use std::sync::atomic::AtomicUsize;
-use std::sync::atomic::Ordering;
+use std::collections::VecDeque;
 use std::sync::mpsc::Receiver;
 use std::sync::mpsc::SyncSender;
 
 use bitcoin::block::Header;
+use bitcoin::consensus::Encodable;
+use bitcoin::hashes::Hash;
 use bitcoin::Amount;
 use bitcoin::Block;
 use bitcoin::OutPoint;
 use bitcoin::Transaction;
 use bitcoin::TxOut;
 use bitcoin::Txid;
-use l2o_ord::chain::Chain;
 use l2o_ord::error::JSONError;
 use l2o_ord::height::Height;
 use l2o_ord::inscription::envelope::ParsedEnvelope;
@@ -22,6 +22,8 @@ use l2o_ord::inscription::inscription_id::InscriptionId;
 use l2o_ord::operation::deserialize_brc20;
 use l2o_ord::operation::Operation;
 use l2o_ord::operation::RawOperation;
+use l2o_ord::rarity::Rarity;
+use l2o_ord::sat::Sat;
 use l2o_ord::sat_point::SatPoint;
 use redb::ReadableTable;
 use serde::Deserialize;
@@ -38,9 +40,13 @@ use crate::executor::ExecutionMessage;
 use crate::executor::Message;
 use crate::log::TransferableLog;
 use crate::lru::SimpleLru;
+use crate::statistic::Statistic;
+use crate::table::get_next_sequence_number;
+use crate::table::get_statistic_to_count;
 use crate::table::get_transferable_assets_by_outpoint;
 use crate::table::get_txout_by_outpoint;
 use crate::table::inscriptions_on_output;
+use crate::table::update_statistic_to_count;
 use crate::table::BRC20_ADDRESS_TICKER_TO_TRANSFERABLE_ASSETS;
 use crate::table::BRC20_BALANCES;
 use crate::table::BRC20_EVENTS;
@@ -57,6 +63,7 @@ use crate::table::SAT_TO_SATPOINT;
 use crate::table::SAT_TO_SEQUENCE_NUMBER;
 use crate::table::SEQUENCE_NUMBER_TO_INSCRIPTION_ENTRY;
 use crate::table::SEQUENCE_NUMBER_TO_SATPOINT;
+use crate::table::STATISTIC_TO_COUNT;
 
 pub struct BlockData {
     pub header: Header,
@@ -193,8 +200,9 @@ pub fn deserialize_brc20_operation(
 
 pub trait Wtx {
     fn index_block(
-        &mut self,
-        block: &BlockData,
+        &self,
+        chain_ctx: ChainContext,
+        block: BlockData,
         sender: &SyncSender<OutPoint>,
         receiver: &Receiver<TxOut>,
     ) -> anyhow::Result<()>;
@@ -207,68 +215,60 @@ pub trait Wtx {
         sender: SyncSender<OutPoint>,
         receiver: &Receiver<TxOut>,
         tx_out_cache: &mut SimpleLru<OutPoint, TxOut>,
+        operations: &mut HashMap<Txid, Vec<InscriptionOp>>,
     ) -> anyhow::Result<()>;
 
-    // fn update_inscription_location<'a, 'db, 'txn>(
-    //     &mut self,
-    //     input_sat_ranges: Option<&VecDeque<(u64, u64)>>,
-    //     flotsam: Flotsam,
-    //     ctx: &mut Context<'a, 'db, 'txn>,
-    //     new_satpoint: SatPoint,
-    // ) -> anyhow::Result<()>;
+    fn update_inscription_location<'a, 'db, 'txn>(
+        &self,
+        flotsam: Flotsam,
+        ctx: &mut Context<'a, 'db, 'txn>,
+        new_satpoint: SatPoint,
+        operations: &mut HashMap<Txid, Vec<InscriptionOp>>,
+    ) -> anyhow::Result<()>;
 }
 
 impl<'a> Wtx for redb::WriteTransaction<'a> {
     fn index_block(
-        &mut self,
-        block: &BlockData,
+        &self,
+        chain_ctx: ChainContext,
+        block: BlockData,
         sender: &SyncSender<OutPoint>,
         receiver: &Receiver<TxOut>,
     ) -> anyhow::Result<()> {
         // TODO: detect reorg
-        let first_brc20_height = 0;
 
-        let operations = HashMap::<Txid, Vec<InscriptionOp>>::new();
-        let mut tx_out_cache = SimpleLru::<OutPoint, TxOut>::new(1000);
+        let mut operations = HashMap::<Txid, Vec<InscriptionOp>>::new();
+        let mut tx_out_cache = SimpleLru::<OutPoint, TxOut>::new(10000000);
 
         {
             let outpoint_to_entry = self.open_table(OUTPOINT_TO_ENTRY)?;
 
-            let fetching_outputs_count = AtomicUsize::new(0);
-            let total_outputs_count = AtomicUsize::new(0);
-            let cache_outputs_count = AtomicUsize::new(0);
-            let miss_outputs_count = AtomicUsize::new(0);
-            let meet_outputs_count = AtomicUsize::new(0);
             // Send all missing input outpoints to be fetched right away
             let txids = block
                 .txdata
                 .iter()
                 .map(|(_, txid)| txid)
                 .collect::<HashSet<_>>();
+
             use rayon::prelude::*;
             let tx_outs = block
                 .txdata
                 .par_iter()
                 .flat_map(|(tx, _)| tx.input.par_iter())
                 .filter_map(|input| {
-                    total_outputs_count.fetch_add(1, Ordering::Relaxed);
                     let prev_output = input.previous_output;
                     // We don't need coinbase input value
                     if prev_output.is_null() {
                         None
                     } else if txids.contains(&prev_output.txid) {
-                        meet_outputs_count.fetch_add(1, Ordering::Relaxed);
                         None
                     } else if tx_out_cache.contains(&prev_output) {
-                        cache_outputs_count.fetch_add(1, Ordering::Relaxed);
                         None
                     } else if let Some(txout) =
                         get_txout_by_outpoint(&outpoint_to_entry, &prev_output).unwrap()
                     {
-                        miss_outputs_count.fetch_add(1, Ordering::Relaxed);
                         Some((prev_output, Some(txout)))
                     } else {
-                        fetching_outputs_count.fetch_add(1, Ordering::Relaxed);
                         Some((prev_output, None))
                     }
                 })
@@ -284,11 +284,7 @@ impl<'a> Wtx for redb::WriteTransaction<'a> {
         }
 
         let mut ctx = Context {
-            chain_conf: ChainContext {
-                blockheight: 0,
-                chain: Chain::Regtest,
-                blocktime: 0,
-            },
+            chain_ctx,
             height_to_block_header: &mut self.open_table(HEIGHT_TO_BLOCK_HEADER)?,
             height_to_last_sequence_number: &mut self.open_table(HEIGHT_TO_LAST_SEQUENCE_NUMBER)?,
 
@@ -307,6 +303,8 @@ impl<'a> Wtx for redb::WriteTransaction<'a> {
             sequence_number_to_inscription_entry: &mut self
                 .open_table(SEQUENCE_NUMBER_TO_INSCRIPTION_ENTRY)?,
             sequence_number_to_satpoint: &mut self.open_table(SEQUENCE_NUMBER_TO_SATPOINT)?,
+
+            statistic_to_count: &mut self.open_table(STATISTIC_TO_COUNT)?,
 
             brc20_balances: &mut self.open_table(BRC20_BALANCES)?,
             brc20_token: &mut self.open_table(BRC20_TOKEN)?,
@@ -327,6 +325,7 @@ impl<'a> Wtx for redb::WriteTransaction<'a> {
                 sender.clone(),
                 &receiver,
                 &mut tx_out_cache,
+                &mut operations,
             )?;
         }
 
@@ -369,7 +368,8 @@ impl<'a> Wtx for redb::WriteTransaction<'a> {
                             let operation = operation_iter.next().unwrap();
 
                             // Parse BRC20 message through inscription operation.
-                            if ctx_mut.chain_conf.blockheight >= first_brc20_height {
+                            if ctx_mut.chain_ctx.blockheight >= chain_ctx.chain.first_brc20_height()
+                            {
                                 let satpoint_to_transfer_assets: HashMap<
                                     SatPointValue,
                                     TransferableLog,
@@ -404,7 +404,7 @@ impl<'a> Wtx for redb::WriteTransaction<'a> {
                     // execute message
                     for msg in msgs {
                         let msg =
-                            ExecutionMessage::from_message(ctx_mut, msg, ctx_mut.chain_conf.chain)?;
+                            ExecutionMessage::from_message(ctx_mut, msg, ctx_mut.chain_ctx.chain)?;
                         let receipt = ExecutionMessage::execute(ctx_mut, &msg)?;
                         receipts.push(receipt);
                     }
@@ -445,22 +445,24 @@ impl<'a> Wtx for redb::WriteTransaction<'a> {
         _sender: SyncSender<OutPoint>,
         receiver: &Receiver<TxOut>,
         tx_out_cache: &mut SimpleLru<OutPoint, TxOut>,
+        operations: &mut HashMap<Txid, Vec<InscriptionOp>>,
     ) -> anyhow::Result<()> {
         let mut floating_inscriptions = Vec::new();
         let mut id_counter = 0;
         let mut inscribed_offsets = BTreeMap::new();
         let mut total_input_value = 0;
         let mut flotsam = vec![];
+        let mut reward = Height(ctx.chain_ctx.blockheight).subsidy();
+        let mut lost_sats = 0;
         let total_output_value = tx.output.iter().map(|txout| txout.value).sum::<Amount>();
 
         let envelopes = ParsedEnvelope::from_transaction(tx);
-        let _inscriptions = !envelopes.is_empty();
         let mut envelopes = envelopes.into_iter().peekable();
 
         for (input_index, tx_in) in tx.input.iter().enumerate() {
             // skip subsidy since no inscriptions possible
             if tx_in.previous_output.is_null() {
-                total_input_value += Height(ctx.chain_conf.blockheight).subsidy();
+                total_input_value += Height(ctx.chain_ctx.blockheight).subsidy();
                 continue;
             }
             // find existing inscriptions on input (transfers of inscriptions)
@@ -497,6 +499,10 @@ impl<'a> Wtx for redb::WriteTransaction<'a> {
                         tx_in.previous_output.txid
                     )
                 })?;
+                let mut entry = Vec::new();
+                tx_out.consensus_encode(&mut entry)?;
+                ctx.outpoint_to_entry
+                    .insert(&tx_in.previous_output.store(), entry.as_slice())?;
                 // received new tx out from chain node, add it to new_outpoints first and
                 // persist it in db later.
                 tx_out_cache.insert(tx_in.previous_output, tx_out.clone());
@@ -672,6 +678,16 @@ impl<'a> Wtx for redb::WriteTransaction<'a> {
 
             output_value = end;
 
+            let mut entry = Vec::new();
+            tx_out.consensus_encode(&mut entry)?;
+            ctx.outpoint_to_entry.insert(
+                &OutPoint {
+                    vout: vout.try_into().unwrap(),
+                    txid,
+                }
+                .store(),
+                entry.as_slice(),
+            )?;
             tx_out_cache.insert(
                 OutPoint {
                     vout: vout.try_into().unwrap(),
@@ -703,232 +719,267 @@ impl<'a> Wtx for redb::WriteTransaction<'a> {
                 _ => new_satpoint,
             };
 
-            // self.update_inscription_location(input_sat_ranges, flotsam, ctx,
-            // new_satpoint)?;
+            self.update_inscription_location(flotsam, ctx, new_satpoint, operations)?;
         }
-        Ok(())
-        //
-        // if is_coinbase {
-        //     for flotsam in inscriptions {
-        //         let new_satpoint = SatPoint {
-        //             outpoint: OutPoint::null(),
-        //             offset: self.lost_sats + flotsam.offset - output_value,
-        //         };
-        //         self.update_inscription_location(input_sat_ranges, flotsam,
-        // ctx, new_satpoint)?;     }
-        //     self.lost_sats += self.reward - output_value;
-        //     Ok(())
-        // } else {
-        //     self.flotsam.extend(inscriptions.map(|flotsam| Flotsam {
-        //         offset: self.reward + flotsam.offset - output_value,
-        //         ..flotsam
-        //     }));
-        //     self.reward += total_input_value - output_value;
-        //     Ok(())
-        // }
+
+        if is_coinbase {
+            for flotsam in inscriptions {
+                let new_satpoint = SatPoint {
+                    outpoint: OutPoint::null(),
+                    offset: lost_sats + flotsam.offset - output_value,
+                };
+                self.update_inscription_location(flotsam, ctx, new_satpoint, operations)?;
+            }
+            lost_sats += reward - output_value;
+            Ok(())
+        } else {
+            flotsam.extend(inscriptions.map(|flotsam| Flotsam {
+                offset: reward + flotsam.offset - output_value,
+                ..flotsam
+            }));
+            reward += total_input_value - output_value;
+            Ok(())
+        }
     }
 
-    // fn update_inscription_location(
-    //     &mut self,
-    //     input_sat_ranges: Option<&VecDeque<(u64, u64)>>,
-    //     flotsam: Flotsam,
-    //     ctx: &mut Context,
-    //     new_satpoint: SatPoint,
-    // ) -> anyhow::Result<()> { let inscription_id = flotsam.inscription_id; let
-    //   (unbound, sequence_number) = match flotsam.origin { Origin::Old => {
-    //   ctx.satpoint_to_sequence_number
-    //   .remove_all(&flotsam.old_satpoint.store())?;
-    //
-    //             (
-    //                 false,
-    //                 ctx.inscription_id_to_sequence_number
-    //                     .get(&inscription_id.store())?
-    //                     .unwrap()
-    //                     .value(),
-    //             )
-    //         }
-    //         Origin::New {
-    //             cursed,
-    //             fee,
-    //             hidden,
-    //             parent,
-    //             pointer: _,
-    //             reinscription,
-    //             unbound,
-    //             inscription: _,
-    //             vindicated,
-    //         } => {
-    //             let inscription_number = if cursed {
-    //                 let number: i32 =
-    // self.cursed_inscription_count.try_into().unwrap();
-    // self.cursed_inscription_count += 1;
-    //
-    //                 // because cursed numbers start at -1
-    //                 -(number + 1)
-    //             } else {
-    //                 let number: i32 =
-    // self.blessed_inscription_count.try_into().unwrap();
-    // self.blessed_inscription_count += 1;
-    //
-    //                 number
-    //             };
-    //
-    //             let sequence_number = self.next_sequence_number;
-    //             self.next_sequence_number += 1;
-    //
-    //             self.inscription_number_to_sequence_number
-    //                 .insert(inscription_number, sequence_number)?;
-    //
-    //             let sat = if unbound {
-    //                 None
-    //             } else {
-    //                 Self::calculate_sat(input_sat_ranges, flotsam.offset)
-    //             };
-    //
-    //             let mut charms = 0;
-    //
-    //             if cursed {
-    //                 Charm::Cursed.set(&mut charms);
-    //             }
-    //
-    //             if reinscription {
-    //                 Charm::Reinscription.set(&mut charms);
-    //             }
-    //
-    //             if let Some(sat) = sat {
-    //                 if sat.nineball() {
-    //                     Charm::Nineball.set(&mut charms);
-    //                 }
-    //
-    //                 if sat.coin() {
-    //                     Charm::Coin.set(&mut charms);
-    //                 }
-    //
-    //                 match sat.rarity() {
-    //                     Rarity::Common | Rarity::Mythic => {}
-    //                     Rarity::Uncommon => Charm::Uncommon.set(&mut charms),
-    //                     Rarity::Rare => Charm::Rare.set(&mut charms),
-    //                     Rarity::Epic => Charm::Epic.set(&mut charms),
-    //                     Rarity::Legendary => Charm::Legendary.set(&mut charms),
-    //                 }
-    //             }
-    //
-    //             if new_satpoint.outpoint == OutPoint::null() {
-    //                 Charm::Lost.set(&mut charms);
-    //             }
-    //
-    //             if unbound {
-    //                 Charm::Unbound.set(&mut charms);
-    //             }
-    //
-    //             if vindicated {
-    //                 Charm::Vindicated.set(&mut charms);
-    //             }
-    //
-    //             if let Some(Sat(n)) = sat {
-    //                 ctx.sat_to_sequence_number.insert(&n, &sequence_number)?;
-    //             }
-    //
-    //             let parent = match parent {
-    //                 Some(parent_id) => {
-    //                     let parent_sequence_number = ctx
-    //                         .inscription_id_to_sequence_number
-    //                         .get(&parent_id.store())?
-    //                         .unwrap()
-    //                         .value();
-    //                     ctx.sequence_number_to_children
-    //                         .insert(parent_sequence_number, sequence_number)?;
-    //
-    //                     Some(parent_sequence_number)
-    //                 }
-    //                 None => None,
-    //             };
-    //
-    //             ctx.sequence_number_to_entry.insert(
-    //                 sequence_number,
-    //                 &InscriptionEntry {
-    //                     charms,
-    //                     fee,
-    //                     height: self.height,
-    //                     id: inscription_id,
-    //                     inscription_number,
-    //                     parent,
-    //                     sat,
-    //                     sequence_number,
-    //                     timestamp: self.timestamp,
-    //                 }
-    //                 .store(),
-    //             )?;
-    //
-    //             self.id_to_sequence_number
-    //                 .insert(&inscription_id.store(), sequence_number)?;
-    //
-    //             if !hidden {
-    //                 self.home_inscriptions
-    //                     .insert(&sequence_number, inscription_id.store())?;
-    //
-    //                 if self.home_inscription_count == 100 {
-    //                     self.home_inscriptions.pop_first()?;
-    //                 } else {
-    //                     self.home_inscription_count += 1;
-    //                 }
-    //             }
-    //
-    //             (unbound, sequence_number)
-    //         }
-    //     };
-    //
-    //     let satpoint = if unbound {
-    //         let new_unbound_satpoint = SatPoint {
-    //             outpoint: unbound_outpoint(),
-    //             offset: self.unbound_inscriptions,
-    //         };
-    //         self.unbound_inscriptions += 1;
-    //         new_unbound_satpoint.store()
-    //     } else {
-    //         new_satpoint.store()
-    //     };
-    //
-    //     self.operations
-    //         .entry(flotsam.txid)
-    //         .or_default()
-    //         .push(InscriptionOp {
-    //             txid: flotsam.txid,
-    //             sequence_number,
-    //             inscription_number: ctx
-    //                 .sequence_number_to_inscription_entry
-    //                 .get(sequence_number)?
-    //                 .map(|entry|
-    // InscriptionEntry::load(entry.value()).inscription_number),
-    // inscription_id: flotsam.inscription_id,             action: match
-    // flotsam.origin {                 Origin::Old => Action::Transfer,
-    //                 Origin::New {
-    //                     cursed,
-    //                     fee: _,
-    //                     hidden: _,
-    //                     pointer: _,
-    //                     reinscription: _,
-    //                     unbound,
-    //                     parent,
-    //                     inscription,
-    //                     vindicated,
-    //                 } => Action::New {
-    //                     cursed,
-    //                     unbound,
-    //                     vindicated,
-    //                     parent,
-    //                     inscription,
-    //                 },
-    //             },
-    //             old_satpoint: flotsam.old_satpoint,
-    //             new_satpoint: Some(Entry::load(satpoint)),
-    //         });
-    //
-    //     ctx.satpoint_to_sequence_number
-    //         .insert(&satpoint, sequence_number)?;
-    //     ctx.sequence_number_to_satpoint
-    //         .insert(sequence_number, &satpoint)?;
-    //
-    //     Ok(())
-    // }
+    fn update_inscription_location(
+        &self,
+        flotsam: Flotsam,
+        ctx: &mut Context,
+        new_satpoint: SatPoint,
+        operations: &mut HashMap<Txid, Vec<InscriptionOp>>,
+    ) -> anyhow::Result<()> {
+        let inscription_id = flotsam.inscription_id;
+        let (unbound, sequence_number) = match flotsam.origin {
+            Origin::Old => {
+                ctx.satpoint_to_sequence_number
+                    .remove_all(&flotsam.old_satpoint.store())?;
+
+                (
+                    false,
+                    ctx.inscription_id_to_sequence_number
+                        .get(&inscription_id.store())?
+                        .unwrap()
+                        .value(),
+                )
+            }
+            Origin::New {
+                cursed,
+                fee,
+                hidden: _,
+                parent,
+                pointer: _,
+                reinscription,
+                unbound,
+                inscription: _,
+                vindicated,
+            } => {
+                let inscription_number = if cursed {
+                    let number: i32 = get_statistic_to_count(
+                        ctx.statistic_to_count,
+                        &Statistic::CursedInscriptions,
+                    )?
+                    .try_into()
+                    .unwrap();
+                    update_statistic_to_count(
+                        ctx.statistic_to_count,
+                        &Statistic::CursedInscriptions,
+                        (number + 1).try_into().unwrap(),
+                    )?;
+
+                    // because cursed numbers start at -1
+                    -(number + 1)
+                } else {
+                    let number: i32 = get_statistic_to_count(
+                        ctx.statistic_to_count,
+                        &Statistic::BlessedInscriptions,
+                    )?
+                    .try_into()
+                    .unwrap();
+                    update_statistic_to_count(
+                        ctx.statistic_to_count,
+                        &Statistic::BlessedInscriptions,
+                        (number + 1).try_into().unwrap(),
+                    )?;
+
+                    number
+                };
+
+                let sequence_number =
+                    get_next_sequence_number(ctx.sequence_number_to_inscription_entry)?;
+
+                ctx.inscription_number_to_sequence_number
+                    .insert(inscription_number, sequence_number)?;
+
+                let sat = if unbound {
+                    None
+                } else {
+                    calculate_sat(None, flotsam.offset)
+                };
+
+                let mut charms = 0;
+
+                if cursed {
+                    Charm::Cursed.set(&mut charms);
+                }
+
+                if reinscription {
+                    Charm::Reinscription.set(&mut charms);
+                }
+
+                if let Some(sat) = sat {
+                    if sat.nineball() {
+                        Charm::Nineball.set(&mut charms);
+                    }
+
+                    if sat.coin() {
+                        Charm::Coin.set(&mut charms);
+                    }
+
+                    match sat.rarity() {
+                        Rarity::Common | Rarity::Mythic => {}
+                        Rarity::Uncommon => Charm::Uncommon.set(&mut charms),
+                        Rarity::Rare => Charm::Rare.set(&mut charms),
+                        Rarity::Epic => Charm::Epic.set(&mut charms),
+                        Rarity::Legendary => Charm::Legendary.set(&mut charms),
+                    }
+                }
+
+                if new_satpoint.outpoint == OutPoint::null() {
+                    Charm::Lost.set(&mut charms);
+                }
+
+                if unbound {
+                    Charm::Unbound.set(&mut charms);
+                }
+
+                if vindicated {
+                    Charm::Vindicated.set(&mut charms);
+                }
+
+                if let Some(Sat(n)) = sat {
+                    ctx.sat_to_sequence_number.insert(&n, &sequence_number)?;
+                }
+
+                let parent = match parent {
+                    Some(parent_id) => {
+                        let parent_sequence_number = ctx
+                            .inscription_id_to_sequence_number
+                            .get(&parent_id.store())?
+                            .unwrap()
+                            .value();
+
+                        Some(parent_sequence_number)
+                    }
+                    None => None,
+                };
+
+                ctx.sequence_number_to_inscription_entry.insert(
+                    sequence_number,
+                    &InscriptionEntry {
+                        charms,
+                        fee,
+                        height: ctx.chain_ctx.blockheight,
+                        id: inscription_id,
+                        inscription_number,
+                        parent,
+                        sat,
+                        sequence_number,
+                        timestamp: ctx.chain_ctx.blocktime,
+                    }
+                    .store(),
+                )?;
+
+                ctx.inscription_id_to_sequence_number
+                    .insert(&inscription_id.store(), sequence_number)?;
+
+                (unbound, sequence_number)
+            }
+        };
+
+        let satpoint = if unbound {
+            let unbound_inscriptions =
+                get_statistic_to_count(ctx.statistic_to_count, &Statistic::UnboundInscriptions)?;
+            let new_unbound_satpoint = SatPoint {
+                outpoint: unbound_outpoint(),
+                offset: unbound_inscriptions,
+            };
+            update_statistic_to_count(
+                ctx.statistic_to_count,
+                &Statistic::UnboundInscriptions,
+                unbound_inscriptions + 1,
+            )?;
+            new_unbound_satpoint.store()
+        } else {
+            new_satpoint.store()
+        };
+
+        operations
+            .entry(flotsam.txid)
+            .or_default()
+            .push(InscriptionOp {
+                txid: flotsam.txid,
+                sequence_number,
+                inscription_number: ctx
+                    .sequence_number_to_inscription_entry
+                    .get(sequence_number)?
+                    .map(|entry| InscriptionEntry::load(entry.value()).inscription_number),
+                inscription_id: flotsam.inscription_id,
+                action: match flotsam.origin {
+                    Origin::Old => Action::Transfer,
+                    Origin::New {
+                        cursed,
+                        fee: _,
+                        hidden: _,
+                        pointer: _,
+                        reinscription: _,
+                        unbound,
+                        parent,
+                        inscription,
+                        vindicated,
+                    } => Action::New {
+                        cursed,
+                        unbound,
+                        vindicated,
+                        parent,
+                        inscription,
+                    },
+                },
+                old_satpoint: flotsam.old_satpoint,
+                new_satpoint: Some(Entry::load(satpoint)),
+            });
+
+        ctx.satpoint_to_sequence_number
+            .insert(&satpoint, sequence_number)?;
+        ctx.sequence_number_to_satpoint
+            .insert(sequence_number, &satpoint)?;
+
+        Ok(())
+    }
+}
+
+fn calculate_sat(
+    input_sat_ranges: Option<&VecDeque<(u64, u64)>>,
+    input_offset: u64,
+) -> Option<Sat> {
+    let input_sat_ranges = input_sat_ranges?;
+
+    let mut offset = 0;
+    for (start, end) in input_sat_ranges {
+        let size = end - start;
+        if offset + size > input_offset {
+            let n = start + input_offset - offset;
+            return Some(Sat(n));
+        }
+        offset += size;
+    }
+
+    unreachable!()
+}
+
+fn unbound_outpoint() -> OutPoint {
+    OutPoint {
+        txid: Hash::all_zeros(),
+        vout: 0,
+    }
 }

@@ -10,6 +10,7 @@ pub mod reader;
 pub mod resolver;
 pub mod rtx;
 pub mod script_key;
+pub mod statistic;
 pub mod table;
 pub mod tick;
 pub mod token_info;

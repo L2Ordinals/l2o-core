@@ -17,7 +17,7 @@ pub struct ChainContext {
 }
 
 pub struct Context<'a, 'db, 'txn> {
-    pub chain_conf: ChainContext,
+    pub chain_ctx: ChainContext,
 
     pub height_to_block_header: &'a mut Table<'db, 'txn, u32, &'static HeaderValue>,
     pub height_to_last_sequence_number: &'a mut Table<'db, 'txn, u32, u32>,
@@ -33,6 +33,8 @@ pub struct Context<'a, 'db, 'txn> {
     pub inscription_number_to_sequence_number: &'a mut Table<'db, 'txn, i32, u32>,
     pub sequence_number_to_inscription_entry: &'a mut Table<'db, 'txn, u32, InscriptionEntryValue>,
     pub sequence_number_to_satpoint: &'a mut Table<'db, 'txn, u32, &'static SatPointValue>,
+
+    pub statistic_to_count: &'a mut Table<'db, 'txn, u64, u64>,
 
     // BRC20 tables
     pub brc20_balances: &'a mut Table<'db, 'txn, &'static str, &'static [u8]>,

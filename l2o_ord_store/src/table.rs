@@ -28,6 +28,7 @@ use crate::entry::TxidValue;
 use crate::event::Receipt;
 use crate::log::TransferableLog;
 use crate::script_key::ScriptKey;
+use crate::statistic::Statistic;
 use crate::tick::LowerTick;
 use crate::tick::Tick;
 use crate::token_info::TokenInfo;
@@ -46,6 +47,8 @@ define_table! { INSCRIPTION_ID_TO_SEQUENCE_NUMBER, InscriptionIdValue, u32 }
 define_table! { INSCRIPTION_NUMBER_TO_SEQUENCE_NUMBER, i32, u32 }
 define_table! { SEQUENCE_NUMBER_TO_INSCRIPTION_ENTRY, u32, InscriptionEntryValue }
 define_table! { SEQUENCE_NUMBER_TO_SATPOINT, u32, &SatPointValue }
+
+define_table! { STATISTIC_TO_COUNT, u64, u64 }
 
 define_table! { BRC20_BALANCES, &str, &[u8] }
 define_table! { BRC20_TOKEN, &str, &[u8] }
@@ -408,4 +411,32 @@ pub fn inscriptions_on_output<'a: 'tx, 'tx>(
     .into_iter()
     .map(|(_sequence_number, satpoint, inscription_id)| (satpoint, inscription_id))
     .collect())
+}
+
+pub fn get_statistic_to_count<T>(table: &T, key: &Statistic) -> Result<u64>
+where
+    T: ReadableTable<u64, u64>,
+{
+    Ok(table.get(&key.key())?.map(|x| x.value()).unwrap_or(0))
+}
+
+pub fn update_statistic_to_count(
+    table: &mut Table<'_, '_, u64, u64>,
+    key: &Statistic,
+    value: u64,
+) -> Result<()> {
+    table.insert(&key.key(), value)?;
+    Ok(())
+}
+
+pub fn get_next_sequence_number<T>(table: &T) -> Result<u32>
+where
+    T: ReadableTable<u32, InscriptionEntryValue>,
+{
+    Ok(table
+        .iter()?
+        .next_back()
+        .and_then(|result| result.ok())
+        .map(|(number, _id)| number.value() + 1)
+        .unwrap_or(0))
 }

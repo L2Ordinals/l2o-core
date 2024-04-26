@@ -133,7 +133,7 @@ impl ExecutionMessage {
         // proposal for issuance self mint token.
         // https://l1f.discourse.group/t/brc-20-proposal-for-issuance-and-burn-enhancements-brc20-ip-1/621
         if tick.self_issuance_tick() {
-            if context.chain_conf.blockheight < 111111
+            if context.chain_ctx.blockheight < 111111
             // TODO: fix this
             {
                 return Err(Error::BRC20Error(BRC20Error::SelfIssuanceNotActivated));
@@ -197,9 +197,9 @@ impl ExecutionMessage {
             minted: 0u128,
             deploy_by: to_script_key,
             is_self_mint,
-            deployed_number: context.chain_conf.blockheight,
-            latest_mint_number: context.chain_conf.blockheight,
-            deployed_timestamp: context.chain_conf.blocktime,
+            deployed_number: context.chain_ctx.blockheight,
+            latest_mint_number: context.chain_ctx.blockheight,
+            deployed_timestamp: context.chain_ctx.blocktime,
         };
         context
             .insert_token_info(&tick, &new_info)
@@ -297,7 +297,7 @@ impl ExecutionMessage {
         // update token minted.
         let minted = minted.checked_add(&amt)?.checked_to_u128()?;
         context
-            .update_mint_token_info(&tick, minted, context.chain_conf.blockheight)
+            .update_mint_token_info(&tick, minted, context.chain_ctx.blockheight)
             .map_err(Error::LedgerError)?;
 
         Ok(Event::Mint(MintEvent {

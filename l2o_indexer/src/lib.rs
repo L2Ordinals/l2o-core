@@ -59,7 +59,9 @@ use l2o_crypto::signature::schnorr::verify_sig;
 use l2o_crypto::standards::l2o_a::proof::L2OAProofData;
 use l2o_crypto::standards::l2o_a::L2OABlockInscriptionV1;
 use l2o_macros::quick;
+use l2o_ord::chain::Chain;
 use l2o_ord::height::Height;
+use l2o_ord_store::ctx::ChainContext;
 use l2o_ord_store::rtx::Rtx;
 use l2o_ord_store::wtx::BlockData;
 use l2o_ord_store::wtx::Wtx;
@@ -192,23 +194,47 @@ impl Indexer {
             bitcoin_rpc_auth: Box::leak(bitcoin_rpc_auth.into_boxed_str()),
             bitcoin_rpc,
         };
-        let height = indexer
-            .db
-            .begin_read()?
-            .block_height()?
-            .unwrap_or(Height(0));
-        let indexer_clone = indexer.clone();
+        let indexerc = indexer.clone();
 
-        thread::spawn(move || {
-            let (sender, receiver) = indexer_clone.spawn_fetcher().unwrap();
+        thread::spawn(move || -> anyhow::Result<()> {
+            let (sender, receiver) = indexerc.spawn_fetcher()?;
 
             loop {
-                if let Err(err) = indexer_clone
-                    .get_block_with_retries(height.n(), false, 0)
-                    .and_then(|block| {
-                        let mut wxn = indexer_clone.db.begin_write()?;
+                let db_block_height = indexerc
+                    .db
+                    .begin_read()
+                    .map_err(anyhow::Error::from)
+                    .and_then(|x| {
+                        x.block_height()
+                            .map(|y| y.unwrap_or(Height(0)))
+                            .map_err(anyhow::Error::from)
+                    });
+                let rpc_block_count = indexerc.bitcoin_rpc.get_block_count();
 
-                        wxn.index_block(&BlockData::from(block), &sender, &receiver)?;
+                match (&db_block_height, &rpc_block_count) {
+                    (Ok(db_block_height), Ok(rpc_block_count))
+                        if u64::from(db_block_height.n() + 1) <= *rpc_block_count => {}
+                    _ => {
+                        thread::sleep(Duration::from_secs(600));
+                        continue;
+                    }
+                }
+
+                if let Err(err) = db_block_height
+                    .and_then(|height| {
+                        indexerc
+                            .get_block_with_retries(height.n())
+                            .map(|block| (height, block))
+                    })
+                    .and_then(|(height, block)| {
+                        let wxn = indexerc.db.begin_write()?;
+                        let chain_ctx = ChainContext {
+                            chain: Chain::Regtest,
+                            blockheight: height.n(),
+                            blocktime: block.header.time,
+                        };
+
+                        wxn.index_block(chain_ctx, BlockData::from(block), &sender, &receiver)?;
 
                         wxn.commit()?;
                         Ok(())
@@ -216,6 +242,7 @@ impl Indexer {
                 {
                     tracing::error!("index error: {}", err);
                 }
+                thread::sleep(Duration::from_secs(3));
             }
         });
 
@@ -258,7 +285,7 @@ impl Indexer {
         // request, we keep this to 12.
         const PARALLEL_REQUESTS: usize = 12;
 
-        let self_cloned = self.clone();
+        let this = self.clone();
         std::thread::spawn(move || {
             loop {
                 let Ok(outpoint) = outpoint_receiver.recv() else {
@@ -281,7 +308,7 @@ impl Indexer {
                 for chunk in outpoints.chunks(chunk_size) {
                     let txids = chunk.iter().map(|outpoint| outpoint.txid).collect();
                     let result =
-                        Self::retry(|| self_cloned.get_transactions_with_retries(&txids)).unwrap();
+                        Self::retry(|| this.get_transactions_with_retries(&txids)).unwrap();
                     results.push(result);
                 }
                 // Send all tx output values back in order
@@ -653,22 +680,9 @@ impl Indexer {
         }
     }
 
-    pub fn get_block_with_retries(
-        &self,
-        height: u32,
-        index_sats: bool,
-        first_inscription_height: u32,
-    ) -> anyhow::Result<Block> {
+    pub fn get_block_with_retries(&self, height: u32) -> anyhow::Result<Block> {
         let block_hash = Self::retry(|| self.bitcoin_rpc.get_block_hash(height.into()))?;
-        if index_sats || height >= first_inscription_height {
-            let block = Self::retry(|| self.bitcoin_rpc.get_block(&block_hash))?;
-            Ok(block)
-        } else {
-            Ok(Block {
-                header: Self::retry(|| self.bitcoin_rpc.get_block_header(&block_hash))?,
-                txdata: Vec::new(),
-            })
-        }
+        Ok(Self::retry(|| self.bitcoin_rpc.get_block(&block_hash))?)
     }
 
     pub fn get_transactions_with_retries(
