@@ -1,9 +1,11 @@
 use std::marker::PhantomData;
 
 use kvq::traits::KVQBinaryStore;
+use kvq::traits::KVQBinaryStoreReader;
 use kvq::traits::KVQPair;
 use kvq::traits::KVQSerializable;
 use kvq::traits::KVQStoreAdapter;
+use kvq::traits::KVQStoreAdapterReader;
 use serde::Deserialize;
 use serde::Serialize;
 
@@ -22,10 +24,10 @@ pub struct KVQMerkleTreeModel<
     const TABLE_TYPE: u16,
     const TREE_HEIGHT: u8,
     const MARK_LEAVES: bool,
-    S: KVQBinaryStore,
+    S: KVQBinaryStoreReader,
     Hash: Copy + PartialEq + KVQSerializable + Serialize,
     Hasher: GeneralMerkleZeroHasher<Hash>,
-    KVA: KVQStoreAdapter<S, KVQMerkleNodeKey<TABLE_TYPE>, Hash>,
+    KVA,
 > where
     for<'de2> Hash: Deserialize<'de2>,
 {
@@ -38,10 +40,10 @@ impl<
         const TABLE_TYPE: u16,
         const TREE_HEIGHT: u8,
         const MARK_LEAVES: bool,
-        S: KVQBinaryStore,
+        S: KVQBinaryStoreReader,
         Hash: PartialEq + KVQSerializable + Copy + Serialize,
         Hasher: GeneralMerkleZeroHasher<Hash>,
-        KVA: KVQStoreAdapter<S, KVQMerkleNodeKey<TABLE_TYPE>, Hash>,
+        KVA: KVQStoreAdapterReader<S, KVQMerkleNodeKey<TABLE_TYPE>, Hash>,
     > KVQMerkleTreeModel<TABLE_TYPE, TREE_HEIGHT, MARK_LEAVES, S, Hash, Hasher, KVA>
 where
     for<'de2> Hash: Deserialize<'de2>,
@@ -71,14 +73,8 @@ where
             })
             .collect())
     }
-    fn set_nodes<'a>(
-        store: &mut S,
-        nodes: &[KVQPair<KVQMerkleNodeKey<TABLE_TYPE>, Hash>],
-    ) -> anyhow::Result<()> {
-        KVA::set_many(store, nodes)
-    }
     pub fn get_leaf(
-        store: &mut S,
+        store: &S,
         key: &KVQMerkleNodeKey<TABLE_TYPE>,
     ) -> anyhow::Result<MerkleProofCore<Hash>> {
         let nodes = Self::get_nodes(
@@ -95,6 +91,26 @@ where
             siblings,
             index: key.index,
         })
+    }
+}
+
+impl<
+        const TABLE_TYPE: u16,
+        const TREE_HEIGHT: u8,
+        const MARK_LEAVES: bool,
+        S: KVQBinaryStore,
+        Hash: PartialEq + KVQSerializable + Copy + Serialize,
+        Hasher: GeneralMerkleZeroHasher<Hash>,
+        KVA: KVQStoreAdapter<S, KVQMerkleNodeKey<TABLE_TYPE>, Hash>,
+    > KVQMerkleTreeModel<TABLE_TYPE, TREE_HEIGHT, MARK_LEAVES, S, Hash, Hasher, KVA>
+where
+    for<'de2> Hash: Deserialize<'de2>,
+{
+    fn set_nodes<'a>(
+        store: &mut S,
+        nodes: &[KVQPair<KVQMerkleNodeKey<TABLE_TYPE>, Hash>],
+    ) -> anyhow::Result<()> {
+        KVA::set_many(store, nodes)
     }
     pub fn set_leaf(
         store: &mut S,
@@ -145,10 +161,10 @@ where
 pub struct KVQAppendOnlyMerkleTreeModel<
     const TABLE_TYPE: u16,
     const TREE_HEIGHT: u8,
-    S: KVQBinaryStore,
+    S: KVQBinaryStoreReader,
     Hash: Copy + PartialEq + KVQSerializable + Serialize + ZeroableHash,
     Hasher: GeneralMerkleZeroHasher<Hash>,
-    KVA: KVQStoreAdapter<S, KVQAppendOnlyMerkleKey<TABLE_TYPE>, MerkleProofCore<Hash>>,
+    KVA,
 > where
     for<'de2> Hash: Deserialize<'de2>,
 {
@@ -160,10 +176,10 @@ pub struct KVQAppendOnlyMerkleTreeModel<
 impl<
         const TABLE_TYPE: u16,
         const TREE_HEIGHT: u8,
-        S: KVQBinaryStore,
+        S: KVQBinaryStoreReader,
         Hash: PartialEq + KVQSerializable + Copy + Serialize + ZeroableHash,
         Hasher: GeneralMerkleZeroHasher<Hash>,
-        KVA: KVQStoreAdapter<S, KVQAppendOnlyMerkleKey<TABLE_TYPE>, MerkleProofCore<Hash>>,
+        KVA: KVQStoreAdapterReader<S, KVQAppendOnlyMerkleKey<TABLE_TYPE>, MerkleProofCore<Hash>>,
     > KVQAppendOnlyMerkleTreeModel<TABLE_TYPE, TREE_HEIGHT, S, Hash, Hasher, KVA>
 where
     for<'de2> Hash: Deserialize<'de2>,
@@ -174,7 +190,19 @@ where
     ) -> anyhow::Result<MerkleProofCore<Hash>> {
         KVA::get_exact(&store, &key)
     }
+}
 
+impl<
+        const TABLE_TYPE: u16,
+        const TREE_HEIGHT: u8,
+        S: KVQBinaryStore,
+        Hash: PartialEq + KVQSerializable + Copy + Serialize + ZeroableHash,
+        Hasher: GeneralMerkleZeroHasher<Hash>,
+        KVA: KVQStoreAdapter<S, KVQAppendOnlyMerkleKey<TABLE_TYPE>, MerkleProofCore<Hash>>,
+    > KVQAppendOnlyMerkleTreeModel<TABLE_TYPE, TREE_HEIGHT, S, Hash, Hasher, KVA>
+where
+    for<'de2> Hash: Deserialize<'de2>,
+{
     pub fn append_leaf(
         store: &mut S,
         key: &KVQAppendOnlyMerkleKey<TABLE_TYPE>,

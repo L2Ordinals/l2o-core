@@ -14,9 +14,7 @@ ark-groth16           = { workspace = true }
 ark-r1cs-std          = { workspace = true }
 ark-relations         = { workspace = true }
 ark-std               = { workspace = true }
-bitcoin               = { workspace = true }
 bitcoincore-rpc       = { workspace = true }
-bitcoincore-rpc-json  = { workspace = true }
 clap                  = { workspace = true }
 dotenv                = { workspace = true }
 hex                   = { workspace = true }
@@ -26,12 +24,7 @@ l2o_common            = { path = "../l2o_common" }
 l2o_crypto            = { path = "../l2o_crypto" }
 l2o_ord               = { path = "../l2o_ord" }
 l2o_rpc_provider      = { path = "../l2o_rpc_provider" }
-once_cell             = { workspace = true }
-rand_core             = { workspace = true }
-reqwest               = { workspace = true }
 serde_json            = { workspace = true }
 thiserror             = { workspace = true }
 tokio                 = { workspace = true }
 tracing               = { workspace = true }
-tracing-log           = { workspace = true }
-tracing-subscriber    = { workspace = true }

@@ -1,11 +1,24 @@
 use std::str::FromStr;
 
+use ark_bn254::Bn254;
+use ark_bn254::Fr;
+use ark_groth16::Groth16;
+use ark_serialize::CanonicalSerialize;
+use ark_snark::SNARK;
 use bigdecimal::num_bigint::Sign;
 use bitcoin::Txid;
+use bitcoincore_rpc::RpcApi;
+use l2o_common::common::data::hash::Hash256;
+use l2o_crypto::hash::hash_functions::blake3::Blake3Hasher;
+use l2o_crypto::hash::hash_functions::keccak256::Keccak256Hasher;
+use l2o_crypto::hash::hash_functions::poseidon_goldilocks::PoseidonHasher;
+use l2o_crypto::hash::hash_functions::sha256::Sha256Hasher;
+use l2o_crypto::signature::schnorr::verify_sig;
 use l2o_ord::chain::Chain;
 use l2o_ord::decimal::Decimal;
 use l2o_ord::error::BRC2XError;
 use l2o_ord::error::Error;
+use l2o_ord::hasher::L2OBlockHasher;
 use l2o_ord::inscription::inscription_id::InscriptionId;
 use l2o_ord::operation::brc20::deploy::Deploy;
 use l2o_ord::operation::brc20::mint::Mint;
@@ -22,6 +35,8 @@ use l2o_ord::sat_point::SatPoint;
 use l2o_ord::BIGDECIMAL_TEN;
 use l2o_ord::MAXIMUM_SUPPLY;
 use l2o_ord::MAX_DECIMAL_WIDTH;
+use l2o_store::core::traits::L2OStoreReaderV1;
+use l2o_store::core::traits::L2OStoreV1;
 
 use crate::balance::Balance;
 use crate::ctx::Context;
@@ -75,13 +90,11 @@ impl ExecutionMessage {
             new_satpoint: msg
                 .new_satpoint
                 .ok_or(anyhow::anyhow!("new satpoint cannot be None"))?,
-            from: context.get_brc20_script_key_on_satpoint(&msg.old_satpoint, chain)?,
+            from: context.get_script_key_on_satpoint(&msg.old_satpoint, chain)?,
             to: if msg.sat_in_outputs {
                 Some(
-                    context.get_brc20_script_key_on_satpoint(
-                        msg.new_satpoint.as_ref().unwrap(),
-                        chain,
-                    )?,
+                    context
+                        .get_script_key_on_satpoint(msg.new_satpoint.as_ref().unwrap(), chain)?,
                 )
             } else {
                 None
@@ -129,7 +142,6 @@ impl ExecutionMessage {
             Operation::L2OA(L2OAOperation::Block(block)) => {
                 Self::process_l2o_a_block(context, msg, block.clone())
             }
-            _ => unreachable!(),
         };
 
         let receipt = Receipt {
@@ -143,7 +155,6 @@ impl ExecutionMessage {
             op: msg.op.op_type(),
             result: match event {
                 Ok(event) => Ok(event),
-                Err(Error::BRC2XError(e)) => Err(e),
                 Err(e) => return Err(anyhow::anyhow!("execute exception: {e}")),
             },
         };
@@ -156,7 +167,7 @@ impl ExecutionMessage {
         context: &mut Context,
         msg: &ExecutionMessage,
         deploy: Deploy,
-    ) -> Result<Event, Error> {
+    ) -> anyhow::Result<Event> {
         // ignore inscribe inscription to coinbase. let
         let to_script_key = msg.to.clone().ok_or(BRC2XError::InscribeToCoinbase)?;
 
@@ -167,13 +178,13 @@ impl ExecutionMessage {
         // proposal for issuance self mint token.
         // https://l1f.discourse.group/t/brc-20-proposal-for-issuance-and-burn-enhancements-brc20-ip-1/621
         if tick.self_issuance_tick() {
-            if context.chain_ctx.blockheight < 111111
-            // TODO: fix this
+            if context.chain_ctx.blockheight
+                < context.chain_ctx.chain.self_issuance_activation_height()
             {
-                return Err(Error::BRC2XError(BRC2XError::SelfIssuanceNotActivated));
+                return Err(Error::BRC2XError(BRC2XError::SelfIssuanceNotActivated).into());
             }
             if !deploy.self_mint.unwrap_or_default() {
-                return Err(Error::BRC2XError(BRC2XError::SelfIssuanceCheckedFailed));
+                return Err(Error::BRC2XError(BRC2XError::SelfIssuanceCheckedFailed).into());
             }
             if deploy.max_supply == u64::MIN.to_string() {
                 max_supply = u64::MAX.to_string();
@@ -182,18 +193,19 @@ impl ExecutionMessage {
         }
 
         if let Some(stored_tick_info) = context
-            .get_brc20_token_info(&tick)
+            .get_token_info(&tick, msg.op.p_type())
             .map_err(Error::LedgerError)?
         {
             return Err(Error::BRC2XError(BRC2XError::DuplicateTick(
                 stored_tick_info.tick.to_string(),
-            )));
+            ))
+            .into());
         }
 
         let dec = Decimal::from_str(&deploy.decimals.map_or(MAX_DECIMAL_WIDTH.to_string(), |v| v))?
             .checked_to_u8()?;
         if dec > MAX_DECIMAL_WIDTH {
-            return Err(Error::BRC2XError(BRC2XError::DecimalsTooLarge(dec)));
+            return Err(Error::BRC2XError(BRC2XError::DecimalsTooLarge(dec)).into());
         }
         let base = BIGDECIMAL_TEN.checked_powu(u64::from(dec))?;
 
@@ -203,9 +215,7 @@ impl ExecutionMessage {
             || supply > MAXIMUM_SUPPLY.to_owned()
             || supply.scale() > i64::from(dec)
         {
-            return Err(Error::BRC2XError(BRC2XError::InvalidSupply(
-                supply.to_string(),
-            )));
+            return Err(Error::BRC2XError(BRC2XError::InvalidSupply(supply.to_string())).into());
         }
 
         let limit = Decimal::from_str(&deploy.mint_limit.map_or(max_supply, |v| v))?;
@@ -217,7 +227,8 @@ impl ExecutionMessage {
             return Err(Error::BRC2XError(BRC2XError::MintLimitOutOfRange(
                 tick.to_lowercase().to_string(),
                 limit.to_string(),
-            )));
+            ))
+            .into());
         }
 
         let supply = supply.checked_mul(&base)?.checked_to_u128()?;
@@ -239,7 +250,7 @@ impl ExecutionMessage {
             deployed_timestamp: context.chain_ctx.blocktime,
         };
         context
-            .insert_brc20_token_info(&tick, &new_info)
+            .insert_token_info(&tick, &new_info, msg.op.p_type())
             .map_err(Error::LedgerError)?;
 
         Ok(Event::Deploy(DeployEvent {
@@ -256,14 +267,14 @@ impl ExecutionMessage {
         msg: &ExecutionMessage,
         mint: Mint,
         parent: Option<InscriptionId>,
-    ) -> Result<Event, Error> {
+    ) -> anyhow::Result<Event> {
         // ignore inscribe inscription to coinbase. let
         let to_script_key = msg.to.clone().ok_or(BRC2XError::InscribeToCoinbase)?;
 
         let tick = mint.tick.parse::<Tick>()?;
 
         let tick_info = context
-            .get_brc20_token_info(&tick)
+            .get_token_info(&tick, msg.op.p_type())
             .map_err(Error::LedgerError)?
             .ok_or(BRC2XError::TickNotFound(tick.to_string()))?;
 
@@ -271,7 +282,7 @@ impl ExecutionMessage {
         if tick_info.is_self_mint
             && !parent.is_some_and(|parent| parent == tick_info.inscription_id)
         {
-            return Err(Error::BRC2XError(BRC2XError::SelfMintPermissionDenied));
+            return Err(Error::BRC2XError(BRC2XError::SelfMintPermissionDenied).into());
         }
 
         let base = BIGDECIMAL_TEN.checked_powu(u64::from(tick_info.decimal))?;
@@ -279,27 +290,23 @@ impl ExecutionMessage {
         let mut amt = Decimal::from_str(&mint.amount)?;
 
         if amt.scale() > i64::from(tick_info.decimal) {
-            return Err(Error::BRC2XError(BRC2XError::AmountOverflow(
-                amt.to_string(),
-            )));
+            return Err(Error::BRC2XError(BRC2XError::AmountOverflow(amt.to_string())).into());
         }
 
         amt = amt.checked_mul(&base)?;
         if amt.sign() == Sign::NoSign {
-            return Err(Error::BRC2XError(BRC2XError::InvalidZeroAmount));
+            return Err(Error::BRC2XError(BRC2XError::InvalidZeroAmount).into());
         }
         if amt > Into::<Decimal>::into(tick_info.limit_per_mint) {
-            return Err(Error::BRC2XError(BRC2XError::AmountExceedLimit(
-                amt.to_string(),
-            )));
+            return Err(Error::BRC2XError(BRC2XError::AmountExceedLimit(amt.to_string())).into());
         }
         let minted = Into::<Decimal>::into(tick_info.minted);
         let supply = Into::<Decimal>::into(tick_info.supply);
 
         if minted >= supply {
-            return Err(Error::BRC2XError(BRC2XError::TickMinted(
-                tick_info.tick.to_string(),
-            )));
+            return Err(
+                Error::BRC2XError(BRC2XError::TickMinted(tick_info.tick.to_string())).into(),
+            );
         }
 
         // cut off any excess.
@@ -317,7 +324,7 @@ impl ExecutionMessage {
 
         // get or initialize user balance.
         let mut balance = context
-            .get_brc20_balance(&to_script_key, &tick)
+            .get_balance(&to_script_key, &tick, msg.op.p_type())
             .map_err(Error::LedgerError)?
             .map_or(Balance::new(&tick), |v| v);
 
@@ -328,13 +335,18 @@ impl ExecutionMessage {
 
         // store to database.
         context
-            .update_brc20_token_balance(&to_script_key, balance)
+            .update_token_balance(&to_script_key, balance, msg.op.p_type())
             .map_err(Error::LedgerError)?;
 
         // update token minted.
         let minted = minted.checked_add(&amt)?.checked_to_u128()?;
         context
-            .update_brc20_mint_token_info(&tick, minted, context.chain_ctx.blockheight)
+            .update_mint_token_info(
+                &tick,
+                minted,
+                context.chain_ctx.blockheight,
+                msg.op.p_type(),
+            )
             .map_err(Error::LedgerError)?;
 
         Ok(Event::Mint(MintEvent {
@@ -348,14 +360,14 @@ impl ExecutionMessage {
         context: &mut Context,
         msg: &ExecutionMessage,
         transfer: Transfer,
-    ) -> Result<Event, Error> {
+    ) -> anyhow::Result<Event> {
         // ignore inscribe inscription to coinbase. let
         let to_script_key = msg.to.clone().ok_or(BRC2XError::InscribeToCoinbase)?;
 
         let tick = transfer.tick.parse::<Tick>()?;
 
         let token_info = context
-            .get_brc20_token_info(&tick)
+            .get_token_info(&tick, msg.op.p_type())
             .map_err(Error::LedgerError)?
             .ok_or(BRC2XError::TickNotFound(tick.to_string()))?;
 
@@ -364,20 +376,16 @@ impl ExecutionMessage {
         let mut amt = Decimal::from_str(&transfer.amount)?;
 
         if amt.scale() > i64::from(token_info.decimal) {
-            return Err(Error::BRC2XError(BRC2XError::AmountOverflow(
-                amt.to_string(),
-            )));
+            return Err(Error::BRC2XError(BRC2XError::AmountOverflow(amt.to_string())).into());
         }
 
         amt = amt.checked_mul(&base)?;
         if amt.sign() == Sign::NoSign || amt > Into::<Decimal>::into(token_info.supply) {
-            return Err(Error::BRC2XError(BRC2XError::AmountOverflow(
-                amt.to_string(),
-            )));
+            return Err(Error::BRC2XError(BRC2XError::AmountOverflow(amt.to_string())).into());
         }
 
         let mut balance = context
-            .get_brc20_balance(&to_script_key, &tick)
+            .get_balance(&to_script_key, &tick, msg.op.p_type())
             .map_err(Error::LedgerError)?
             .map_or(Balance::new(&tick), |v| v);
 
@@ -388,14 +396,15 @@ impl ExecutionMessage {
             return Err(Error::BRC2XError(BRC2XError::InsufficientBalance(
                 available.to_string(),
                 amt.to_string(),
-            )));
+            ))
+            .into());
         }
 
         balance.transferable_balance = transferable.checked_add(&amt)?.checked_to_u128()?;
 
         let amt = amt.checked_to_u128()?;
         context
-            .update_brc20_token_balance(&to_script_key, balance)
+            .update_token_balance(&to_script_key, balance, msg.op.p_type())
             .map_err(Error::LedgerError)?;
 
         let transferable_asset = TransferableLog {
@@ -407,7 +416,7 @@ impl ExecutionMessage {
         };
 
         context
-            .insert_brc20_transferable_asset(msg.new_satpoint, &transferable_asset)
+            .insert_transferable_asset(msg.new_satpoint, &transferable_asset, msg.op.p_type())
             .map_err(Error::LedgerError)?;
 
         Ok(Event::InscribeTransfer(InscribeTransferEvent {
@@ -416,9 +425,9 @@ impl ExecutionMessage {
         }))
     }
 
-    fn process_transfer(context: &mut Context, msg: &ExecutionMessage) -> Result<Event, Error> {
+    fn process_transfer(context: &mut Context, msg: &ExecutionMessage) -> anyhow::Result<Event> {
         let transferable = context
-            .get_brc20_transferable_assets_by_satpoint(&msg.old_satpoint)
+            .get_transferable_assets_by_satpoint(&msg.old_satpoint, msg.op.p_type())
             .map_err(Error::LedgerError)?
             .ok_or(BRC2XError::TransferableNotFound(msg.inscription_id))?;
 
@@ -427,19 +436,20 @@ impl ExecutionMessage {
         if transferable.owner != msg.from {
             return Err(Error::BRC2XError(BRC2XError::TransferableOwnerNotMatch(
                 msg.inscription_id,
-            )));
+            ))
+            .into());
         }
 
         let tick = transferable.tick;
 
         let token_info = context
-            .get_brc20_token_info(&tick)
+            .get_token_info(&tick, msg.op.p_type())
             .map_err(Error::LedgerError)?
             .ok_or(BRC2XError::TickNotFound(tick.to_string()))?;
 
         // update from key balance.
         let mut from_balance = context
-            .get_brc20_balance(&msg.from, &tick)
+            .get_balance(&msg.from, &tick, msg.op.p_type())
             .map_err(Error::LedgerError)?
             .map_or(Balance::new(&tick), |v| v);
 
@@ -453,7 +463,7 @@ impl ExecutionMessage {
         from_balance.transferable_balance = from_transferable;
 
         context
-            .update_brc20_token_balance(&msg.from, from_balance)
+            .update_token_balance(&msg.from, from_balance, msg.op.p_type())
             .map_err(Error::LedgerError)?;
 
         // redirect receiver to sender if transfer to conibase.
@@ -472,7 +482,7 @@ impl ExecutionMessage {
 
         // update to key balance.
         let mut to_balance = context
-            .get_brc20_balance(&to_script_key, &tick)
+            .get_balance(&to_script_key, &tick, msg.op.p_type())
             .map_err(Error::LedgerError)?
             .map_or(Balance::new(&tick), |v| v);
 
@@ -480,11 +490,11 @@ impl ExecutionMessage {
         to_balance.overall_balance = to_overall.checked_add(&amt)?.checked_to_u128()?;
 
         context
-            .update_brc20_token_balance(&to_script_key, to_balance)
+            .update_token_balance(&to_script_key, to_balance, msg.op.p_type())
             .map_err(Error::LedgerError)?;
 
         context
-            .remove_brc20_transferable_asset(msg.old_satpoint)
+            .remove_transferable_asset(msg.old_satpoint, msg.op.p_type())
             .map_err(Error::LedgerError)?;
 
         // update burned supply if transfer to op_return.
@@ -512,34 +522,152 @@ impl ExecutionMessage {
     }
 
     fn process_l2_deposit(
-        context: &mut Context,
-        msg: &ExecutionMessage,
-        l2deposit: L2Deposit,
-    ) -> Result<Event, Error> {
+        _context: &mut Context,
+        _msg: &ExecutionMessage,
+        _l2deposit: L2Deposit,
+    ) -> anyhow::Result<Event> {
         todo!()
     }
 
     fn process_l2_withdraw(
-        context: &mut Context,
-        msg: &ExecutionMessage,
-        l2withdraw: L2WithdrawV1,
-    ) -> Result<Event, Error> {
+        _context: &mut Context,
+        _msg: &ExecutionMessage,
+        _l2withdraw: L2WithdrawV1,
+    ) -> anyhow::Result<Event> {
         todo!()
     }
 
     fn process_l2o_a_deploy(
         context: &mut Context,
-        msg: &ExecutionMessage,
+        _msg: &ExecutionMessage,
         deploy: L2OADeployV1,
-    ) -> Result<Event, Error> {
-        todo!()
+    ) -> anyhow::Result<Event> {
+        let l2id = deploy.l2id;
+        if context.kv.has_deployed_l2id(l2id)? {
+            tracing::debug!("l2o {} already deployed", l2id);
+            return Ok(Event::L2OADeploy);
+        }
+        if deploy.verifier_data.is_groth_16_bn_128() {
+            anyhow::bail!("unsupported verifier type");
+        };
+        context.kv.report_deploy_inscription(deploy)?;
+        tracing::info!("l2o {} deployed", l2id);
+        Ok(Event::L2OADeploy)
     }
 
     fn process_l2o_a_block(
         context: &mut Context,
-        msg: &ExecutionMessage,
+        _msg: &ExecutionMessage,
         block: L2OABlockV1,
-    ) -> Result<Event, Error> {
-        todo!()
+    ) -> anyhow::Result<Event> {
+        let l2id = block.l2id;
+        if !context.kv.has_deployed_l2id(l2id)? {
+            tracing::debug!("l2o {} not deployed yet", l2id);
+            return Ok(Event::L2OABlock);
+        }
+
+        let deploy = context.kv.get_deploy_inscription(l2id)?;
+
+        let block_proof = if deploy.verifier_data.is_groth_16_bn_128() {
+            block
+                .proof
+                .clone()
+                .try_as_groth_16_bn_128()
+                .ok_or(anyhow::anyhow!("marformed proof"))?
+        } else {
+            anyhow::bail!("unsupported proof type");
+        };
+
+        let bitcoin_block_hash = Hash256::from_hex(
+            &context
+                .chain_ctx
+                .bitcoin_rpc
+                .get_block_hash(block.bitcoin_block_number)?
+                .to_string(),
+        )?;
+        if bitcoin_block_hash != block.bitcoin_block_hash {
+            anyhow::bail!("bitcoin block number mismatch");
+        }
+
+        let superchain_root = context
+            .kv
+            .get_superchainroot_at_block(block.bitcoin_block_number, deploy.hash_function)?;
+        if superchain_root != block.superchain_root {
+            anyhow::bail!("superchain root mismatch");
+        }
+
+        let last_public_key = if let Ok(last_block) = context.kv.get_last_block_inscription(l2id) {
+            if block.l2_block_number != last_block.l2_block_number + 1 {
+                anyhow::bail!("block must be consecutive");
+            }
+
+            if block.bitcoin_block_number <= last_block.bitcoin_block_number {
+                anyhow::bail!("bitcoin block must be bigger than previous");
+            }
+
+            if block.start_state_root != last_block.end_state_root {
+                anyhow::bail!("start state root must match the previous block's end state root")
+            }
+
+            if block.start_withdrawal_state_root != last_block.end_withdrawal_state_root {
+                anyhow::bail!(
+                    "start withdrawal root must match the previous block's end withdrawal root"
+                )
+            }
+
+            last_block.public_key
+        } else {
+            if block.l2_block_number != 0 {
+                anyhow::bail!("genesis block number must be zero");
+            }
+            if block.start_state_root != deploy.start_state_root {
+                anyhow::bail!("genesis block state root must be equal to deploy start state root");
+            }
+
+            deploy.public_key
+        };
+
+        let mut uncompressed_bytes = Vec::new();
+        block_proof.serialize_uncompressed(&mut uncompressed_bytes)?;
+
+        let block_hash = if deploy.hash_function.is_sha_256() {
+            Sha256Hasher::get_l2_block_hash(&block)
+        } else if deploy.hash_function.is_blake_3() {
+            Blake3Hasher::get_l2_block_hash(&block)
+        } else if deploy.hash_function.is_keccak_256() {
+            Keccak256Hasher::get_l2_block_hash(&block)
+        } else if deploy.hash_function.is_poseidon_goldilocks() {
+            PoseidonHasher::get_l2_block_hash(&block)
+        } else {
+            anyhow::bail!("unsupported hash function");
+        };
+
+        let public_inputs: [Fr; 2] = block_hash.into();
+        if public_inputs.to_vec() != block_proof.public_inputs {
+            anyhow::bail!("public inputs mismatch");
+        }
+
+        let vk = deploy
+            .verifier_data
+            .try_as_groth_16_bn_128()
+            .ok_or(anyhow::anyhow!("marformed verifier"))?
+            .0;
+
+        let processed_vk = Groth16::<Bn254>::process_vk(&vk)?;
+
+        assert!(Groth16::<Bn254>::verify_proof(
+            &processed_vk,
+            &block_proof.proof,
+            &block_proof.public_inputs,
+        )?);
+
+        if !last_public_key.is_zero() {
+            verify_sig(&last_public_key, &block.signature, &block_hash.0)?;
+        }
+
+        context.kv.set_last_block_inscription(block)?;
+        tracing::info!("l2id {} block", l2id);
+
+        return Ok(Event::L2OABlock);
     }
 }

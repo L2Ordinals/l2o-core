@@ -28,6 +28,8 @@ pub enum Event {
     Transfer(TransferEvent),
     L2Deposit(L2DepositEvent),
     L2Withdraw(L2WithdrawEvent),
+    L2OADeploy,
+    L2OABlock,
 }
 
 #[derive(Debug, Clone, PartialEq, Deserialize, Serialize)]

@@ -149,3 +149,7 @@ image:
 		-c 512 \
 		-t l2ordinals/l2o:latest \
 		-f Dockerfile .
+
+.PHONY: dedup
+dedup:
+	@cargo machete --fix

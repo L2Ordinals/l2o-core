@@ -7,7 +7,6 @@ version = "0.1.0"
 
 [dependencies]
 anyhow     = { workspace = true }
-hex        = { workspace = true }
 kvq        = { path = "../kvq" }
 l2o_common = { path = "../l2o_common" }
 l2o_crypto = { path = "../l2o_crypto" }
@@ -15,4 +14,3 @@ l2o_macros = { path = "../l2o_macros" }
 l2o_ord    = { path = "../l2o_ord" }
 serde      = { workspace = true }
 serde_json = { workspace = true }
-serde_with = { workspace = true }

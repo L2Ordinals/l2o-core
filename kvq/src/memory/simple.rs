@@ -1,6 +1,7 @@
 use std::collections::BTreeMap;
 
 use crate::traits::KVQBinaryStore;
+use crate::traits::KVQBinaryStoreReader;
 use crate::traits::KVQPair;
 
 pub struct KVQSimpleMemoryBackingStore {
@@ -14,7 +15,7 @@ impl KVQSimpleMemoryBackingStore {
     }
 }
 
-impl KVQBinaryStore for KVQSimpleMemoryBackingStore {
+impl KVQBinaryStoreReader for KVQSimpleMemoryBackingStore {
     fn get_exact(&self, key: &Vec<u8>) -> anyhow::Result<Vec<u8>> {
         match self.map.get(key) {
             Some(v) => Ok(v.to_owned()),
@@ -26,49 +27,6 @@ impl KVQBinaryStore for KVQSimpleMemoryBackingStore {
         let mut result = Vec::new();
         for key in keys {
             let r = self.get_exact(key)?;
-            result.push(r);
-        }
-        Ok(result)
-    }
-
-    fn set(&mut self, key: Vec<u8>, value: Vec<u8>) -> anyhow::Result<()> {
-        self.map.insert(key, value);
-        Ok(())
-    }
-
-    fn set_ref(&mut self, key: &Vec<u8>, value: &Vec<u8>) -> anyhow::Result<()> {
-        self.map.insert(key.clone(), value.clone());
-        Ok(())
-    }
-
-    fn set_many_ref<'a>(
-        &mut self,
-        items: &[KVQPair<&'a Vec<u8>, &'a Vec<u8>>],
-    ) -> anyhow::Result<()> {
-        for item in items {
-            self.map.insert(item.key.clone(), item.value.clone());
-        }
-        Ok(())
-    }
-
-    fn set_many_vec(&mut self, items: Vec<KVQPair<Vec<u8>, Vec<u8>>>) -> anyhow::Result<()> {
-        for item in items {
-            self.map.insert(item.key, item.value);
-        }
-        Ok(())
-    }
-
-    fn delete(&mut self, key: &Vec<u8>) -> anyhow::Result<bool> {
-        match self.map.remove(key) {
-            Some(_) => Ok(true),
-            None => Ok(false),
-        }
-    }
-
-    fn delete_many(&mut self, keys: &[Vec<u8>]) -> anyhow::Result<Vec<bool>> {
-        let mut result = Vec::with_capacity(keys.len());
-        for key in keys {
-            let r = self.delete(key)?;
             result.push(r);
         }
         Ok(result)
@@ -149,5 +107,50 @@ impl KVQBinaryStore for KVQSimpleMemoryBackingStore {
             results.push(r);
         }
         Ok(results)
+    }
+}
+
+impl KVQBinaryStore for KVQSimpleMemoryBackingStore {
+    fn set(&mut self, key: Vec<u8>, value: Vec<u8>) -> anyhow::Result<()> {
+        self.map.insert(key, value);
+        Ok(())
+    }
+
+    fn set_ref(&mut self, key: &Vec<u8>, value: &Vec<u8>) -> anyhow::Result<()> {
+        self.map.insert(key.clone(), value.clone());
+        Ok(())
+    }
+
+    fn set_many_ref<'a>(
+        &mut self,
+        items: &[KVQPair<&'a Vec<u8>, &'a Vec<u8>>],
+    ) -> anyhow::Result<()> {
+        for item in items {
+            self.map.insert(item.key.clone(), item.value.clone());
+        }
+        Ok(())
+    }
+
+    fn set_many_vec(&mut self, items: Vec<KVQPair<Vec<u8>, Vec<u8>>>) -> anyhow::Result<()> {
+        for item in items {
+            self.map.insert(item.key, item.value);
+        }
+        Ok(())
+    }
+
+    fn delete(&mut self, key: &Vec<u8>) -> anyhow::Result<bool> {
+        match self.map.remove(key) {
+            Some(_) => Ok(true),
+            None => Ok(false),
+        }
+    }
+
+    fn delete_many(&mut self, keys: &[Vec<u8>]) -> anyhow::Result<Vec<bool>> {
+        let mut result = Vec::with_capacity(keys.len());
+        for key in keys {
+            let r = self.delete(key)?;
+            result.push(r);
+        }
+        Ok(result)
     }
 }

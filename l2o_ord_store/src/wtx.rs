@@ -22,6 +22,8 @@ use l2o_ord::inscription::inscription_id::InscriptionId;
 use l2o_ord::rarity::Rarity;
 use l2o_ord::sat::Sat;
 use l2o_ord::sat_point::SatPoint;
+use l2o_store::core::store::L2OStoreV1Core;
+use l2o_store_redb::KVQReDBStore;
 use redb::ReadableTable;
 use serde::Deserialize;
 use serde::Serialize;
@@ -58,6 +60,7 @@ use crate::table::HEIGHT_TO_BLOCK_HEADER;
 use crate::table::HEIGHT_TO_LAST_SEQUENCE_NUMBER;
 use crate::table::INSCRIPTION_ID_TO_SEQUENCE_NUMBER;
 use crate::table::INSCRIPTION_NUMBER_TO_SEQUENCE_NUMBER;
+use crate::table::KV;
 use crate::table::OUTPOINT_TO_ENTRY;
 use crate::table::OUTPOINT_TO_SAT_RANGES;
 use crate::table::SATPOINT_TO_SEQUENCE_NUMBER;
@@ -225,7 +228,9 @@ impl<'a> Wtx for redb::WriteTransaction<'a> {
         }
 
         let mut ctx = Context {
-            chain_ctx,
+            chain_ctx: chain_ctx.clone(),
+            kv: &mut L2OStoreV1Core::new(KVQReDBStore::new(self.open_table(KV)?)),
+
             height_to_block_header: &mut self.open_table(HEIGHT_TO_BLOCK_HEADER)?,
             height_to_last_sequence_number: &mut self.open_table(HEIGHT_TO_LAST_SEQUENCE_NUMBER)?,
 

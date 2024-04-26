@@ -72,7 +72,7 @@ async fn execute_single(
     let proof = block
         .proof
         .clone()
-        .try_as_groth_16_proof_serializable()
+        .try_as_groth_16_bn_128()
         .unwrap()
         .to_proof_with_public_inputs_groth16_bn254()?;
 

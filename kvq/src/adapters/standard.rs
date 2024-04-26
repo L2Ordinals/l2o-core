@@ -1,59 +1,24 @@
 use std::marker::PhantomData;
 
 use crate::traits::KVQBinaryStore;
+use crate::traits::KVQBinaryStoreReader;
 use crate::traits::KVQPair;
 use crate::traits::KVQSerializable;
 use crate::traits::KVQStoreAdapter;
+use crate::traits::KVQStoreAdapterReader;
 
-pub struct KVQStandardAdapter<S: KVQBinaryStore, K: KVQSerializable, V: KVQSerializable> {
+pub struct KVQStandardAdapter<S, K: KVQSerializable, V: KVQSerializable> {
     _s: PhantomData<S>,
     _k: PhantomData<K>,
     _v: PhantomData<V>,
 }
 
-impl<S: KVQBinaryStore, K: KVQSerializable, V: KVQSerializable> KVQStoreAdapter<S, K, V>
+impl<S: KVQBinaryStoreReader, K: KVQSerializable, V: KVQSerializable> KVQStoreAdapterReader<S, K, V>
     for KVQStandardAdapter<S, K, V>
 {
     fn get_exact(s: &S, key: &K) -> anyhow::Result<V> {
         let r = s.get_exact(&key.to_bytes()?)?;
         Ok(V::from_bytes(&r)?)
-    }
-
-    fn set_ref(s: &mut S, key: &K, value: &V) -> anyhow::Result<()> {
-        s.set(key.to_bytes()?, value.to_bytes()?)
-    }
-    fn set(s: &mut S, key: K, value: V) -> anyhow::Result<()> {
-        s.set(key.to_bytes()?, value.to_bytes()?)
-    }
-
-    fn set_many_ref<'a>(s: &mut S, items: &[KVQPair<&'a K, &'a V>]) -> anyhow::Result<()> {
-        let pairs: anyhow::Result<Vec<KVQPair<Vec<u8>, Vec<u8>>>> = items
-            .iter()
-            .map(|kv| {
-                Ok(KVQPair {
-                    key: kv.key.to_bytes()?,
-                    value: kv.value.to_bytes()?,
-                })
-            })
-            .collect();
-        s.set_many_vec(pairs?)
-    }
-
-    fn set_many(s: &mut S, items: &[KVQPair<K, V>]) -> anyhow::Result<()> {
-        let pairs: anyhow::Result<Vec<KVQPair<Vec<u8>, Vec<u8>>>> = items
-            .iter()
-            .map(|kv| {
-                Ok(KVQPair {
-                    key: kv.key.to_bytes()?,
-                    value: kv.value.to_bytes()?,
-                })
-            })
-            .collect();
-        s.set_many_vec(pairs?)
-    }
-
-    fn delete(s: &mut S, key: &K) -> anyhow::Result<bool> {
-        s.delete(&key.to_bytes()?)
     }
 
     fn get_leq_kv(s: &S, key: &K, fuzzy_bytes: usize) -> anyhow::Result<Option<KVQPair<K, V>>> {
@@ -78,16 +43,6 @@ impl<S: KVQBinaryStore, K: KVQSerializable, V: KVQSerializable> KVQStoreAdapter<
             .map(|r| V::from_bytes(r))
             .collect::<anyhow::Result<Vec<V>>>();
         Ok(values?)
-    }
-
-    fn delete_many(s: &mut S, keys: &[K]) -> anyhow::Result<Vec<bool>> {
-        let mut results: Vec<bool> = Vec::with_capacity(keys.len());
-
-        for k in keys {
-            let r = s.delete(&k.to_bytes()?)?;
-            results.push(r)
-        }
-        Ok(results)
     }
 
     fn get_leq(s: &S, key: &K, fuzzy_bytes: usize) -> anyhow::Result<Option<V>> {
@@ -139,5 +94,56 @@ impl<S: KVQBinaryStore, K: KVQSerializable, V: KVQSerializable> KVQStoreAdapter<
             })
             .collect();
         Ok(kvs?)
+    }
+}
+
+impl<S: KVQBinaryStore, K: KVQSerializable, V: KVQSerializable> KVQStoreAdapter<S, K, V>
+    for KVQStandardAdapter<S, K, V>
+{
+    fn set_ref(s: &mut S, key: &K, value: &V) -> anyhow::Result<()> {
+        s.set(key.to_bytes()?, value.to_bytes()?)
+    }
+    fn set(s: &mut S, key: K, value: V) -> anyhow::Result<()> {
+        s.set(key.to_bytes()?, value.to_bytes()?)
+    }
+
+    fn set_many_ref<'a>(s: &mut S, items: &[KVQPair<&'a K, &'a V>]) -> anyhow::Result<()> {
+        let pairs: anyhow::Result<Vec<KVQPair<Vec<u8>, Vec<u8>>>> = items
+            .iter()
+            .map(|kv| {
+                Ok(KVQPair {
+                    key: kv.key.to_bytes()?,
+                    value: kv.value.to_bytes()?,
+                })
+            })
+            .collect();
+        s.set_many_vec(pairs?)
+    }
+
+    fn set_many(s: &mut S, items: &[KVQPair<K, V>]) -> anyhow::Result<()> {
+        let pairs: anyhow::Result<Vec<KVQPair<Vec<u8>, Vec<u8>>>> = items
+            .iter()
+            .map(|kv| {
+                Ok(KVQPair {
+                    key: kv.key.to_bytes()?,
+                    value: kv.value.to_bytes()?,
+                })
+            })
+            .collect();
+        s.set_many_vec(pairs?)
+    }
+
+    fn delete(s: &mut S, key: &K) -> anyhow::Result<bool> {
+        s.delete(&key.to_bytes()?)
+    }
+
+    fn delete_many(s: &mut S, keys: &[K]) -> anyhow::Result<Vec<bool>> {
+        let mut results: Vec<bool> = Vec::with_capacity(keys.len());
+
+        for k in keys {
+            let r = s.delete(&k.to_bytes()?)?;
+            results.push(r)
+        }
+        Ok(results)
     }
 }

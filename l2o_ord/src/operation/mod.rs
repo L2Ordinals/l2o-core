@@ -36,7 +36,23 @@ pub enum OperationType {
     L2ODeploy,
 }
 
+#[derive(Debug, Clone, PartialEq, Deserialize, Serialize, strum::Display)]
+#[strum(serialize_all = "camelCase")]
+pub enum ProtocolType {
+    BRC20,
+    BRC21,
+    L2OA,
+}
+
 impl Operation {
+    pub fn p_type(&self) -> ProtocolType {
+        match self {
+            Operation::BRC20(_) => ProtocolType::BRC20,
+            Operation::BRC21(_) => ProtocolType::BRC21,
+            Operation::L2OA(_) => ProtocolType::L2OA,
+        }
+    }
+
     pub fn op_type(&self) -> OperationType {
         match self {
             Operation::BRC20(BRC20Operation::Deploy(_)) => OperationType::BRC20Deploy,

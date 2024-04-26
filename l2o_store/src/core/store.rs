@@ -1,7 +1,9 @@
 use kvq::adapters::standard::KVQStandardAdapter;
 use kvq::traits::KVQBinaryStore;
+use kvq::traits::KVQBinaryStoreReader;
 use kvq::traits::KVQPair;
 use kvq::traits::KVQStoreAdapter;
+use kvq::traits::KVQStoreAdapterReader;
 use l2o_common::common::data::hash::Hash256;
 use l2o_crypto::fields::goldilocks::hash::hash256_to_goldilocks_hash;
 use l2o_crypto::fields::goldilocks::hash::GHashOut;
@@ -31,6 +33,7 @@ use super::tables::SUB_TABLE_L2_STATE_ROOTS_SHA256;
 use super::tables::TABLE_L2_STATE_ROOTS;
 use super::traits::L2OStoreV1;
 use crate::core::tables::L2OBRC21BalancesKey;
+use crate::core::traits::L2OStoreReaderV1;
 
 const TREE_HEIGHT: u8 = 32;
 
@@ -82,23 +85,23 @@ type PoseidonGoldilocksStateRootTree<S> = KVQMerkleTreeModel<
     KVQStandardAdapter<S, L2OStateRootsMerkleNodeKey, GHashOut>,
 >;
 
-pub struct L2OStoreV1Core<S: KVQBinaryStore> {
+pub struct L2OStoreV1Core<S> {
     pub store: S,
 }
-impl<S: KVQBinaryStore> L2OStoreV1Core<S> {
+impl<S> L2OStoreV1Core<S> {
     pub fn new(store: S) -> Self {
         Self { store }
     }
 }
-impl<S: KVQBinaryStore> L2OStoreV1 for L2OStoreV1Core<S> {
-    fn get_deploy_inscription(&mut self, l2id: u64) -> anyhow::Result<L2OADeployV1> {
+impl<S: KVQBinaryStoreReader> L2OStoreReaderV1 for L2OStoreV1Core<S> {
+    fn get_deploy_inscription(&self, l2id: u64) -> anyhow::Result<L2OADeployV1> {
         KVQStandardAdapter::<S, L2ODeploymentsKey, L2OADeployV1>::get_exact(
             &self.store,
             &L2ODeploymentsKey::new(l2id),
         )
     }
 
-    fn get_last_block_inscription(&mut self, l2id: u64) -> anyhow::Result<L2OABlockV1> {
+    fn get_last_block_inscription(&self, l2id: u64) -> anyhow::Result<L2OABlockV1> {
         KVQStandardAdapter::<S, L2OLatestBlockKey, L2OABlockV1>::get_exact(
             &self.store,
             &L2OLatestBlockKey::new(l2id),
@@ -106,7 +109,7 @@ impl<S: KVQBinaryStore> L2OStoreV1 for L2OStoreV1Core<S> {
     }
 
     fn get_state_root_at_block(
-        &mut self,
+        &self,
         l2id: u64,
         block_number: u64,
         hash: L2OAHashFunction,
@@ -115,7 +118,7 @@ impl<S: KVQBinaryStore> L2OStoreV1 for L2OStoreV1Core<S> {
         let pos = KVQTreeNodePosition::new(TREE_HEIGHT, l2id);
         get_state!(
             hash,
-            self.store,
+            &self.store,
             checkpoint_id,
             pos,
             get_node,
@@ -124,7 +127,7 @@ impl<S: KVQBinaryStore> L2OStoreV1 for L2OStoreV1Core<S> {
     }
 
     fn get_superchainroot_at_block(
-        &mut self,
+        &self,
         block_number: u64,
         hash: L2OAHashFunction,
     ) -> anyhow::Result<Hash256> {
@@ -132,7 +135,7 @@ impl<S: KVQBinaryStore> L2OStoreV1 for L2OStoreV1Core<S> {
         let pos = KVQTreeNodePosition::root();
         get_state!(
             hash,
-            self.store,
+            &self.store,
             checkpoint_id,
             pos,
             get_node,
@@ -141,7 +144,7 @@ impl<S: KVQBinaryStore> L2OStoreV1 for L2OStoreV1Core<S> {
     }
 
     fn get_merkle_proof_state_root_at_block(
-        &mut self,
+        &self,
         l2id: u64,
         block_number: u64,
         hash: L2OAHashFunction,
@@ -150,7 +153,7 @@ impl<S: KVQBinaryStore> L2OStoreV1 for L2OStoreV1Core<S> {
         let pos = KVQTreeNodePosition::new(TREE_HEIGHT, l2id);
         get_state!(
             hash,
-            self.store,
+            &self.store,
             checkpoint_id,
             pos,
             get_leaf,
@@ -158,6 +161,26 @@ impl<S: KVQBinaryStore> L2OStoreV1 for L2OStoreV1Core<S> {
         )
     }
 
+    fn has_deployed_l2id(&self, l2id: u64) -> anyhow::Result<bool> {
+        let r = KVQStandardAdapter::<S, L2ODeploymentsKey, L2OADeployV1>::get_exact(
+            &self.store,
+            &L2ODeploymentsKey::new(l2id),
+        );
+        match r {
+            Ok(_) => Ok(true),
+            Err(_) => Ok(false),
+        }
+    }
+
+    fn get_brc21_balance(&self, tick: String, address: String) -> anyhow::Result<u64> {
+        KVQStandardAdapter::<S, L2OBRC21BalancesKey, u64>::get_exact(
+            &self.store,
+            &L2OBRC21BalancesKey::new(tick, address),
+        )
+    }
+}
+
+impl<S: KVQBinaryStore> L2OStoreV1 for L2OStoreV1Core<S> {
     fn report_deploy_inscription(&mut self, deployment: L2OADeployV1) -> anyhow::Result<()> {
         KVQStandardAdapter::<S, L2ODeploymentsKey, L2OADeployV1>::set(
             &mut self.store,
@@ -181,24 +204,6 @@ impl<S: KVQBinaryStore> L2OStoreV1 for L2OStoreV1Core<S> {
         set_state!(self.store, checkpoint_id, pos, end_state_root);
 
         Ok(())
-    }
-
-    fn has_deployed_l2id(&mut self, l2id: u64) -> anyhow::Result<bool> {
-        let r = KVQStandardAdapter::<S, L2ODeploymentsKey, L2OADeployV1>::get_exact(
-            &mut self.store,
-            &L2ODeploymentsKey::new(l2id),
-        );
-        match r {
-            Ok(_) => Ok(true),
-            Err(_) => Ok(false),
-        }
-    }
-
-    fn get_brc21_balance(&mut self, tick: String, address: String) -> anyhow::Result<u64> {
-        KVQStandardAdapter::<S, L2OBRC21BalancesKey, u64>::get_exact(
-            &self.store,
-            &L2OBRC21BalancesKey::new(tick, address),
-        )
     }
     fn transfer_brc21(
         &mut self,

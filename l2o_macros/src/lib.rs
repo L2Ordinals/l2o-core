@@ -45,7 +45,7 @@ macro_rules! get_state {
     ($hash:expr,$instance:expr,$checkpoint_id:expr,$pos:expr,$get_fn:tt,$convert_fn:path) => {
         match $hash {
             L2OAHashFunction::Sha256 => Sha256StateRootTree::<S>::$get_fn(
-                &mut $instance,
+                $instance,
                 &KVQMerkleNodeKey::from_identifier_position_ref(
                     &SHA256_STATE_ROOT_TREE_ID,
                     $checkpoint_id,
@@ -53,7 +53,7 @@ macro_rules! get_state {
                 ),
             ),
             L2OAHashFunction::BLAKE3 => Blake3StateRootTree::<S>::$get_fn(
-                &mut $instance,
+                $instance,
                 &KVQMerkleNodeKey::from_identifier_position_ref(
                     &BLAKE3_STATE_ROOT_TREE_ID,
                     $checkpoint_id,
@@ -61,7 +61,7 @@ macro_rules! get_state {
                 ),
             ),
             L2OAHashFunction::Keccak256 => Keccak256StateRootTree::<S>::$get_fn(
-                &mut $instance,
+                $instance,
                 &KVQMerkleNodeKey::from_identifier_position_ref(
                     &KECCAK256_STATE_ROOT_TREE_ID,
                     $checkpoint_id,
@@ -70,7 +70,7 @@ macro_rules! get_state {
             ),
             L2OAHashFunction::PoseidonGoldilocks => {
                 let p = PoseidonGoldilocksStateRootTree::<S>::$get_fn(
-                    &mut $instance,
+                    $instance,
                     &KVQMerkleNodeKey::from_identifier_position_ref(
                         &POSEIDONGOLDILOCKS_STATE_ROOT_TREE_ID,
                         $checkpoint_id,

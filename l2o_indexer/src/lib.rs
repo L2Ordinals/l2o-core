@@ -8,11 +8,6 @@ use std::sync::Arc;
 use std::thread;
 use std::time::Duration;
 
-use ark_bn254::Bn254;
-use ark_bn254::Fr;
-use ark_groth16::Groth16;
-use ark_serialize::CanonicalSerialize;
-use ark_snark::SNARK;
 use base64::Engine;
 use bitcoin::Block;
 use bitcoin::OutPoint;
@@ -24,10 +19,6 @@ use bitcoincore_rpc::Client;
 use bitcoincore_rpc::RpcApi;
 use bytes::Buf;
 use bytes::Bytes;
-use chainhook_sdk::types::BitcoinBlockMetadata;
-use chainhook_sdk::types::BlockIdentifier;
-use chainhook_sdk::types::OrdinalOperation;
-use chainhook_sdk::types::TransactionIdentifier;
 use http_body_util::BodyExt;
 use http_body_util::Full;
 use hyper::body::Incoming as IncomingBody;
@@ -42,28 +33,13 @@ use hyper_util::rt::TokioIo;
 use jsonrpc_core::types::Request as JsonRpcRequest;
 use jsonrpc_core::types::Response as JsonRpcResponse;
 use jsonrpc_core::Success;
-use l2o_common::common::data::hash::Hash256;
-use l2o_common::common::data::hash::L2OHash;
-use l2o_common::common::data::signature::L2OCompactPublicKey;
-use l2o_common::common::data::signature::L2OSignature512;
 use l2o_common::IndexerArgs;
-use l2o_crypto::hash::hash_functions::blake3::Blake3Hasher;
-use l2o_crypto::hash::hash_functions::keccak256::Keccak256Hasher;
-use l2o_crypto::hash::hash_functions::poseidon_goldilocks::PoseidonHasher;
-use l2o_crypto::hash::hash_functions::sha256::Sha256Hasher;
-use l2o_crypto::proof::groth16::bn128::proof_data::Groth16BN128ProofData;
-use l2o_crypto::proof::groth16::bn128::verifier_data::Groth16BN128VerifierData;
-use l2o_crypto::signature::schnorr::verify_sig;
-use l2o_crypto::standards::l2o_a::proof::L2OAProofData;
 use l2o_macros::quick;
 use l2o_ord::chain::Chain;
-use l2o_ord::hasher::L2OBlockHasher;
 use l2o_ord::height::Height;
-use l2o_ord::operation::l2o_a::deploy::Deploy;
-use l2o_ord::operation::l2o_a::L2OABlockV1;
-use l2o_ord::operation::l2o_a::L2OAInscription;
 use l2o_ord_store::ctx::ChainContext;
 use l2o_ord_store::rtx::Rtx;
+use l2o_ord_store::table::KV;
 use l2o_ord_store::wtx::BlockData;
 use l2o_ord_store::wtx::Wtx;
 use l2o_rpc_provider::rpc;
@@ -72,59 +48,15 @@ use l2o_rpc_provider::rpc::request::RpcRequest;
 use l2o_rpc_provider::rpc::response::ResponseResult;
 use l2o_rpc_provider::rpc::response::RpcResponse;
 use l2o_store::core::store::L2OStoreV1Core;
-use l2o_store::core::traits::L2OStoreV1;
-use l2o_store_rocksdb::KVQRocksDBStore;
+use l2o_store::core::traits::L2OStoreReaderV1;
+use l2o_store_redb::KVQReDBStore;
 use redb::Database;
-use serde::Deserialize;
-use serde::Serialize;
 use serde_json::json;
 use tokio::net::TcpListener;
-use tokio::sync::Mutex;
 
 type BoxBody = http_body_util::combinators::BoxBody<Bytes, hyper::Error>;
 
-pub mod store;
-
 static NOTFOUND: &[u8] = b"Not Found";
-
-#[derive(Debug, Clone, PartialEq, Deserialize, Serialize)]
-pub struct BitcoinTransactionDataV2 {
-    pub transaction_identifier: TransactionIdentifier,
-    /// Transactions that are related to other transactions should include the
-    /// transaction_identifier of these transactions in the metadata.
-    pub metadata: BitcoinTransactionMetadataV2,
-}
-
-/// Extra data for Transaction
-#[derive(Debug, Clone, PartialEq, Deserialize, Serialize)]
-pub struct BitcoinTransactionMetadataV2 {
-    pub ordinal_operations: Vec<OrdinalOperation>,
-    pub proof: Option<String>,
-}
-
-/// BitcoinBlock contain an array of Transactions that occurred at a particular
-/// BlockIdentifier. A hard requirement for blocks returned by Rosetta
-/// implementations is that they MUST be _inalterable_: once a client has
-/// requested and received a block identified by a specific BlockIndentifier,
-/// all future calls for that same BlockIdentifier must return the same block
-/// contents.
-#[derive(Debug, Clone, PartialEq, Deserialize, Serialize)]
-pub struct BitcoinBlockDataV2 {
-    pub block_identifier: BlockIdentifier,
-    pub parent_block_identifier: BlockIdentifier,
-    /// The timestamp of the block in milliseconds since the Unix Epoch. The
-    /// timestamp is stored in milliseconds because some blockchains produce
-    /// blocks more often than once a second.
-    pub timestamp: u32,
-    pub transactions: Vec<BitcoinTransactionDataV2>,
-    pub metadata: BitcoinBlockMetadata,
-}
-
-#[derive(Clone, Debug, Serialize, Deserialize)]
-pub struct BitcoinChainhookOccurrencePayloadV2 {
-    pub apply: Vec<BitcoinBlockDataV2>,
-    pub rollback: Vec<BitcoinBlockDataV2>,
-}
 
 fn full<T: Into<Bytes>>(chunk: T) -> BoxBody {
     Full::new(chunk.into())
@@ -135,7 +67,6 @@ fn full<T: Into<Bytes>>(chunk: T) -> BoxBody {
 pub struct Indexer {
     addr: SocketAddr,
     http: Arc<reqwest::blocking::Client>,
-    kv: Arc<Mutex<L2OStoreV1Core<KVQRocksDBStore>>>,
     db: Arc<Database>,
     bitcoin_rpc_url: &'static str,
     bitcoin_rpc_auth: &'static str,
@@ -147,7 +78,6 @@ impl Clone for Indexer {
         Self {
             addr: self.addr,
             http: Arc::clone(&self.http),
-            kv: Arc::clone(&self.kv),
             db: Arc::clone(&self.db),
             bitcoin_rpc_url: self.bitcoin_rpc_url,
             bitcoin_rpc_auth: self.bitcoin_rpc_auth,
@@ -159,9 +89,6 @@ impl Clone for Indexer {
 impl Indexer {
     pub fn new(args: IndexerArgs) -> anyhow::Result<Self> {
         let addr: SocketAddr = args.addr.parse()?;
-        let kv = Arc::new(Mutex::new(L2OStoreV1Core::new(KVQRocksDBStore::new(
-            &args.db_path,
-        )?)));
         let db = Arc::new(Database::create(&args.redb_path)?);
         let bitcoin_rpc_auth = format!(
             "Basic {}",
@@ -182,7 +109,6 @@ impl Indexer {
         let indexer = Indexer {
             addr,
             http,
-            kv,
             db,
             bitcoin_rpc_url: Box::leak(args.bitcoin_rpc.into_boxed_str()),
             bitcoin_rpc_auth: Box::leak(bitcoin_rpc_auth.into_boxed_str()),
@@ -226,6 +152,7 @@ impl Indexer {
                             chain: Chain::Regtest,
                             blockheight: height.n(),
                             blocktime: block.header.time,
+                            bitcoin_rpc: Arc::clone(&indexerc.bitcoin_rpc),
                         };
 
                         wxn.index_block(chain_ctx, BlockData::from(block), &sender, &receiver)?;
@@ -320,274 +247,21 @@ impl Indexer {
         Ok((outpoint_sender, tx_out_receiver))
     }
 
-    // pub async fn process_brc21_inscription(
-    //     &self,
-    //     _bitcoin_block: &BitcoinBlockDataV2,
-    //     _bitcoin_tx: &BitcoinTransactionDataV2,
-    //     inscription: BRC21Inscription,
-    // ) -> anyhow::Result<()> { match inscription {
-    //   BRC21Inscription::L2Deposit(_l2deposit) => todo!(),
-    //   BRC21Inscription::L2Withdraw(_l2withdraw) => todo!(),
-    //   BRC21Inscription::Transfer(_transfer) => {} } Ok(())
-    // }
-
-    pub async fn process_events(
-        &self,
-        payload: &BitcoinChainhookOccurrencePayloadV2,
-    ) -> anyhow::Result<()> {
-        for block in payload.apply.iter() {
-            for tx in block.transactions.iter() {
-                for ordinal_operation in tx.metadata.ordinal_operations.iter() {
-                    match ordinal_operation {
-                        OrdinalOperation::InscriptionRevealed(revealed) => {
-                            if !revealed.content_type.starts_with("application/json") {
-                                continue;
-                            }
-
-                            let decoded = hex::decode(&revealed.content_bytes[2..])?;
-                            // let inscription =
-                            // serde_json::from_slice::<L2OInscription>(&
-                            // decoded)?;
-                            // match inscription {
-                            // L2OInscription::BRC21(inscription) => {
-                            //     self.process_brc21_inscription(block, tx,
-                            // inscription)
-                            //         .await?
-                            // }
-                            // L2OInscription::L2OA(inscription) => {
-                            //     self.process_l2o_a_inscription(block, tx,
-                            // inscription)
-                            //         .await?;
-                            // }
-                            // L2OInscription::BRC20(inscription) => {
-                            //     self.process_brc20_inscription(block, tx,
-                            // inscription)
-                            //         .await?;
-                            // }
-                            // }
-                        }
-                        OrdinalOperation::InscriptionTransferred(transfer_data) => {
-                            tracing::info!("transfer {:?}", transfer_data);
-                        }
-                    }
-                }
-            }
-        }
-        Ok(())
-    }
-
-    pub async fn process_l2o_a_inscription(
-        &self,
-        _bitcoin_block: &BitcoinBlockDataV2,
-        _bitcoin_tx: &BitcoinTransactionDataV2,
-        inscription: L2OAInscription,
-    ) -> anyhow::Result<()> {
-        match inscription {
-            L2OAInscription::Deploy(deploy) => {
-                let l2id: u64 = deploy.l2id.into();
-                if self.kv.lock().await.has_deployed_l2id(l2id)? {
-                    tracing::debug!("l2o {} already deployed", l2id);
-                    return Ok(());
-                }
-                let verifier_data = if deploy.vk.is_groth_16_verifier_serializable() {
-                    deploy
-                        .vk
-                        .try_as_groth_16_verifier_serializable()
-                        .ok_or(anyhow::anyhow!("marformed verifier"))?
-                        .to_vk()?
-                } else {
-                    anyhow::bail!("unsupported verifier type");
-                };
-                let deploy_inscription = Deploy {
-                    l2id,
-                    public_key: L2OCompactPublicKey::from_hex(&deploy.public_key)?,
-                    start_state_root: Hash256::from_hex(&deploy.start_state_root)?,
-                    hash_function: deploy.hash_function.parse()?,
-                    verifier_data: Groth16BN128VerifierData(verifier_data).into(),
-                };
-                self.kv
-                    .lock()
-                    .await
-                    .report_deploy_inscription(deploy_inscription)?;
-                tracing::info!("l2o {} deployed", deploy.l2id);
-                Ok(())
-            }
-            L2OAInscription::Block(block) => {
-                let l2id: u64 = block.l2id.into();
-                if !self.kv.lock().await.has_deployed_l2id(l2id)? {
-                    tracing::debug!("l2o {} not deployed yet", l2id);
-                    return Ok(());
-                }
-
-                let deploy = self.kv.lock().await.get_deploy_inscription(l2id)?;
-
-                let block_proof = if deploy.verifier_data.is_groth_16_bn_128() {
-                    block
-                        .proof
-                        .try_as_groth_16_proof_serializable()
-                        .ok_or(anyhow::anyhow!("marformed proof"))?
-                        .to_proof_with_public_inputs_groth16_bn254()?
-                } else {
-                    anyhow::bail!("unsupported proof type");
-                };
-
-                let bitcoin_block_hash = self
-                    .bitcoin_rpc
-                    .get_block_hash(block.bitcoin_block_number)?
-                    .to_string()
-                    .trim_start_matches("0x")
-                    .to_string();
-                if bitcoin_block_hash != block.bitcoin_block_hash {
-                    anyhow::bail!("bitcoin block number mismatch");
-                }
-
-                let superchain_root = self.kv.lock().await.get_superchainroot_at_block(
-                    block.bitcoin_block_number,
-                    deploy.hash_function,
-                )?;
-                if superchain_root != Hash256::from_hex(&block.superchain_root)? {
-                    anyhow::bail!("superchain root mismatch");
-                }
-
-                let (start_state_root, end_state_root, start_withdrawal_state_root, public_key) =
-                    if let Ok(last_block) = self.kv.lock().await.get_last_block_inscription(l2id) {
-                        if u64::from(block.block_parameters.block_number)
-                            != last_block.l2_block_number + 1
-                        {
-                            anyhow::bail!("block must be consecutive");
-                        }
-
-                        if block.bitcoin_block_number <= last_block.bitcoin_block_number {
-                            anyhow::bail!("bitcoin block must be bigger than previous");
-                        }
-
-                        (
-                            last_block.end_state_root,
-                            Hash256::from_hex(&block.block_parameters.state_root)?,
-                            last_block.end_withdrawal_state_root,
-                            last_block.public_key,
-                        )
-                    } else {
-                        if block.block_parameters.block_number != 0 {
-                            anyhow::bail!("genesis block number must be zero");
-                        }
-                        if block.block_parameters.state_root != deploy.start_state_root.to_hex() {
-                            anyhow::bail!(
-                                "genesis block state root must be equal to deploy start state root"
-                            );
-                        }
-
-                        (
-                            Hash256::zero(),
-                            deploy.start_state_root,
-                            Hash256::zero(),
-                            deploy.public_key,
-                        )
-                    };
-
-                let block_inscription = L2OABlockV1 {
-                    l2id,
-                    l2_block_number: block.block_parameters.block_number.into(),
-
-                    bitcoin_block_number: block.bitcoin_block_number,
-                    bitcoin_block_hash: Hash256::from_hex(&block.bitcoin_block_hash)?,
-
-                    public_key: L2OCompactPublicKey::from_hex(&block.block_parameters.public_key)?,
-
-                    start_state_root,
-                    end_state_root: end_state_root,
-
-                    deposit_state_root: Hash256::from_hex(&block.block_parameters.deposits_root)?,
-
-                    start_withdrawal_state_root: start_withdrawal_state_root,
-                    end_withdrawal_state_root: Hash256::from_hex(
-                        &block.block_parameters.withdrawals_root,
-                    )?,
-
-                    proof: L2OAProofData::Groth16BN128(Groth16BN128ProofData {
-                        proof: block_proof.proof.clone(),
-                        public_inputs: block_proof.public_inputs.clone(),
-                    }),
-
-                    superchain_root: superchain_root,
-                    signature: L2OSignature512::from_hex(&block.signature)?,
-                };
-
-                let mut uncompressed_bytes = Vec::new();
-                block_proof.serialize_uncompressed(&mut uncompressed_bytes)?;
-
-                let block_hash = if deploy.hash_function.is_sha_256() {
-                    Sha256Hasher::get_l2_block_hash(&block_inscription)
-                } else if deploy.hash_function.is_blake_3() {
-                    Blake3Hasher::get_l2_block_hash(&block_inscription)
-                } else if deploy.hash_function.is_keccak_256() {
-                    Keccak256Hasher::get_l2_block_hash(&block_inscription)
-                } else if deploy.hash_function.is_poseidon_goldilocks() {
-                    PoseidonHasher::get_l2_block_hash(&block_inscription)
-                } else {
-                    anyhow::bail!("unsupported hash function");
-                };
-
-                let public_inputs: [Fr; 2] = block_hash.into();
-                if public_inputs.to_vec() != block_proof.public_inputs {
-                    anyhow::bail!("public inputs mismatch");
-                }
-
-                let vk = deploy
-                    .verifier_data
-                    .try_as_groth_16_bn_128()
-                    .ok_or(anyhow::anyhow!("marformed verifier"))?
-                    .0;
-
-                let processed_vk = Groth16::<Bn254>::process_vk(&vk)?;
-
-                assert!(Groth16::<Bn254>::verify_proof(
-                    &processed_vk,
-                    &block_proof.proof,
-                    &block_proof.public_inputs,
-                )?);
-
-                if !public_key.is_zero() {
-                    verify_sig(&public_key, &block_inscription.signature, &block_hash.0)?;
-                }
-
-                self.kv
-                    .lock()
-                    .await
-                    .set_last_block_inscription(block_inscription)?;
-                tracing::info!("l2id {} block: {}", l2id, block.bitcoin_block_number);
-
-                return Ok(());
-            }
-        }
-    }
-
-    // pub async fn process_brc20_inscription(
-    //     &self,
-    //     _bitcoin_block: &BitcoinBlockDataV2,
-    //     _bitcoin_tx: &BitcoinTransactionDataV2,
-    //     inscription: BRC20Inscription,
-    // ) -> anyhow::Result<()> { match inscription {
-    //   BRC20Inscription::Transfer(transfer) => { tracing::info!("{:?}", transfer);
-    //   } _ => {} } Ok(())
-    // }
-
     pub async fn process_rpc_requests(&self, req: &RpcRequest) -> anyhow::Result<RpcResponse> {
+        let rxn = self.db.begin_read()?;
+        let store = L2OStoreV1Core::new(KVQReDBStore::new(rxn.open_table(KV)?));
         let response = match req.request {
             RequestParams::L2OGetLastBlockInscription(l2id) => {
-                let last_block = self.kv.lock().await.get_last_block_inscription(l2id)?;
+                let last_block = store.get_last_block_inscription(l2id)?;
                 serde_json::to_value(last_block)?
             }
             RequestParams::L2OGetDeployInscription(l2id) => {
-                let deploy_inscription = self.kv.lock().await.get_deploy_inscription(l2id)?;
+                let deploy_inscription = store.get_deploy_inscription(l2id)?;
                 serde_json::to_value(deploy_inscription)?
             }
             RequestParams::L2OGetStateRootAtBlock((l2id, block_number, hash_function)) => {
-                let state_root = self.kv.lock().await.get_state_root_at_block(
-                    l2id,
-                    block_number,
-                    hash_function,
-                )?;
+                let state_root =
+                    store.get_state_root_at_block(l2id, block_number, hash_function)?;
                 serde_json::to_value(state_root)?
             }
             RequestParams::L2OGetMerkleProofStateRootAtBlock((
@@ -595,19 +269,16 @@ impl Indexer {
                 block_number,
                 hash_function,
             )) => {
-                let merkle_proof_state_root = self
-                    .kv
-                    .lock()
-                    .await
-                    .get_merkle_proof_state_root_at_block(l2id, block_number, hash_function)?;
+                let merkle_proof_state_root = store.get_merkle_proof_state_root_at_block(
+                    l2id,
+                    block_number,
+                    hash_function,
+                )?;
                 serde_json::to_value(merkle_proof_state_root)?
             }
             RequestParams::L2OGetSuperchainStateRootAtBlock((block_number, hash_function)) => {
-                let superchain_state_root = self
-                    .kv
-                    .lock()
-                    .await
-                    .get_superchainroot_at_block(block_number, hash_function)?;
+                let superchain_state_root =
+                    store.get_superchainroot_at_block(block_number, hash_function)?;
                 serde_json::to_value(superchain_state_root)?
             }
         };
@@ -616,25 +287,6 @@ impl Indexer {
             id: Some(req.id.clone()),
             result: ResponseResult::Success(response),
         })
-    }
-
-    pub async fn handle_ordinal_events(
-        &self,
-
-        req: Request<IncomingBody>,
-    ) -> anyhow::Result<Response<BoxBody>> {
-        // Aggregate the body...
-        let whole_body = req.collect().await?.aggregate();
-        // Decode as JSON...
-        let data =
-            serde_json::from_reader::<_, BitcoinChainhookOccurrencePayloadV2>(whole_body.reader())?;
-        self.process_events(&data).await?;
-
-        let response = Response::builder()
-            .status(StatusCode::OK)
-            .header(header::CONTENT_TYPE, "application/json")
-            .body(full("ok"))?;
-        Ok(response)
     }
 
     pub async fn handle_rpc_requests(
@@ -655,7 +307,6 @@ impl Indexer {
 
     pub async fn route(&self, req: Request<IncomingBody>) -> anyhow::Result<Response<BoxBody>> {
         match (req.method(), req.uri().path()) {
-            (&Method::POST, "/api/events") => self.handle_ordinal_events(req).await,
             (&Method::POST, "/") => self.handle_rpc_requests(req).await,
             _ => {
                 // Return 404 not found response.

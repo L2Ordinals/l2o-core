@@ -1,4 +1,9 @@
+use std::sync::Arc;
+
+use bitcoincore_rpc::Client;
 use l2o_ord::chain::Chain;
+use l2o_store::core::store::L2OStoreV1Core;
+use l2o_store_redb::KVQReDBStore;
 use redb::MultimapTable;
 use redb::Table;
 
@@ -9,16 +14,18 @@ use crate::entry::OutPointValue;
 use crate::entry::SatPointValue;
 use crate::entry::TxidValue;
 
-#[derive(Debug, Copy, Clone, PartialEq)]
+#[derive(Debug, Clone)]
 pub struct ChainContext {
     pub chain: Chain,
     pub blockheight: u32,
     pub blocktime: u32,
+    pub bitcoin_rpc: Arc<Client>,
 }
 
 pub struct Context<'a, 'db, 'txn> {
     pub chain_ctx: ChainContext,
 
+    pub kv: &'a mut L2OStoreV1Core<KVQReDBStore<Table<'db, 'txn, &'static [u8], &'static [u8]>>>,
     pub height_to_block_header: &'a mut Table<'db, 'txn, u32, &'static HeaderValue>,
     pub height_to_last_sequence_number: &'a mut Table<'db, 'txn, u32, u32>,
 

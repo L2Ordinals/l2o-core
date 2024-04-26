@@ -79,6 +79,15 @@ impl Chain {
             }
     }
 
+    pub fn self_issuance_activation_height(&self) -> u32 {
+        match self {
+            Chain::Mainnet => 837090,  // decided by community
+            Chain::Testnet => 2413343, // decided by the ourselves
+            Chain::Regtest => 0,
+            Chain::Signet => 0,
+        }
+    }
+
     pub fn jubilee_height(self) -> u32 {
         match self {
             Self::Mainnet => 824544,

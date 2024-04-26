@@ -1,29 +1,25 @@
-use std::path::Path;
-
 use kvq::traits::KVQBinaryStore;
+use kvq::traits::KVQBinaryStoreReader;
 use kvq::traits::KVQPair;
-use redb::Database;
 use redb::ReadableTable;
-use redb::TableDefinition;
+use redb::Table;
 
-const TABLE: TableDefinition<&'static [u8], &'static [u8]> = TableDefinition::new("kv");
-
-pub struct KVQReDBStore {
-    db: Database,
+pub struct KVQReDBStore<T> {
+    kv: T,
 }
-impl KVQReDBStore {
-    pub fn new<P: AsRef<Path>>(path: P) -> anyhow::Result<Self> {
-        Ok(Self {
-            db: Database::create(path)?,
-        })
+impl<T> KVQReDBStore<T> {
+    pub fn new(kv: T) -> Self {
+        Self { kv }
     }
 }
 
-impl KVQBinaryStore for KVQReDBStore {
+impl<T> KVQBinaryStoreReader for KVQReDBStore<T>
+where
+    T: ReadableTable<&'static [u8], &'static [u8]>,
+{
     fn get_exact(&self, key: &Vec<u8>) -> anyhow::Result<Vec<u8>> {
-        let rxn = self.db.begin_read()?;
-        let table = rxn.open_table(TABLE)?;
-        let res = table
+        let res = self
+            .kv
             .get(key.as_slice())?
             .ok_or(anyhow::anyhow!("Key not found"))?
             .value()
@@ -40,79 +36,7 @@ impl KVQBinaryStore for KVQReDBStore {
         Ok(result)
     }
 
-    fn set(&mut self, key: Vec<u8>, value: Vec<u8>) -> anyhow::Result<()> {
-        self.set_ref(&key, &value)
-    }
-
-    fn set_ref(&mut self, key: &Vec<u8>, value: &Vec<u8>) -> anyhow::Result<()> {
-        let wxn = self.db.begin_write()?;
-        {
-            let mut table = wxn.open_table(TABLE)?;
-            table.insert(key.as_slice(), value.as_slice())?;
-        }
-        wxn.commit()?;
-        Ok(())
-    }
-
-    fn set_many_ref<'a>(
-        &mut self,
-        items: &[KVQPair<&'a Vec<u8>, &'a Vec<u8>>],
-    ) -> anyhow::Result<()> {
-        let wxn = self.db.begin_write()?;
-        {
-            let mut table = wxn.open_table(TABLE)?;
-            for item in items {
-                table.insert(item.key.as_slice(), item.value.as_slice())?;
-            }
-        }
-        Ok(wxn.commit()?)
-    }
-
-    fn set_many_vec(&mut self, items: Vec<KVQPair<Vec<u8>, Vec<u8>>>) -> anyhow::Result<()> {
-        self.set_many_ref(
-            items
-                .iter()
-                .map(|x| KVQPair {
-                    key: &x.key,
-                    value: &x.value,
-                })
-                .collect::<Vec<_>>()
-                .as_slice(),
-        )
-    }
-
-    fn delete(&mut self, key: &Vec<u8>) -> anyhow::Result<bool> {
-        let wxn = self.db.begin_write()?;
-        let res = {
-            let mut table = wxn.open_table(TABLE)?;
-
-            let res = table.remove(key.as_slice())?.is_some();
-            res
-        };
-
-        wxn.commit()?;
-        Ok(res)
-    }
-
-    fn delete_many(&mut self, keys: &[Vec<u8>]) -> anyhow::Result<Vec<bool>> {
-        let wxn = self.db.begin_write()?;
-        let result = {
-            let mut table = wxn.open_table(TABLE)?;
-
-            let mut result = Vec::with_capacity(keys.len());
-            for key in keys {
-                let r = table.remove(key.as_slice())?;
-                result.push(r.is_some());
-            }
-            result
-        };
-        wxn.commit()?;
-        Ok(result)
-    }
-
     fn get_leq(&self, key: &Vec<u8>, fuzzy_bytes: usize) -> anyhow::Result<Option<Vec<u8>>> {
-        let rxn = self.db.begin_read()?;
-        let table = rxn.open_table(TABLE)?;
         let key_end = key.to_vec();
         let mut base_key = key.to_vec();
         let key_len = base_key.len();
@@ -126,7 +50,8 @@ impl KVQBinaryStore for KVQReDBStore {
             base_key[key_len - i - 1] = 0;
         }
 
-        let rq = table
+        let rq = self
+            .kv
             .range(base_key.as_slice()..key_end.as_slice())?
             .next_back();
 
@@ -141,8 +66,6 @@ impl KVQBinaryStore for KVQReDBStore {
         key: &Vec<u8>,
         fuzzy_bytes: usize,
     ) -> anyhow::Result<Option<KVQPair<Vec<u8>, Vec<u8>>>> {
-        let rxn = self.db.begin_read()?;
-        let table = rxn.open_table(TABLE)?;
         let key_end = key.to_vec();
         let mut base_key = key.to_vec();
         let key_len = base_key.len();
@@ -156,7 +79,8 @@ impl KVQBinaryStore for KVQReDBStore {
             base_key[key_len - i - 1] = 0;
         }
 
-        let rq = table
+        let rq = self
+            .kv
             .range(base_key.as_slice()..key_end.as_slice())?
             .next_back();
 
@@ -193,5 +117,49 @@ impl KVQBinaryStore for KVQReDBStore {
             results.push(r);
         }
         Ok(results)
+    }
+}
+
+impl<'db, 'txn> KVQBinaryStore for KVQReDBStore<Table<'db, 'txn, &'static [u8], &'static [u8]>> {
+    fn set(&mut self, key: Vec<u8>, value: Vec<u8>) -> anyhow::Result<()> {
+        self.set_ref(&key, &value)
+    }
+
+    fn set_ref(&mut self, key: &Vec<u8>, value: &Vec<u8>) -> anyhow::Result<()> {
+        self.kv.insert(key.as_slice(), value.as_slice())?;
+        Ok(())
+    }
+
+    fn set_many_ref(&mut self, items: &[KVQPair<&'_ Vec<u8>, &'_ Vec<u8>>]) -> anyhow::Result<()> {
+        for item in items {
+            self.kv.insert(item.key.as_slice(), item.value.as_slice())?;
+        }
+        Ok(())
+    }
+
+    fn set_many_vec(&mut self, items: Vec<KVQPair<Vec<u8>, Vec<u8>>>) -> anyhow::Result<()> {
+        self.set_many_ref(
+            items
+                .iter()
+                .map(|x| KVQPair {
+                    key: &x.key,
+                    value: &x.value,
+                })
+                .collect::<Vec<_>>()
+                .as_slice(),
+        )
+    }
+
+    fn delete(&mut self, key: &Vec<u8>) -> anyhow::Result<bool> {
+        Ok(self.kv.remove(key.as_slice())?.is_some())
+    }
+
+    fn delete_many(&mut self, keys: &[Vec<u8>]) -> anyhow::Result<Vec<bool>> {
+        let mut result = Vec::with_capacity(keys.len());
+        for key in keys {
+            let r = self.kv.remove(key.as_slice())?;
+            result.push(r.is_some());
+        }
+        Ok(result)
     }
 }

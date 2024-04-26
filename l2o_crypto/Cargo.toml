@@ -8,8 +8,6 @@ version = "0.1.0"
 [dependencies]
 anyhow                = { workspace = true }
 ark-bn254             = { workspace = true }
-ark-crypto-primitives = { workspace = true }
-ark-ec                = { workspace = true }
 ark-groth16           = { workspace = true }
 ark-serialize         = { workspace = true }
 ark-snark             = { workspace = true }
@@ -20,10 +18,8 @@ kvq                   = { path = "../kvq" }
 l2o_common            = { path = "../l2o_common" }
 musig2                = { workspace = true }
 plonky2               = { workspace = true }
-rand_core             = { workspace = true }
 serde                 = { workspace = true }
 serde_json            = { workspace = true }
-serde_with            = { workspace = true }
 sha2                  = { workspace = true }
 sha3                  = { workspace = true }
 strum                 = { workspace = true }

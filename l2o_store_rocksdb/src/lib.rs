@@ -1,6 +1,7 @@
 use std::path::Path;
 
 use kvq::traits::KVQBinaryStore;
+use kvq::traits::KVQBinaryStoreReader;
 use kvq::traits::KVQPair;
 use rocksdb::ErrorKind;
 use rocksdb::TransactionDB;
@@ -16,7 +17,7 @@ impl KVQRocksDBStore {
     }
 }
 
-impl KVQBinaryStore for KVQRocksDBStore {
+impl KVQBinaryStoreReader for KVQRocksDBStore {
     fn get_exact(&self, key: &Vec<u8>) -> anyhow::Result<Vec<u8>> {
         match self.db.get(key)? {
             Some(v) => Ok(v),
@@ -28,52 +29,6 @@ impl KVQBinaryStore for KVQRocksDBStore {
         let mut result = Vec::new();
         for key in keys {
             let r = self.get_exact(key)?;
-            result.push(r);
-        }
-        Ok(result)
-    }
-
-    fn set(&mut self, key: Vec<u8>, value: Vec<u8>) -> anyhow::Result<()> {
-        self.db.put(key, value)?;
-        Ok(())
-    }
-
-    fn set_ref(&mut self, key: &Vec<u8>, value: &Vec<u8>) -> anyhow::Result<()> {
-        self.db.put(key.clone(), value.clone())?;
-        Ok(())
-    }
-
-    fn set_many_ref<'a>(
-        &mut self,
-        items: &[KVQPair<&'a Vec<u8>, &'a Vec<u8>>],
-    ) -> anyhow::Result<()> {
-        let txn = self.db.transaction();
-        for item in items {
-            txn.put(item.key.clone(), item.value.clone())?;
-        }
-        Ok(txn.commit()?)
-    }
-
-    fn set_many_vec(&mut self, items: Vec<KVQPair<Vec<u8>, Vec<u8>>>) -> anyhow::Result<()> {
-        let txn = self.db.transaction();
-        for item in items {
-            txn.put(item.key, item.value)?;
-        }
-        Ok(txn.commit()?)
-    }
-
-    fn delete(&mut self, key: &Vec<u8>) -> anyhow::Result<bool> {
-        match self.db.delete(key) {
-            Ok(_) => Ok(true),
-            Err(e) if e.kind() == ErrorKind::NotFound => Ok(true),
-            Err(e) => anyhow::bail!(e),
-        }
-    }
-
-    fn delete_many(&mut self, keys: &[Vec<u8>]) -> anyhow::Result<Vec<bool>> {
-        let mut result = Vec::with_capacity(keys.len());
-        for key in keys {
-            let r = self.delete(key)?;
             result.push(r);
         }
         Ok(result)
@@ -168,5 +123,53 @@ impl KVQBinaryStore for KVQRocksDBStore {
             results.push(r);
         }
         Ok(results)
+    }
+}
+
+impl KVQBinaryStore for KVQRocksDBStore {
+    fn set(&mut self, key: Vec<u8>, value: Vec<u8>) -> anyhow::Result<()> {
+        self.db.put(key, value)?;
+        Ok(())
+    }
+
+    fn set_ref(&mut self, key: &Vec<u8>, value: &Vec<u8>) -> anyhow::Result<()> {
+        self.db.put(key.clone(), value.clone())?;
+        Ok(())
+    }
+
+    fn set_many_ref<'a>(
+        &mut self,
+        items: &[KVQPair<&'a Vec<u8>, &'a Vec<u8>>],
+    ) -> anyhow::Result<()> {
+        let txn = self.db.transaction();
+        for item in items {
+            txn.put(item.key.clone(), item.value.clone())?;
+        }
+        Ok(txn.commit()?)
+    }
+
+    fn set_many_vec(&mut self, items: Vec<KVQPair<Vec<u8>, Vec<u8>>>) -> anyhow::Result<()> {
+        let txn = self.db.transaction();
+        for item in items {
+            txn.put(item.key, item.value)?;
+        }
+        Ok(txn.commit()?)
+    }
+
+    fn delete(&mut self, key: &Vec<u8>) -> anyhow::Result<bool> {
+        match self.db.delete(key) {
+            Ok(_) => Ok(true),
+            Err(e) if e.kind() == ErrorKind::NotFound => Ok(true),
+            Err(e) => anyhow::bail!(e),
+        }
+    }
+
+    fn delete_many(&mut self, keys: &[Vec<u8>]) -> anyhow::Result<Vec<bool>> {
+        let mut result = Vec::with_capacity(keys.len());
+        for key in keys {
+            let r = self.delete(key)?;
+            result.push(r);
+        }
+        Ok(result)
     }
 }
