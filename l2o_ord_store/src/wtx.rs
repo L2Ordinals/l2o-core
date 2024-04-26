@@ -14,14 +14,11 @@ use bitcoin::OutPoint;
 use bitcoin::Transaction;
 use bitcoin::TxOut;
 use bitcoin::Txid;
-use l2o_ord::error::JSONError;
+use l2o_ord::action::Action;
 use l2o_ord::height::Height;
 use l2o_ord::inscription::envelope::ParsedEnvelope;
 use l2o_ord::inscription::inscription::Inscription;
 use l2o_ord::inscription::inscription_id::InscriptionId;
-use l2o_ord::operation::deserialize_brc20;
-use l2o_ord::operation::Operation;
-use l2o_ord::operation::RawOperation;
 use l2o_ord::rarity::Rarity;
 use l2o_ord::sat::Sat;
 use l2o_ord::sat_point::SatPoint;
@@ -135,67 +132,6 @@ pub struct InscriptionOp {
     pub inscription_id: InscriptionId,
     pub old_satpoint: SatPoint,
     pub new_satpoint: Option<SatPoint>,
-}
-
-// the act of marking an inscription.
-#[allow(clippy::large_enum_variant)]
-#[derive(Debug, Clone, PartialEq, Deserialize, Serialize)]
-pub enum Action {
-    New {
-        cursed: bool,
-        unbound: bool,
-        #[serde(skip)]
-        inscription: Inscription,
-        #[serde(skip)]
-        vindicated: bool,
-        #[serde(skip)]
-        parent: Option<InscriptionId>,
-    },
-    Transfer,
-}
-
-pub fn deserialize_brc20_operation(
-    inscription: &Inscription,
-    action: &Action,
-) -> anyhow::Result<Operation> {
-    let content_body = std::str::from_utf8(inscription.body().ok_or(JSONError::InvalidJson)?)?;
-    if content_body.len() < 40 {
-        return Err(JSONError::NotBRC20Json.into());
-    }
-
-    let content_type = inscription
-        .content_type()
-        .ok_or(JSONError::InvalidContentType)?;
-
-    if content_type != "text/plain"
-        && content_type != "text/plain;charset=utf-8"
-        && content_type != "text/plain;charset=UTF-8"
-        && content_type != "application/json"
-        && !content_type.starts_with("text/plain;")
-    {
-        return Err(JSONError::UnSupportContentType.into());
-    }
-    let raw_operation = match deserialize_brc20(content_body) {
-        Ok(op) => op,
-        Err(e) => {
-            return Err(e.into());
-        }
-    };
-
-    match action {
-        Action::New { parent, .. } => match raw_operation {
-            RawOperation::Deploy(deploy) => Ok(Operation::Deploy(deploy)),
-            RawOperation::Mint(mint) => Ok(Operation::Mint {
-                mint,
-                parent: *parent,
-            }),
-            RawOperation::Transfer(transfer) => Ok(Operation::InscribeTransfer(transfer)),
-        },
-        Action::Transfer => match raw_operation {
-            RawOperation::Transfer(transfer) => Ok(Operation::Transfer(transfer)),
-            _ => Err(JSONError::NotBRC20Json.into()),
-        },
-    }
 }
 
 pub trait Wtx {

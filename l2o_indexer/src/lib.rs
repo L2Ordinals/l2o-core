@@ -46,21 +46,22 @@ use l2o_common::common::data::hash::Hash256;
 use l2o_common::common::data::hash::L2OHash;
 use l2o_common::common::data::signature::L2OCompactPublicKey;
 use l2o_common::common::data::signature::L2OSignature512;
-use l2o_common::standards::l2o_a::actions::deploy::L2OADeployInscription;
 use l2o_common::IndexerArgs;
 use l2o_crypto::hash::hash_functions::blake3::Blake3Hasher;
 use l2o_crypto::hash::hash_functions::keccak256::Keccak256Hasher;
 use l2o_crypto::hash::hash_functions::poseidon_goldilocks::PoseidonHasher;
 use l2o_crypto::hash::hash_functions::sha256::Sha256Hasher;
-use l2o_crypto::hash::traits::L2OBlockHasher;
 use l2o_crypto::proof::groth16::bn128::proof_data::Groth16BN128ProofData;
 use l2o_crypto::proof::groth16::bn128::verifier_data::Groth16BN128VerifierData;
 use l2o_crypto::signature::schnorr::verify_sig;
 use l2o_crypto::standards::l2o_a::proof::L2OAProofData;
-use l2o_crypto::standards::l2o_a::L2OABlockInscriptionV1;
 use l2o_macros::quick;
 use l2o_ord::chain::Chain;
+use l2o_ord::hasher::L2OBlockHasher;
 use l2o_ord::height::Height;
+use l2o_ord::operation::l2o_a::deploy::L2OADeployInscription;
+use l2o_ord::operation::l2o_a::L2OABlockInscriptionV1;
+use l2o_ord::operation::l2o_a::L2OAInscription;
 use l2o_ord_store::ctx::ChainContext;
 use l2o_ord_store::rtx::Rtx;
 use l2o_ord_store::wtx::BlockData;
@@ -77,18 +78,11 @@ use redb::Database;
 use serde::Deserialize;
 use serde::Serialize;
 use serde_json::json;
-use standards::l2o_a::inscription::L2OAInscription;
 use tokio::net::TcpListener;
 use tokio::sync::Mutex;
 
-use crate::standards::brc20::inscription::BRC20Inscription;
-use crate::standards::brc21::inscription::BRC21Inscription;
-use crate::standards::L2OInscription;
-
 type BoxBody = http_body_util::combinators::BoxBody<Bytes, hyper::Error>;
 
-pub mod processor;
-pub mod standards;
 pub mod store;
 
 static NOTFOUND: &[u8] = b"Not Found";
@@ -326,19 +320,16 @@ impl Indexer {
         Ok((outpoint_sender, tx_out_receiver))
     }
 
-    pub async fn process_brc21_inscription(
-        &self,
-        _bitcoin_block: &BitcoinBlockDataV2,
-        _bitcoin_tx: &BitcoinTransactionDataV2,
-        inscription: BRC21Inscription,
-    ) -> anyhow::Result<()> {
-        match inscription {
-            BRC21Inscription::L2Deposit(_l2deposit) => todo!(),
-            BRC21Inscription::L2Withdraw(_l2withdraw) => todo!(),
-            BRC21Inscription::Transfer(_transfer) => {}
-        }
-        Ok(())
-    }
+    // pub async fn process_brc21_inscription(
+    //     &self,
+    //     _bitcoin_block: &BitcoinBlockDataV2,
+    //     _bitcoin_tx: &BitcoinTransactionDataV2,
+    //     inscription: BRC21Inscription,
+    // ) -> anyhow::Result<()> { match inscription {
+    //   BRC21Inscription::L2Deposit(_l2deposit) => todo!(),
+    //   BRC21Inscription::L2Withdraw(_l2withdraw) => todo!(),
+    //   BRC21Inscription::Transfer(_transfer) => {} } Ok(())
+    // }
 
     pub async fn process_events(
         &self,
@@ -354,21 +345,26 @@ impl Indexer {
                             }
 
                             let decoded = hex::decode(&revealed.content_bytes[2..])?;
-                            let inscription = serde_json::from_slice::<L2OInscription>(&decoded)?;
-                            match inscription {
-                                L2OInscription::BRC21(inscription) => {
-                                    self.process_brc21_inscription(block, tx, inscription)
-                                        .await?
-                                }
-                                L2OInscription::L2OA(inscription) => {
-                                    self.process_l2o_a_inscription(block, tx, inscription)
-                                        .await?;
-                                }
-                                L2OInscription::BRC20(inscription) => {
-                                    self.process_brc20_inscription(block, tx, inscription)
-                                        .await?;
-                                }
-                            }
+                            // let inscription =
+                            // serde_json::from_slice::<L2OInscription>(&
+                            // decoded)?;
+                            // match inscription {
+                            // L2OInscription::BRC21(inscription) => {
+                            //     self.process_brc21_inscription(block, tx,
+                            // inscription)
+                            //         .await?
+                            // }
+                            // L2OInscription::L2OA(inscription) => {
+                            //     self.process_l2o_a_inscription(block, tx,
+                            // inscription)
+                            //         .await?;
+                            // }
+                            // L2OInscription::BRC20(inscription) => {
+                            //     self.process_brc20_inscription(block, tx,
+                            // inscription)
+                            //         .await?;
+                            // }
+                            // }
                         }
                         OrdinalOperation::InscriptionTransferred(transfer_data) => {
                             tracing::info!("transfer {:?}", transfer_data);
@@ -403,8 +399,6 @@ impl Indexer {
                     anyhow::bail!("unsupported verifier type");
                 };
                 let deploy_inscription = L2OADeployInscription {
-                    p: "l2o-a".to_string(),
-                    op: "Deploy".to_string(),
                     l2id,
                     public_key: L2OCompactPublicKey::from_hex(&deploy.public_key)?,
                     start_state_root: Hash256::from_hex(&deploy.start_state_root)?,
@@ -492,9 +486,6 @@ impl Indexer {
                     };
 
                 let block_inscription = L2OABlockInscriptionV1 {
-                    p: "l2o-a".to_string(),
-                    op: "Block".to_string(),
-
                     l2id,
                     l2_block_number: block.block_parameters.block_number.into(),
 
@@ -571,20 +562,15 @@ impl Indexer {
         }
     }
 
-    pub async fn process_brc20_inscription(
-        &self,
-        _bitcoin_block: &BitcoinBlockDataV2,
-        _bitcoin_tx: &BitcoinTransactionDataV2,
-        inscription: BRC20Inscription,
-    ) -> anyhow::Result<()> {
-        match inscription {
-            BRC20Inscription::Transfer(transfer) => {
-                tracing::info!("{:?}", transfer);
-            }
-            _ => {}
-        }
-        Ok(())
-    }
+    // pub async fn process_brc20_inscription(
+    //     &self,
+    //     _bitcoin_block: &BitcoinBlockDataV2,
+    //     _bitcoin_tx: &BitcoinTransactionDataV2,
+    //     inscription: BRC20Inscription,
+    // ) -> anyhow::Result<()> { match inscription {
+    //   BRC20Inscription::Transfer(transfer) => { tracing::info!("{:?}", transfer);
+    //   } _ => {} } Ok(())
+    // }
 
     pub async fn process_rpc_requests(&self, req: &RpcRequest) -> anyhow::Result<RpcResponse> {
         let response = match req.request {

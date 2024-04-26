@@ -335,13 +335,13 @@ mod tests {
     use ciborium::Value;
 
     use super::*;
+    use crate::test_helpers::decode_inscription;
     use crate::test_helpers::envelope;
-    use crate::test_helpers::inscription;
 
     #[test]
     fn reveal_script_chunks_body() {
         assert_eq!(
-            inscription("foo", [])
+            decode_inscription("foo", [])
                 .append_reveal_script(script::Builder::new())
                 .instructions()
                 .count(),
@@ -349,7 +349,7 @@ mod tests {
         );
 
         assert_eq!(
-            inscription("foo", [0; 1])
+            decode_inscription("foo", [0; 1])
                 .append_reveal_script(script::Builder::new())
                 .instructions()
                 .count(),
@@ -357,7 +357,7 @@ mod tests {
         );
 
         assert_eq!(
-            inscription("foo", [0; 520])
+            decode_inscription("foo", [0; 520])
                 .append_reveal_script(script::Builder::new())
                 .instructions()
                 .count(),
@@ -365,7 +365,7 @@ mod tests {
         );
 
         assert_eq!(
-            inscription("foo", [0; 521])
+            decode_inscription("foo", [0; 521])
                 .append_reveal_script(script::Builder::new())
                 .instructions()
                 .count(),
@@ -373,7 +373,7 @@ mod tests {
         );
 
         assert_eq!(
-            inscription("foo", [0; 1040])
+            decode_inscription("foo", [0; 1040])
                 .append_reveal_script(script::Builder::new())
                 .instructions()
                 .count(),
@@ -381,7 +381,7 @@ mod tests {
         );
 
         assert_eq!(
-            inscription("foo", [0; 1041])
+            decode_inscription("foo", [0; 1041])
                 .append_reveal_script(script::Builder::new())
                 .instructions()
                 .count(),

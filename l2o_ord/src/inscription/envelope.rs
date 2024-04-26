@@ -269,8 +269,8 @@ mod tests {
     use bitcoin::Witness;
 
     use super::*;
+    use crate::test_helpers::decode_inscription;
     use crate::test_helpers::envelope;
-    use crate::test_helpers::inscription;
 
     fn parse(witnesses: &[Witness]) -> Vec<ParsedEnvelope> {
         ParsedEnvelope::from_transaction(&Transaction {
@@ -403,7 +403,7 @@ mod tests {
                 b"ord",
             ])]),
             vec![ParsedEnvelope {
-                payload: inscription("text/plain;charset=utf-8", "ord"),
+                payload: decode_inscription("text/plain;charset=utf-8", "ord"),
                 ..Default::default()
             }]
         );
@@ -424,7 +424,7 @@ mod tests {
             vec![ParsedEnvelope {
                 payload: Inscription {
                     content_encoding: Some("br".as_bytes().to_vec()),
-                    ..inscription("text/plain;charset=utf-8", "ord")
+                    ..decode_inscription("text/plain;charset=utf-8", "ord")
                 },
                 ..Default::default()
             }]
@@ -444,7 +444,7 @@ mod tests {
                 b"ord",
             ])]),
             vec![ParsedEnvelope {
-                payload: inscription("text/plain;charset=utf-8", "ord"),
+                payload: decode_inscription("text/plain;charset=utf-8", "ord"),
                 ..Default::default()
             }]
         );
@@ -494,7 +494,7 @@ mod tests {
                 b"bar"
             ])]),
             vec![ParsedEnvelope {
-                payload: inscription("text/plain;charset=utf-8", "foobar"),
+                payload: decode_inscription("text/plain;charset=utf-8", "foobar"),
                 ..Default::default()
             }],
         );
@@ -510,7 +510,7 @@ mod tests {
                 &[]
             ])]),
             vec![ParsedEnvelope {
-                payload: inscription("text/plain;charset=utf-8", ""),
+                payload: decode_inscription("text/plain;charset=utf-8", ""),
                 ..Default::default()
             }]
         );
@@ -531,7 +531,7 @@ mod tests {
                 &[],
             ])]),
             vec![ParsedEnvelope {
-                payload: inscription("text/plain;charset=utf-8", ""),
+                payload: decode_inscription("text/plain;charset=utf-8", ""),
                 ..Default::default()
             }],
         );
@@ -554,7 +554,7 @@ mod tests {
         assert_eq!(
             parse(&[Witness::from_slice(&[script.into_bytes(), Vec::new()])]),
             vec![ParsedEnvelope {
-                payload: inscription("text/plain;charset=utf-8", "ord"),
+                payload: decode_inscription("text/plain;charset=utf-8", "ord"),
                 ..Default::default()
             }],
         );
@@ -577,7 +577,7 @@ mod tests {
         assert_eq!(
             parse(&[Witness::from_slice(&[script.into_bytes(), Vec::new()])]),
             vec![ParsedEnvelope {
-                payload: inscription("text/plain;charset=utf-8", "ord"),
+                payload: decode_inscription("text/plain;charset=utf-8", "ord"),
                 ..Default::default()
             }],
         );
@@ -608,11 +608,11 @@ mod tests {
             parse(&[Witness::from_slice(&[script.into_bytes(), Vec::new()])]),
             vec![
                 ParsedEnvelope {
-                    payload: inscription("text/plain;charset=utf-8", "foo"),
+                    payload: decode_inscription("text/plain;charset=utf-8", "foo"),
                     ..Default::default()
                 },
                 ParsedEnvelope {
-                    payload: inscription("text/plain;charset=utf-8", "bar"),
+                    payload: decode_inscription("text/plain;charset=utf-8", "bar"),
                     offset: 1,
                     ..Default::default()
                 },
@@ -631,7 +631,7 @@ mod tests {
                 &[0b10000000]
             ])]),
             vec![ParsedEnvelope {
-                payload: inscription("text/plain;charset=utf-8", [0b10000000]),
+                payload: decode_inscription("text/plain;charset=utf-8", [0b10000000]),
                 ..Default::default()
             },],
         );
@@ -686,7 +686,7 @@ mod tests {
                 b"ord"
             ])]),
             vec![ParsedEnvelope {
-                payload: inscription("text/plain;charset=utf-8", "ord"),
+                payload: decode_inscription("text/plain;charset=utf-8", "ord"),
                 ..Default::default()
             }],
         );
@@ -695,9 +695,12 @@ mod tests {
     #[test]
     fn extract_from_second_input() {
         assert_eq!(
-            parse(&[Witness::new(), inscription("foo", [1; 1040]).to_witness()]),
+            parse(&[
+                Witness::new(),
+                decode_inscription("foo", [1; 1040]).to_witness()
+            ]),
             vec![ParsedEnvelope {
-                payload: inscription("foo", [1; 1040]),
+                payload: decode_inscription("foo", [1; 1040]),
                 input: 1,
                 ..Default::default()
             }]
@@ -707,8 +710,8 @@ mod tests {
     #[test]
     fn extract_from_second_envelope() {
         let mut builder = script::Builder::new();
-        builder = inscription("foo", [1; 100]).append_reveal_script_to_builder(builder);
-        builder = inscription("bar", [1; 100]).append_reveal_script_to_builder(builder);
+        builder = decode_inscription("foo", [1; 100]).append_reveal_script_to_builder(builder);
+        builder = decode_inscription("bar", [1; 100]).append_reveal_script_to_builder(builder);
 
         assert_eq!(
             parse(&[Witness::from_slice(&[
@@ -717,11 +720,11 @@ mod tests {
             ])]),
             vec![
                 ParsedEnvelope {
-                    payload: inscription("foo", [1; 100]),
+                    payload: decode_inscription("foo", [1; 100]),
                     ..Default::default()
                 },
                 ParsedEnvelope {
-                    payload: inscription("bar", [1; 100]),
+                    payload: decode_inscription("bar", [1; 100]),
                     offset: 1,
                     ..Default::default()
                 }
@@ -740,7 +743,7 @@ mod tests {
                 &[1; 100]
             ])]),
             vec![ParsedEnvelope {
-                payload: inscription("image/png", [1; 100]),
+                payload: decode_inscription("image/png", [1; 100]),
                 ..Default::default()
             }]
         );
@@ -750,14 +753,16 @@ mod tests {
     fn chunked_data_is_parsable() {
         let mut witness = Witness::new();
 
-        witness.push(&inscription("foo", [1; 1040]).append_reveal_script(script::Builder::new()));
+        witness.push(
+            &decode_inscription("foo", [1; 1040]).append_reveal_script(script::Builder::new()),
+        );
 
         witness.push([]);
 
         assert_eq!(
             parse(&[witness]),
             vec![ParsedEnvelope {
-                payload: inscription("foo", [1; 1040]),
+                payload: decode_inscription("foo", [1; 1040]),
                 ..Default::default()
             }]
         );

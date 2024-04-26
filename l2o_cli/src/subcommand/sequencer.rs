@@ -14,19 +14,19 @@ use k256::schnorr::SigningKey;
 use l2o_common::common::data::hash::Hash256;
 use l2o_common::common::data::signature::L2OCompactPublicKey;
 use l2o_common::common::data::signature::L2OSignature512;
-use l2o_common::standards::l2o_a::supported_crypto::L2OAHashFunction;
 use l2o_common::InitializerArgs;
 use l2o_common::SequencerArgs;
-use l2o_crypto::hash::hash_functions::block_hasher::get_block_payload_bytes;
 use l2o_crypto::hash::hash_functions::sha256::Sha256Hasher;
-use l2o_crypto::hash::traits::L2OBlockHasher;
 use l2o_crypto::proof::groth16::bn128::proof_data::Groth16BN128ProofData;
 use l2o_crypto::proof::groth16::bn128::proof_data::Groth16ProofSerializable;
 use l2o_crypto::signature::schnorr::sign_msg;
 use l2o_crypto::standards::l2o_a::proof::L2OAProofData;
-use l2o_crypto::standards::l2o_a::L2OABlockInscriptionV1;
-use l2o_indexer::standards::l2o_a::inscription::L2OAInscriptionBlock;
-use l2o_indexer::standards::l2o_a::inscription::L2OAInscriptionBlockParameters;
+use l2o_ord::hasher::get_block_payload_bytes;
+use l2o_ord::hasher::L2OBlockHasher;
+use l2o_ord::operation::l2o_a::L2OABlockInscriptionV1;
+use l2o_ord::operation::l2o_a::L2OAHashFunction;
+use l2o_ord::operation::l2o_a::L2OAInscriptionBlock;
+use l2o_ord::operation::l2o_a::L2OAInscriptionBlockParameters;
 use l2o_rpc_provider::L2OAProvider;
 use l2o_rpc_provider::Provider;
 use serde_json::json;
@@ -77,9 +77,6 @@ async fn execute_single(
         .to_proof_with_public_inputs_groth16_bn254()?;
 
     let mut block_inscription = L2OABlockInscriptionV1 {
-        p: "l2o-a".to_string(),
-        op: "Block".to_string(),
-
         l2id: block.l2id.into(),
         l2_block_number: block.block_parameters.block_number.into(),
 

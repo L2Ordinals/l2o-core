@@ -1,15 +1,16 @@
 use std::collections::HashMap;
 
+use l2o_ord::action::deserialize_operation;
+use l2o_ord::action::Action;
 use l2o_ord::error::Error;
-use l2o_ord::operation::transfer::Transfer;
+use l2o_ord::operation::brc20::transfer::Transfer;
+use l2o_ord::operation::brc20::BRC20Operation;
 use l2o_ord::operation::Operation;
 
 use crate::entry::Entry;
 use crate::entry::SatPointValue;
 use crate::executor::Message;
 use crate::log::TransferableLog;
-use crate::wtx::deserialize_brc20_operation;
-use crate::wtx::Action;
 use crate::wtx::InscriptionOp;
 
 impl Message {
@@ -32,8 +33,7 @@ impl Message {
                 inscription,
                 ..
             } if sat_in_outputs => {
-                let Ok(brc20_opteration) = deserialize_brc20_operation(inscription, &op.action)
-                else {
+                let Ok(brc20_opteration) = deserialize_operation(&inscription, &op.action) else {
                     return Ok(None);
                 };
                 brc20_opteration
@@ -51,10 +51,10 @@ impl Message {
                 if transfer_info.inscription_id != op.inscription_id {
                     return Ok(None);
                 }
-                Operation::Transfer(Transfer {
+                Operation::BRC20(BRC20Operation::Transfer(Transfer {
                     tick: transfer_info.tick.as_str().to_string(),
                     amount: transfer_info.amount.to_string(),
-                })
+                }))
             }
             _ => return Ok(None),
         };
@@ -80,7 +80,8 @@ mod tests {
     use l2o_ord::assert_matches;
     use l2o_ord::inscription::inscription::Inscription;
     use l2o_ord::inscription::inscription_id::InscriptionId;
-    use l2o_ord::operation::deploy::Deploy;
+    use l2o_ord::operation::brc20::deploy::Deploy;
+    use l2o_ord::operation::brc20::transfer::Transfer;
     use l2o_ord::sat_point::SatPoint;
 
     use super::*;
@@ -232,13 +233,13 @@ mod tests {
             inscription_id: op.inscription_id,
             old_satpoint: op.old_satpoint,
             new_satpoint: op.new_satpoint,
-            op: Operation::Deploy(Deploy {
+            op: Operation::BRC20(BRC20Operation::Deploy(Deploy {
                 tick: "ordi".to_string(),
                 max_supply: "1000".to_string(),
                 mint_limit: Some("10".to_string()),
                 decimals: None,
                 self_mint: None,
-            }),
+            })),
             sat_in_outputs: true,
         };
         assert_matches!(
@@ -299,10 +300,10 @@ mod tests {
             inscription_id: op.inscription_id,
             old_satpoint: op.old_satpoint,
             new_satpoint: op.new_satpoint,
-            op: Operation::Transfer(Transfer {
+            op: Operation::BRC20(BRC20Operation::Transfer(Transfer {
                 tick: "ordi".to_string(),
                 amount: "100".to_string(),
-            }),
+            })),
             sat_in_outputs: true,
         };
 

@@ -1,18 +1,9 @@
 use kvq::traits::KVQSerializable;
+use l2o_common::common::data::hash::Hash256;
+use l2o_common::common::data::signature::L2OCompactPublicKey;
+use l2o_common::common::data::signature::L2OSignature512;
 use serde::Deserialize;
 use serde::Serialize;
-
-use crate::common::data::hash::Hash256;
-use crate::common::data::signature::L2OCompactPublicKey;
-use crate::common::data::signature::L2OSignature512;
-
-fn default_p() -> String {
-    "l2o-a".to_string()
-}
-
-fn default_op() -> String {
-    "Block".to_string()
-}
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(bound = "Proof: Serialize, for<'de2> Proof: Deserialize<'de2>")]
@@ -21,11 +12,6 @@ where
     Proof: Serialize,
     for<'de2> Proof: Deserialize<'de2>,
 {
-    #[serde(default = "default_p")]
-    pub p: String,
-    #[serde(default = "default_op")]
-    pub op: String,
-
     pub l2id: u64,
     pub l2_block_number: u64,
 

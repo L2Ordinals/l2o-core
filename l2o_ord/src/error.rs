@@ -5,7 +5,7 @@ use serde::Serialize;
 use crate::inscription::inscription_id::InscriptionId;
 
 #[derive(Debug, Clone, PartialEq, thiserror::Error, Deserialize, Serialize)]
-pub enum BRC20Error {
+pub enum BRC2XError {
     #[error("invalid number: {0}")]
     InvalidNum(String),
 
@@ -80,8 +80,8 @@ pub enum BRC20Error {
 #[allow(clippy::enum_variant_names)]
 #[derive(Debug, thiserror::Error)]
 pub enum Error {
-    #[error("brc20 error: {0}")]
-    BRC20Error(BRC20Error),
+    #[error("brc2x error: {0}")]
+    BRC2XError(BRC2XError),
 
     #[error("ledger error: {0}")]
     LedgerError(anyhow::Error),
@@ -101,16 +101,16 @@ pub enum JSONError {
     #[error("invalid json string")]
     InvalidJson,
 
-    #[error("not brc20 json")]
-    NotBRC20Json,
+    #[error("not brc2x json")]
+    NotBRC2XJson,
 
     #[error("parse operation json error: {0}")]
     ParseOperationJsonError(String),
 }
 
-impl From<BRC20Error> for Error {
-    fn from(e: BRC20Error) -> Self {
-        Self::BRC20Error(e)
+impl From<BRC2XError> for Error {
+    fn from(e: BRC2XError) -> Self {
+        Self::BRC2XError(e)
     }
 }
 

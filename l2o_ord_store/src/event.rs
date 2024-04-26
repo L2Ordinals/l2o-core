@@ -1,4 +1,4 @@
-use l2o_ord::error::BRC20Error;
+use l2o_ord::error::BRC2XError;
 use l2o_ord::inscription::inscription_id::InscriptionId;
 use l2o_ord::operation::OperationType;
 use l2o_ord::sat_point::SatPoint;
@@ -17,7 +17,7 @@ pub struct Receipt {
     pub op: OperationType,
     pub from: ScriptKey,
     pub to: ScriptKey,
-    pub result: Result<Event, BRC20Error>,
+    pub result: Result<Event, BRC2XError>,
 }
 
 #[derive(Debug, Clone, PartialEq, Deserialize, Serialize)]
@@ -81,7 +81,7 @@ mod tests {
                 "2111111111111111111111111111111111111111111111111111111111111111:1:1",
             )
             .unwrap(),
-            op: OperationType::Deploy,
+            op: OperationType::BRC20Deploy,
             from: ScriptKey::from_address(
                 Address::from_str("bc1qhvd6suvqzjcu9pxjhrwhtrlj85ny3n2mqql5w4")
                     .unwrap()
@@ -92,7 +92,7 @@ mod tests {
                     .unwrap()
                     .assume_checked(),
             ),
-            result: Err(BRC20Error::InvalidTickLen("abcde".to_string())),
+            result: Err(BRC2XError::InvalidTickLen("abcde".to_string())),
         };
         println!("{}", serde_json::to_string_pretty(&action_receipt).unwrap());
         assert_eq!(

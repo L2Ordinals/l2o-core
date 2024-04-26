@@ -4,12 +4,19 @@ use bigdecimal::num_bigint::Sign;
 use bitcoin::Txid;
 use l2o_ord::chain::Chain;
 use l2o_ord::decimal::Decimal;
-use l2o_ord::error::BRC20Error;
+use l2o_ord::error::BRC2XError;
 use l2o_ord::error::Error;
 use l2o_ord::inscription::inscription_id::InscriptionId;
-use l2o_ord::operation::deploy::Deploy;
-use l2o_ord::operation::mint::Mint;
-use l2o_ord::operation::transfer::Transfer;
+use l2o_ord::operation::brc20::deploy::Deploy;
+use l2o_ord::operation::brc20::mint::Mint;
+use l2o_ord::operation::brc20::transfer::Transfer;
+use l2o_ord::operation::brc20::BRC20Operation;
+use l2o_ord::operation::brc21::l2deposit::L2Deposit;
+use l2o_ord::operation::brc21::l2withdraw::L2Withdraw;
+use l2o_ord::operation::brc21::BRC21Operation;
+use l2o_ord::operation::l2o_a::block::L2OABlockInscription;
+use l2o_ord::operation::l2o_a::deploy::L2OADeployInscription;
+use l2o_ord::operation::l2o_a::L2OAOperation;
 use l2o_ord::operation::Operation;
 use l2o_ord::sat_point::SatPoint;
 use l2o_ord::BIGDECIMAL_TEN;
@@ -83,19 +90,44 @@ impl ExecutionMessage {
 
     pub fn execute(context: &mut Context, msg: &ExecutionMessage) -> anyhow::Result<Receipt> {
         tracing::debug!(
-            "BRC20 execute message:
+            "execute message:
             {:?}",
             msg
         );
         let event = match &msg.op {
-            Operation::Deploy(deploy) => Self::process_deploy(context, msg, deploy.clone()),
-            Operation::Mint { mint, parent } => {
+            Operation::BRC20(BRC20Operation::Deploy(deploy)) => {
+                Self::process_deploy(context, msg, deploy.clone())
+            }
+            Operation::BRC20(BRC20Operation::Mint { mint, parent }) => {
                 Self::process_mint(context, msg, mint.clone(), *parent)
             }
-            Operation::InscribeTransfer(transfer) => {
+            Operation::BRC20(BRC20Operation::InscribeTransfer(transfer)) => {
                 Self::process_inscribe_transfer(context, msg, transfer.clone())
             }
-            Operation::Transfer(_) => Self::process_transfer(context, msg),
+            Operation::BRC20(BRC20Operation::Transfer(_)) => Self::process_transfer(context, msg),
+            Operation::BRC21(BRC21Operation::Deploy(deploy)) => {
+                Self::process_deploy(context, msg, deploy.clone())
+            }
+            Operation::BRC21(BRC21Operation::Mint { mint, parent }) => {
+                Self::process_mint(context, msg, mint.clone(), *parent)
+            }
+            Operation::BRC21(BRC21Operation::InscribeTransfer(transfer)) => {
+                Self::process_inscribe_transfer(context, msg, transfer.clone())
+            }
+            Operation::BRC21(BRC21Operation::Transfer(_)) => Self::process_transfer(context, msg),
+            Operation::BRC21(BRC21Operation::L2Deposit(l2deposit)) => {
+                Self::process_l2_deposit(context, msg, l2deposit.clone())
+            }
+            Operation::BRC21(BRC21Operation::L2Withdraw(l2withdraw)) => {
+                Self::process_l2_withdraw(context, msg, l2withdraw.clone())
+            }
+            Operation::L2OA(L2OAOperation::Deploy(deploy)) => {
+                Self::process_l2o_a_deploy(context, msg, deploy.clone())
+            }
+            Operation::L2OA(L2OAOperation::Block(block)) => {
+                Self::process_l2o_a_block(context, msg, block.clone())
+            }
+            _ => unreachable!(),
         };
 
         let receipt = Receipt {
@@ -109,12 +141,12 @@ impl ExecutionMessage {
             op: msg.op.op_type(),
             result: match event {
                 Ok(event) => Ok(event),
-                Err(Error::BRC20Error(e)) => Err(e),
-                Err(e) => return Err(anyhow::anyhow!("BRC20 execute exception: {e}")),
+                Err(Error::BRC2XError(e)) => Err(e),
+                Err(e) => return Err(anyhow::anyhow!("execute exception: {e}")),
             },
         };
 
-        tracing::debug!("BRC20 message receipt: {:?}", receipt);
+        tracing::debug!("message receipt: {:?}", receipt);
         Ok(receipt)
     }
 
@@ -124,7 +156,7 @@ impl ExecutionMessage {
         deploy: Deploy,
     ) -> Result<Event, Error> {
         // ignore inscribe inscription to coinbase. let
-        let to_script_key = msg.to.clone().ok_or(BRC20Error::InscribeToCoinbase)?;
+        let to_script_key = msg.to.clone().ok_or(BRC2XError::InscribeToCoinbase)?;
 
         let tick = deploy.tick.parse::<Tick>()?;
         let mut max_supply = deploy.max_supply.clone();
@@ -136,10 +168,10 @@ impl ExecutionMessage {
             if context.chain_ctx.blockheight < 111111
             // TODO: fix this
             {
-                return Err(Error::BRC20Error(BRC20Error::SelfIssuanceNotActivated));
+                return Err(Error::BRC2XError(BRC2XError::SelfIssuanceNotActivated));
             }
             if !deploy.self_mint.unwrap_or_default() {
-                return Err(Error::BRC20Error(BRC20Error::SelfIssuanceCheckedFailed));
+                return Err(Error::BRC2XError(BRC2XError::SelfIssuanceCheckedFailed));
             }
             if deploy.max_supply == u64::MIN.to_string() {
                 max_supply = u64::MAX.to_string();
@@ -148,7 +180,7 @@ impl ExecutionMessage {
         }
 
         if let Some(stored_tick_info) = context.get_token_info(&tick).map_err(Error::LedgerError)? {
-            return Err(Error::BRC20Error(BRC20Error::DuplicateTick(
+            return Err(Error::BRC2XError(BRC2XError::DuplicateTick(
                 stored_tick_info.tick.to_string(),
             )));
         }
@@ -156,7 +188,7 @@ impl ExecutionMessage {
         let dec = Decimal::from_str(&deploy.decimals.map_or(MAX_DECIMAL_WIDTH.to_string(), |v| v))?
             .checked_to_u8()?;
         if dec > MAX_DECIMAL_WIDTH {
-            return Err(Error::BRC20Error(BRC20Error::DecimalsTooLarge(dec)));
+            return Err(Error::BRC2XError(BRC2XError::DecimalsTooLarge(dec)));
         }
         let base = BIGDECIMAL_TEN.checked_powu(u64::from(dec))?;
 
@@ -166,7 +198,7 @@ impl ExecutionMessage {
             || supply > MAXIMUM_SUPPLY.to_owned()
             || supply.scale() > i64::from(dec)
         {
-            return Err(Error::BRC20Error(BRC20Error::InvalidSupply(
+            return Err(Error::BRC2XError(BRC2XError::InvalidSupply(
                 supply.to_string(),
             )));
         }
@@ -177,7 +209,7 @@ impl ExecutionMessage {
             || limit > MAXIMUM_SUPPLY.to_owned()
             || limit.scale() > i64::from(dec)
         {
-            return Err(Error::BRC20Error(BRC20Error::MintLimitOutOfRange(
+            return Err(Error::BRC2XError(BRC2XError::MintLimitOutOfRange(
                 tick.to_lowercase().to_string(),
                 limit.to_string(),
             )));
@@ -221,20 +253,20 @@ impl ExecutionMessage {
         parent: Option<InscriptionId>,
     ) -> Result<Event, Error> {
         // ignore inscribe inscription to coinbase. let
-        let to_script_key = msg.to.clone().ok_or(BRC20Error::InscribeToCoinbase)?;
+        let to_script_key = msg.to.clone().ok_or(BRC2XError::InscribeToCoinbase)?;
 
         let tick = mint.tick.parse::<Tick>()?;
 
         let tick_info = context
             .get_token_info(&tick)
             .map_err(Error::LedgerError)?
-            .ok_or(BRC20Error::TickNotFound(tick.to_string()))?;
+            .ok_or(BRC2XError::TickNotFound(tick.to_string()))?;
 
         // check if self mint is allowed.
         if tick_info.is_self_mint
             && !parent.is_some_and(|parent| parent == tick_info.inscription_id)
         {
-            return Err(Error::BRC20Error(BRC20Error::SelfMintPermissionDenied));
+            return Err(Error::BRC2XError(BRC2XError::SelfMintPermissionDenied));
         }
 
         let base = BIGDECIMAL_TEN.checked_powu(u64::from(tick_info.decimal))?;
@@ -242,17 +274,17 @@ impl ExecutionMessage {
         let mut amt = Decimal::from_str(&mint.amount)?;
 
         if amt.scale() > i64::from(tick_info.decimal) {
-            return Err(Error::BRC20Error(BRC20Error::AmountOverflow(
+            return Err(Error::BRC2XError(BRC2XError::AmountOverflow(
                 amt.to_string(),
             )));
         }
 
         amt = amt.checked_mul(&base)?;
         if amt.sign() == Sign::NoSign {
-            return Err(Error::BRC20Error(BRC20Error::InvalidZeroAmount));
+            return Err(Error::BRC2XError(BRC2XError::InvalidZeroAmount));
         }
         if amt > Into::<Decimal>::into(tick_info.limit_per_mint) {
-            return Err(Error::BRC20Error(BRC20Error::AmountExceedLimit(
+            return Err(Error::BRC2XError(BRC2XError::AmountExceedLimit(
                 amt.to_string(),
             )));
         }
@@ -260,7 +292,7 @@ impl ExecutionMessage {
         let supply = Into::<Decimal>::into(tick_info.supply);
 
         if minted >= supply {
-            return Err(Error::BRC20Error(BRC20Error::TickMinted(
+            return Err(Error::BRC2XError(BRC2XError::TickMinted(
                 tick_info.tick.to_string(),
             )));
         }
@@ -313,28 +345,28 @@ impl ExecutionMessage {
         transfer: Transfer,
     ) -> Result<Event, Error> {
         // ignore inscribe inscription to coinbase. let
-        let to_script_key = msg.to.clone().ok_or(BRC20Error::InscribeToCoinbase)?;
+        let to_script_key = msg.to.clone().ok_or(BRC2XError::InscribeToCoinbase)?;
 
         let tick = transfer.tick.parse::<Tick>()?;
 
         let token_info = context
             .get_token_info(&tick)
             .map_err(Error::LedgerError)?
-            .ok_or(BRC20Error::TickNotFound(tick.to_string()))?;
+            .ok_or(BRC2XError::TickNotFound(tick.to_string()))?;
 
         let base = BIGDECIMAL_TEN.checked_powu(u64::from(token_info.decimal))?;
 
         let mut amt = Decimal::from_str(&transfer.amount)?;
 
         if amt.scale() > i64::from(token_info.decimal) {
-            return Err(Error::BRC20Error(BRC20Error::AmountOverflow(
+            return Err(Error::BRC2XError(BRC2XError::AmountOverflow(
                 amt.to_string(),
             )));
         }
 
         amt = amt.checked_mul(&base)?;
         if amt.sign() == Sign::NoSign || amt > Into::<Decimal>::into(token_info.supply) {
-            return Err(Error::BRC20Error(BRC20Error::AmountOverflow(
+            return Err(Error::BRC2XError(BRC2XError::AmountOverflow(
                 amt.to_string(),
             )));
         }
@@ -348,7 +380,7 @@ impl ExecutionMessage {
         let transferable = Into::<Decimal>::into(balance.transferable_balance);
         let available = overall.checked_sub(&transferable)?;
         if available < amt {
-            return Err(Error::BRC20Error(BRC20Error::InsufficientBalance(
+            return Err(Error::BRC2XError(BRC2XError::InsufficientBalance(
                 available.to_string(),
                 amt.to_string(),
             )));
@@ -383,12 +415,12 @@ impl ExecutionMessage {
         let transferable = context
             .get_transferable_assets_by_satpoint(&msg.old_satpoint)
             .map_err(Error::LedgerError)?
-            .ok_or(BRC20Error::TransferableNotFound(msg.inscription_id))?;
+            .ok_or(BRC2XError::TransferableNotFound(msg.inscription_id))?;
 
         let amt = Into::<Decimal>::into(transferable.amount);
 
         if transferable.owner != msg.from {
-            return Err(Error::BRC20Error(BRC20Error::TransferableOwnerNotMatch(
+            return Err(Error::BRC2XError(BRC2XError::TransferableOwnerNotMatch(
                 msg.inscription_id,
             )));
         }
@@ -398,7 +430,7 @@ impl ExecutionMessage {
         let token_info = context
             .get_token_info(&tick)
             .map_err(Error::LedgerError)?
-            .ok_or(BRC20Error::TickNotFound(tick.to_string()))?;
+            .ok_or(BRC2XError::TickNotFound(tick.to_string()))?;
 
         // update from key balance.
         let mut from_balance = context
@@ -472,5 +504,37 @@ impl ExecutionMessage {
             tick: token_info.tick,
             amount: amt.checked_to_u128()?,
         }))
+    }
+
+    fn process_l2_deposit(
+        context: &mut Context,
+        msg: &ExecutionMessage,
+        l2deposit: L2Deposit,
+    ) -> Result<Event, Error> {
+        todo!()
+    }
+
+    fn process_l2_withdraw(
+        context: &mut Context,
+        msg: &ExecutionMessage,
+        l2withdraw: L2Withdraw<serde_json::Value>,
+    ) -> Result<Event, Error> {
+        todo!()
+    }
+
+    fn process_l2o_a_deploy(
+        context: &mut Context,
+        msg: &ExecutionMessage,
+        deploy: L2OADeployInscription<serde_json::Value>,
+    ) -> Result<Event, Error> {
+        todo!()
+    }
+
+    fn process_l2o_a_block(
+        context: &mut Context,
+        msg: &ExecutionMessage,
+        block: L2OABlockInscription<serde_json::Value>,
+    ) -> Result<Event, Error> {
+        todo!()
     }
 }

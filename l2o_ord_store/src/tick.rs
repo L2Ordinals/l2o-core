@@ -2,7 +2,7 @@ use std::fmt::Display;
 use std::fmt::Formatter;
 use std::str::FromStr;
 
-use l2o_ord::error::BRC20Error;
+use l2o_ord::error::BRC2XError;
 use l2o_ord::MAX_TICK_BYTE_COUNT;
 use l2o_ord::ORIGINAL_TICK_LENGTH;
 use l2o_ord::SELF_ISSUANCE_TICK_LENGTH;
@@ -16,13 +16,13 @@ use serde::Serializer;
 pub struct Tick(Box<[u8]>);
 
 impl FromStr for Tick {
-    type Err = BRC20Error;
+    type Err = BRC2XError;
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         let bytes = s.as_bytes();
 
         if bytes.len() < ORIGINAL_TICK_LENGTH || bytes.len() > SELF_ISSUANCE_TICK_LENGTH {
-            return Err(BRC20Error::InvalidTickLen(s.to_string()));
+            return Err(BRC2XError::InvalidTickLen(s.to_string()));
         }
 
         Ok(Self(bytes.into()))

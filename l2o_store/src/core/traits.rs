@@ -1,8 +1,8 @@
 use l2o_common::common::data::hash::Hash256;
-use l2o_common::standards::l2o_a::supported_crypto::L2OAHashFunction;
 use l2o_crypto::hash::merkle::core::MerkleProofCore;
-use l2o_crypto::standards::l2o_a::L2OABlockInscriptionV1;
-use l2o_crypto::standards::l2o_a::L2OADeployInscriptionV1;
+use l2o_ord::operation::l2o_a::L2OABlockInscriptionV1;
+use l2o_ord::operation::l2o_a::L2OADeployInscriptionV1;
+use l2o_ord::operation::l2o_a::L2OAHashFunction;
 
 pub trait L2OStoreV1 {
     fn has_deployed_l2id(&mut self, l2id: u64) -> anyhow::Result<bool>;

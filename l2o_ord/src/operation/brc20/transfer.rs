@@ -31,7 +31,7 @@ mod tests {
         assert_eq!(
             deserialize_brc20(r#"{"p":"brc-20","op":"transfer","tick":"abcd","amt":"12000"}"#)
                 .unwrap(),
-            RawOperation::Transfer(Transfer {
+            RawBRC20Operation::Transfer(Transfer {
                 tick: "abcd".to_string(),
                 amount: "12000".to_string()
             })
@@ -51,7 +51,7 @@ mod tests {
         let json_str = r#"{"p":"brc-20","op":"transfer","tick":"smol","amt":"100","tick":"hhaa","amt":"200","tick":"actt"}"#;
         assert_eq!(
             deserialize_brc20(json_str).unwrap(),
-            RawOperation::Transfer(Transfer {
+            RawBRC20Operation::Transfer(Transfer {
                 tick: "actt".to_string(),
                 amount: "200".to_string(),
             })

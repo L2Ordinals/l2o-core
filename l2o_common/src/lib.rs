@@ -2,7 +2,6 @@ pub mod cli;
 pub mod common;
 pub mod error;
 pub mod logger;
-pub mod standards;
 
 use std::str::FromStr;
 

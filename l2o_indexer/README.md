@@ -1,3 +1,3 @@
-# L2O Indexer Ordhook
+# L2O Indexer
 
 Indexer for L2Ordinals

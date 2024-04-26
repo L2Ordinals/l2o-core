@@ -1,4 +1,4 @@
-use l2o_common::standards::l2o_a::supported_crypto::L2OAHashFunction;
+use l2o_ord::operation::l2o_a::L2OAHashFunction;
 use serde::Deserialize;
 use serde::Serialize;
 
