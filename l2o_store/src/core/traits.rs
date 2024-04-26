@@ -1,7 +1,7 @@
 use l2o_common::common::data::hash::Hash256;
 use l2o_crypto::hash::merkle::core::MerkleProofCore;
-use l2o_ord::operation::l2o_a::L2OABlockInscriptionV1;
-use l2o_ord::operation::l2o_a::L2OADeployInscriptionV1;
+use l2o_ord::operation::l2o_a::L2OABlockV1;
+use l2o_ord::operation::l2o_a::L2OADeployV1;
 use l2o_ord::operation::l2o_a::L2OAHashFunction;
 
 pub trait L2OStoreV1 {
@@ -14,8 +14,8 @@ pub trait L2OStoreV1 {
         to: String,
         amount: u64,
     ) -> anyhow::Result<()>;
-    fn get_deploy_inscription(&mut self, l2id: u64) -> anyhow::Result<L2OADeployInscriptionV1>;
-    fn get_last_block_inscription(&mut self, l2id: u64) -> anyhow::Result<L2OABlockInscriptionV1>;
+    fn get_deploy_inscription(&mut self, l2id: u64) -> anyhow::Result<L2OADeployV1>;
+    fn get_last_block_inscription(&mut self, l2id: u64) -> anyhow::Result<L2OABlockV1>;
     fn get_state_root_at_block(
         &mut self,
         l2id: u64,
@@ -33,9 +33,6 @@ pub trait L2OStoreV1 {
         block_number: u64,
         hash: L2OAHashFunction,
     ) -> anyhow::Result<MerkleProofCore<Hash256>>;
-    fn report_deploy_inscription(
-        &mut self,
-        deployment: L2OADeployInscriptionV1,
-    ) -> anyhow::Result<()>;
-    fn set_last_block_inscription(&mut self, block: L2OABlockInscriptionV1) -> anyhow::Result<()>;
+    fn report_deploy_inscription(&mut self, deployment: L2OADeployV1) -> anyhow::Result<()>;
+    fn set_last_block_inscription(&mut self, block: L2OABlockV1) -> anyhow::Result<()>;
 }

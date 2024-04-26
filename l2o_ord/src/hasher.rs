@@ -15,35 +15,35 @@ use plonky2::hash::hash_types::HashOut;
 use plonky2::hash::poseidon::PoseidonHash;
 use plonky2::plonk::config::Hasher;
 
-use crate::operation::l2o_a::L2OABlockInscriptionV1;
+use crate::operation::l2o_a::L2OABlockV1;
 
 pub trait L2OBlockHasher {
-    fn get_l2_block_hash(block: &L2OABlockInscriptionV1) -> Hash256;
+    fn get_l2_block_hash(block: &L2OABlockV1) -> Hash256;
 }
 
 impl L2OBlockHasher for Blake3Hasher {
-    fn get_l2_block_hash(block: &L2OABlockInscriptionV1) -> Hash256 {
+    fn get_l2_block_hash(block: &L2OABlockV1) -> Hash256 {
         let payload = get_block_payload_bytes(block);
         blake3::hash(&payload)
     }
 }
 
 impl L2OBlockHasher for Keccak256Hasher {
-    fn get_l2_block_hash(block: &L2OABlockInscriptionV1) -> Hash256 {
+    fn get_l2_block_hash(block: &L2OABlockV1) -> Hash256 {
         let payload = get_block_payload_bytes(block);
         keccak256::hash(&payload)
     }
 }
 
 impl L2OBlockHasher for Sha256Hasher {
-    fn get_l2_block_hash(block: &L2OABlockInscriptionV1) -> Hash256 {
+    fn get_l2_block_hash(block: &L2OABlockV1) -> Hash256 {
         let payload = get_block_payload_bytes(block);
         sha256::hash(&payload)
     }
 }
 
 impl L2OBlockHasher for PoseidonHasher {
-    fn get_l2_block_hash(block: &L2OABlockInscriptionV1) -> Hash256 {
+    fn get_l2_block_hash(block: &L2OABlockV1) -> Hash256 {
         let payload_a = HashOut {
             elements: [
                 GoldilocksField::from_canonical_u64(block.l2id),
@@ -82,9 +82,7 @@ impl L2OBlockHasher for PoseidonHasher {
     }
 }
 
-pub fn get_block_payload_goldilocks_hash_u32_mode(
-    block: &L2OABlockInscriptionV1,
-) -> Vec<GoldilocksField> {
+pub fn get_block_payload_goldilocks_hash_u32_mode(block: &L2OABlockV1) -> Vec<GoldilocksField> {
     let mut payload_bytes: Vec<GoldilocksField> = Vec::new();
     payload_bytes.push(GoldilocksField::from_canonical_u64(block.l2id));
     payload_bytes.push(GoldilocksField::from_noncanonical_u64(
@@ -111,7 +109,7 @@ pub fn get_block_payload_goldilocks_hash_u32_mode(
     payload_bytes
 }
 
-pub fn get_block_payload_bytes(block: &L2OABlockInscriptionV1) -> Vec<u8> {
+pub fn get_block_payload_bytes(block: &L2OABlockV1) -> Vec<u8> {
     let mut payload_bytes: Vec<u8> = Vec::new();
     payload_bytes.extend_from_slice(&block.l2id.to_le_bytes());
     payload_bytes.extend_from_slice(&block.l2_block_number.to_le_bytes());

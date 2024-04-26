@@ -8,7 +8,7 @@ use crate::operation::l2o_a::L2OAHashFunction;
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(bound = "V: Serialize, for<'de2> V: Deserialize<'de2>")]
-pub struct L2OADeployInscription<V>
+pub struct Deploy<V>
 where
     V: Serialize,
     for<'de2> V: Deserialize<'de2>,
@@ -24,7 +24,7 @@ where
     pub verifier_data: V,
 }
 
-impl<V: Serialize + Clone + PartialEq> KVQSerializable for L2OADeployInscription<V>
+impl<V: Serialize + Clone + PartialEq> KVQSerializable for Deploy<V>
 where
     for<'de2> V: Deserialize<'de2>,
 {

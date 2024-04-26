@@ -1,3 +1,4 @@
+use l2o_crypto::hash::merkle::core::MerkleProofHash256;
 use serde::Deserialize;
 use serde::Serialize;
 use serde_json::json;
@@ -15,6 +16,8 @@ use crate::BRC21_PROTOCOL_LITERAL;
 pub mod l2deposit;
 pub mod l2withdraw;
 
+pub type L2WithdrawV1 = L2Withdraw<MerkleProofHash256>;
+
 #[derive(Debug, Clone, PartialEq)]
 pub enum BRC21Operation {
     Deploy(Deploy),
@@ -25,7 +28,7 @@ pub enum BRC21Operation {
     InscribeTransfer(Transfer),
     Transfer(Transfer),
     L2Deposit(L2Deposit),
-    L2Withdraw(L2Withdraw<serde_json::Value>),
+    L2Withdraw(L2WithdrawV1),
 }
 
 #[derive(Debug, PartialEq, Clone, Deserialize, Serialize)]
@@ -40,7 +43,7 @@ pub enum RawBRC21Operation {
     #[serde(rename = "l2deposit")]
     L2Deposit(L2Deposit),
     #[serde(rename = "l2withdraw")]
-    L2Withdraw(L2Withdraw<serde_json::Value>),
+    L2Withdraw(L2WithdrawV1),
 }
 
 pub fn deserialize_brc21(s: &str) -> Result<RawBRC21Operation, JSONError> {

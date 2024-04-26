@@ -28,7 +28,7 @@ pub struct SequencerArgs {
     #[clap(env, long, default_value = "devnet", env)]
     pub bitcoin_rpcpassword: String,
     #[clap(short, env, long, default_value = "1", env)]
-    pub l2oid: u64,
+    pub l2id: u64,
 }
 
 #[derive(Clone, Args)]
@@ -43,5 +43,5 @@ pub struct InitializerArgs {
     #[clap(env, long, default_value = "devnet", env)]
     pub bitcoin_rpcpassword: String,
     #[clap(short, env, long, default_value = "1", env)]
-    pub l2oid: u64,
+    pub l2id: u64,
 }

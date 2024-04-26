@@ -22,7 +22,7 @@ where
     pub siblings: Vec<Hash>,
 }
 
-pub type MerkleProofCommonHash256 = MerkleProofCore<Hash256>;
+pub type MerkleProofHash256 = MerkleProofCore<Hash256>;
 
 impl From<&MerkleProofCore<HashOut<GoldilocksField>>> for MerkleProofCore<Hash256> {
     fn from(proof: &MerkleProofCore<HashOut<GoldilocksField>>) -> MerkleProofCore<Hash256> {

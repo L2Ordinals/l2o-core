@@ -26,6 +26,11 @@ use crate::table::BRC20_BALANCES;
 use crate::table::BRC20_EVENTS;
 use crate::table::BRC20_SATPOINT_TO_TRANSFERABLE_ASSETS;
 use crate::table::BRC20_TOKEN;
+use crate::table::BRC21_ADDRESS_TICKER_TO_TRANSFERABLE_ASSETS;
+use crate::table::BRC21_BALANCES;
+use crate::table::BRC21_EVENTS;
+use crate::table::BRC21_SATPOINT_TO_TRANSFERABLE_ASSETS;
+use crate::table::BRC21_TOKEN;
 use crate::table::HEIGHT_TO_BLOCK_HEADER;
 use crate::table::OUTPOINT_TO_ENTRY;
 use crate::tick::Tick;
@@ -62,6 +67,34 @@ pub trait Rtx {
         script_key: ScriptKey,
     ) -> anyhow::Result<Vec<(SatPoint, TransferableLog)>>;
     fn brc20_transferable_assets_on_output_with_satpoints(
+        &self,
+        outpoint: OutPoint,
+    ) -> anyhow::Result<Vec<(SatPoint, TransferableLog)>>;
+    fn brc21_get_tick_info(&self, name: &Tick) -> anyhow::Result<Option<TokenInfo>>;
+    fn brc21_get_all_tick_info(&self) -> anyhow::Result<Vec<TokenInfo>>;
+    fn brc21_get_balance_by_address(
+        &self,
+        tick: &Tick,
+        script_key: ScriptKey,
+    ) -> anyhow::Result<Option<Balance>>;
+    fn brc21_get_all_balance_by_address(
+        &self,
+        script_key: ScriptKey,
+    ) -> anyhow::Result<Vec<Balance>>;
+    fn brc21_transaction_id_to_transaction_receipt(
+        &self,
+        txid: Txid,
+    ) -> anyhow::Result<Option<Vec<Receipt>>>;
+    fn brc21_get_tick_transferable_by_address(
+        &self,
+        tick: &Tick,
+        script_key: ScriptKey,
+    ) -> anyhow::Result<Vec<(SatPoint, TransferableLog)>>;
+    fn brc21_get_all_transferable_by_address(
+        &self,
+        script_key: ScriptKey,
+    ) -> anyhow::Result<Vec<(SatPoint, TransferableLog)>>;
+    fn brc21_transferable_assets_on_output_with_satpoints(
         &self,
         outpoint: OutPoint,
     ) -> anyhow::Result<Vec<(SatPoint, TransferableLog)>>;
@@ -186,6 +219,75 @@ impl<'a> Rtx for redb::ReadTransaction<'a> {
         outpoint: OutPoint,
     ) -> anyhow::Result<Vec<(SatPoint, TransferableLog)>> {
         let satpoint_to_sequence_number = self.open_table(BRC20_SATPOINT_TO_TRANSFERABLE_ASSETS)?;
+        get_transferable_assets_by_outpoint(&satpoint_to_sequence_number, outpoint)
+    }
+
+    fn brc21_get_tick_info(&self, name: &Tick) -> anyhow::Result<Option<TokenInfo>> {
+        let table = self.open_table(BRC21_TOKEN)?;
+        get_token_info(&table, name)
+    }
+
+    fn brc21_get_all_tick_info(&self) -> anyhow::Result<Vec<TokenInfo>> {
+        let table = self.open_table(BRC21_TOKEN)?;
+        get_tokens_info(&table)
+    }
+
+    fn brc21_get_balance_by_address(
+        &self,
+        tick: &Tick,
+        script_key: ScriptKey,
+    ) -> anyhow::Result<Option<Balance>> {
+        let table = self.open_table(BRC21_BALANCES)?;
+        get_balance(&table, &script_key, tick)
+    }
+
+    fn brc21_get_all_balance_by_address(
+        &self,
+        script_key: ScriptKey,
+    ) -> anyhow::Result<Vec<Balance>> {
+        let table = self.open_table(BRC21_BALANCES)?;
+        get_balances(&table, &script_key)
+    }
+
+    fn brc21_transaction_id_to_transaction_receipt(
+        &self,
+        txid: Txid,
+    ) -> anyhow::Result<Option<Vec<Receipt>>> {
+        let table = self.open_table(BRC21_EVENTS)?;
+        get_transaction_receipts(&table, &txid)
+    }
+
+    fn brc21_get_tick_transferable_by_address(
+        &self,
+        tick: &Tick,
+        script_key: ScriptKey,
+    ) -> anyhow::Result<Vec<(SatPoint, TransferableLog)>> {
+        let address_table =
+            self.open_multimap_table(BRC21_ADDRESS_TICKER_TO_TRANSFERABLE_ASSETS)?;
+        let satpoint_table = self.open_table(BRC21_SATPOINT_TO_TRANSFERABLE_ASSETS)?;
+        get_transferable_assets_by_account_ticker(
+            &address_table,
+            &satpoint_table,
+            &script_key,
+            tick,
+        )
+    }
+
+    fn brc21_get_all_transferable_by_address(
+        &self,
+        script_key: ScriptKey,
+    ) -> anyhow::Result<Vec<(SatPoint, TransferableLog)>> {
+        let address_table =
+            self.open_multimap_table(BRC21_ADDRESS_TICKER_TO_TRANSFERABLE_ASSETS)?;
+        let satpoint_table = self.open_table(BRC21_SATPOINT_TO_TRANSFERABLE_ASSETS)?;
+        get_transferable_assets_by_account(&address_table, &satpoint_table, &script_key)
+    }
+
+    fn brc21_transferable_assets_on_output_with_satpoints(
+        &self,
+        outpoint: OutPoint,
+    ) -> anyhow::Result<Vec<(SatPoint, TransferableLog)>> {
+        let satpoint_to_sequence_number = self.open_table(BRC21_SATPOINT_TO_TRANSFERABLE_ASSETS)?;
         get_transferable_assets_by_outpoint(&satpoint_to_sequence_number, outpoint)
     }
 }

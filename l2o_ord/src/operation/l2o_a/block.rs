@@ -7,7 +7,7 @@ use serde::Serialize;
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(bound = "Proof: Serialize, for<'de2> Proof: Deserialize<'de2>")]
-pub struct L2OABlockInscription<Proof>
+pub struct Block<Proof>
 where
     Proof: Serialize,
     for<'de2> Proof: Deserialize<'de2>,
@@ -36,7 +36,7 @@ where
     pub signature: L2OSignature512,
 }
 
-impl<V: Serialize + Clone + PartialEq> KVQSerializable for L2OABlockInscription<V>
+impl<V: Serialize + Clone + PartialEq> KVQSerializable for Block<V>
 where
     for<'de2> V: Deserialize<'de2>,
 {

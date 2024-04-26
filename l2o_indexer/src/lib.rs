@@ -59,8 +59,8 @@ use l2o_macros::quick;
 use l2o_ord::chain::Chain;
 use l2o_ord::hasher::L2OBlockHasher;
 use l2o_ord::height::Height;
-use l2o_ord::operation::l2o_a::deploy::L2OADeployInscription;
-use l2o_ord::operation::l2o_a::L2OABlockInscriptionV1;
+use l2o_ord::operation::l2o_a::deploy::Deploy;
+use l2o_ord::operation::l2o_a::L2OABlockV1;
 use l2o_ord::operation::l2o_a::L2OAInscription;
 use l2o_ord_store::ctx::ChainContext;
 use l2o_ord_store::rtx::Rtx;
@@ -398,7 +398,7 @@ impl Indexer {
                 } else {
                     anyhow::bail!("unsupported verifier type");
                 };
-                let deploy_inscription = L2OADeployInscription {
+                let deploy_inscription = Deploy {
                     l2id,
                     public_key: L2OCompactPublicKey::from_hex(&deploy.public_key)?,
                     start_state_root: Hash256::from_hex(&deploy.start_state_root)?,
@@ -485,7 +485,7 @@ impl Indexer {
                         )
                     };
 
-                let block_inscription = L2OABlockInscriptionV1 {
+                let block_inscription = L2OABlockV1 {
                     l2id,
                     l2_block_number: block.block_parameters.block_number.into(),
 
@@ -574,24 +574,24 @@ impl Indexer {
 
     pub async fn process_rpc_requests(&self, req: &RpcRequest) -> anyhow::Result<RpcResponse> {
         let response = match req.request {
-            RequestParams::L2OGetLastBlockInscription(l2oid) => {
-                let last_block = self.kv.lock().await.get_last_block_inscription(l2oid)?;
+            RequestParams::L2OGetLastBlockInscription(l2id) => {
+                let last_block = self.kv.lock().await.get_last_block_inscription(l2id)?;
                 serde_json::to_value(last_block)?
             }
-            RequestParams::L2OGetDeployInscription(l2oid) => {
-                let deploy_inscription = self.kv.lock().await.get_deploy_inscription(l2oid)?;
+            RequestParams::L2OGetDeployInscription(l2id) => {
+                let deploy_inscription = self.kv.lock().await.get_deploy_inscription(l2id)?;
                 serde_json::to_value(deploy_inscription)?
             }
-            RequestParams::L2OGetStateRootAtBlock((l2oid, block_number, hash_function)) => {
+            RequestParams::L2OGetStateRootAtBlock((l2id, block_number, hash_function)) => {
                 let state_root = self.kv.lock().await.get_state_root_at_block(
-                    l2oid,
+                    l2id,
                     block_number,
                     hash_function,
                 )?;
                 serde_json::to_value(state_root)?
             }
             RequestParams::L2OGetMerkleProofStateRootAtBlock((
-                l2oid,
+                l2id,
                 block_number,
                 hash_function,
             )) => {
@@ -599,7 +599,7 @@ impl Indexer {
                     .kv
                     .lock()
                     .await
-                    .get_merkle_proof_state_root_at_block(l2oid, block_number, hash_function)?;
+                    .get_merkle_proof_state_root_at_block(l2id, block_number, hash_function)?;
                 serde_json::to_value(merkle_proof_state_root)?
             }
             RequestParams::L2OGetSuperchainStateRootAtBlock((block_number, hash_function)) => {

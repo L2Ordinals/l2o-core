@@ -17,8 +17,8 @@ use l2o_crypto::hash::merkle::store::model::KVQMerkleTreeModel;
 use l2o_crypto::hash::traits::L2OHash;
 use l2o_macros::get_state;
 use l2o_macros::set_state;
-use l2o_ord::operation::l2o_a::L2OABlockInscriptionV1;
-use l2o_ord::operation::l2o_a::L2OADeployInscriptionV1;
+use l2o_ord::operation::l2o_a::L2OABlockV1;
+use l2o_ord::operation::l2o_a::L2OADeployV1;
 use l2o_ord::operation::l2o_a::L2OAHashFunction;
 
 use super::tables::L2ODeploymentsKey;
@@ -91,15 +91,15 @@ impl<S: KVQBinaryStore> L2OStoreV1Core<S> {
     }
 }
 impl<S: KVQBinaryStore> L2OStoreV1 for L2OStoreV1Core<S> {
-    fn get_deploy_inscription(&mut self, l2id: u64) -> anyhow::Result<L2OADeployInscriptionV1> {
-        KVQStandardAdapter::<S, L2ODeploymentsKey, L2OADeployInscriptionV1>::get_exact(
+    fn get_deploy_inscription(&mut self, l2id: u64) -> anyhow::Result<L2OADeployV1> {
+        KVQStandardAdapter::<S, L2ODeploymentsKey, L2OADeployV1>::get_exact(
             &self.store,
             &L2ODeploymentsKey::new(l2id),
         )
     }
 
-    fn get_last_block_inscription(&mut self, l2id: u64) -> anyhow::Result<L2OABlockInscriptionV1> {
-        KVQStandardAdapter::<S, L2OLatestBlockKey, L2OABlockInscriptionV1>::get_exact(
+    fn get_last_block_inscription(&mut self, l2id: u64) -> anyhow::Result<L2OABlockV1> {
+        KVQStandardAdapter::<S, L2OLatestBlockKey, L2OABlockV1>::get_exact(
             &self.store,
             &L2OLatestBlockKey::new(l2id),
         )
@@ -158,11 +158,8 @@ impl<S: KVQBinaryStore> L2OStoreV1 for L2OStoreV1Core<S> {
         )
     }
 
-    fn report_deploy_inscription(
-        &mut self,
-        deployment: L2OADeployInscriptionV1,
-    ) -> anyhow::Result<()> {
-        KVQStandardAdapter::<S, L2ODeploymentsKey, L2OADeployInscriptionV1>::set(
+    fn report_deploy_inscription(&mut self, deployment: L2OADeployV1) -> anyhow::Result<()> {
+        KVQStandardAdapter::<S, L2ODeploymentsKey, L2OADeployV1>::set(
             &mut self.store,
             L2ODeploymentsKey::new(deployment.l2id),
             deployment,
@@ -170,12 +167,12 @@ impl<S: KVQBinaryStore> L2OStoreV1 for L2OStoreV1Core<S> {
         Ok(())
     }
 
-    fn set_last_block_inscription(&mut self, block: L2OABlockInscriptionV1) -> anyhow::Result<()> {
+    fn set_last_block_inscription(&mut self, block: L2OABlockV1) -> anyhow::Result<()> {
         let end_state_root = block.end_state_root;
         let checkpoint_id = block.bitcoin_block_number;
         let pos = KVQTreeNodePosition::new(TREE_HEIGHT, block.l2id);
 
-        KVQStandardAdapter::<S, L2OLatestBlockKey, L2OABlockInscriptionV1>::set(
+        KVQStandardAdapter::<S, L2OLatestBlockKey, L2OABlockV1>::set(
             &mut self.store,
             L2OLatestBlockKey::new(block.l2id),
             block,
@@ -187,7 +184,7 @@ impl<S: KVQBinaryStore> L2OStoreV1 for L2OStoreV1Core<S> {
     }
 
     fn has_deployed_l2id(&mut self, l2id: u64) -> anyhow::Result<bool> {
-        let r = KVQStandardAdapter::<S, L2ODeploymentsKey, L2OADeployInscriptionV1>::get_exact(
+        let r = KVQStandardAdapter::<S, L2ODeploymentsKey, L2OADeployV1>::get_exact(
             &mut self.store,
             &L2ODeploymentsKey::new(l2id),
         );

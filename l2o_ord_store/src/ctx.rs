@@ -44,4 +44,13 @@ pub struct Context<'a, 'db, 'txn> {
         &'a mut Table<'db, 'txn, &'static SatPointValue, &'static [u8]>,
     pub brc20_address_ticker_to_transferable_assets:
         &'a mut MultimapTable<'db, 'txn, &'static str, &'static SatPointValue>,
+
+    // BRC21 tables
+    pub brc21_balances: &'a mut Table<'db, 'txn, &'static str, &'static [u8]>,
+    pub brc21_token: &'a mut Table<'db, 'txn, &'static str, &'static [u8]>,
+    pub brc21_events: &'a mut Table<'db, 'txn, &'static TxidValue, &'static [u8]>,
+    pub brc21_satpoint_to_transferable_assets:
+        &'a mut Table<'db, 'txn, &'static SatPointValue, &'static [u8]>,
+    pub brc21_address_ticker_to_transferable_assets:
+        &'a mut MultimapTable<'db, 'txn, &'static str, &'static SatPointValue>,
 }

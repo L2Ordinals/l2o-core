@@ -26,6 +26,8 @@ pub enum Event {
     Mint(MintEvent),
     InscribeTransfer(InscribeTransferEvent),
     Transfer(TransferEvent),
+    L2Deposit(L2DepositEvent),
+    L2Withdraw(L2WithdrawEvent),
 }
 
 #[derive(Debug, Clone, PartialEq, Deserialize, Serialize)]
@@ -55,6 +57,22 @@ pub struct TransferEvent {
     pub tick: Tick,
     pub amount: u128,
     pub msg: Option<String>,
+}
+
+#[derive(Debug, Clone, PartialEq, Deserialize, Serialize)]
+pub struct L2DepositEvent {
+    pub l2id: u32,
+    pub tick: String,
+    pub to: String,
+    pub amount: String,
+}
+
+#[derive(Debug, Clone, PartialEq, Deserialize, Serialize)]
+pub struct L2WithdrawEvent {
+    pub l2id: u32,
+    pub tick: String,
+    pub to: String,
+    pub amount: String,
 }
 
 #[cfg(test)]

@@ -49,6 +49,11 @@ use crate::table::BRC20_BALANCES;
 use crate::table::BRC20_EVENTS;
 use crate::table::BRC20_SATPOINT_TO_TRANSFERABLE_ASSETS;
 use crate::table::BRC20_TOKEN;
+use crate::table::BRC21_ADDRESS_TICKER_TO_TRANSFERABLE_ASSETS;
+use crate::table::BRC21_BALANCES;
+use crate::table::BRC21_EVENTS;
+use crate::table::BRC21_SATPOINT_TO_TRANSFERABLE_ASSETS;
+use crate::table::BRC21_TOKEN;
 use crate::table::HEIGHT_TO_BLOCK_HEADER;
 use crate::table::HEIGHT_TO_LAST_SEQUENCE_NUMBER;
 use crate::table::INSCRIPTION_ID_TO_SEQUENCE_NUMBER;
@@ -249,6 +254,14 @@ impl<'a> Wtx for redb::WriteTransaction<'a> {
                 .open_table(BRC20_SATPOINT_TO_TRANSFERABLE_ASSETS)?,
             brc20_address_ticker_to_transferable_assets: &mut self
                 .open_multimap_table(BRC20_ADDRESS_TICKER_TO_TRANSFERABLE_ASSETS)?,
+
+            brc21_balances: &mut self.open_table(BRC21_BALANCES)?,
+            brc21_token: &mut self.open_table(BRC21_TOKEN)?,
+            brc21_events: &mut self.open_table(BRC21_EVENTS)?,
+            brc21_satpoint_to_transferable_assets: &mut self
+                .open_table(BRC21_SATPOINT_TO_TRANSFERABLE_ASSETS)?,
+            brc21_address_ticker_to_transferable_assets: &mut self
+                .open_multimap_table(BRC21_ADDRESS_TICKER_TO_TRANSFERABLE_ASSETS)?,
         };
 
         let ctx_mut = &mut ctx;
@@ -346,7 +359,7 @@ impl<'a> Wtx for redb::WriteTransaction<'a> {
                     }
 
                     ctx_mut
-                        .save_transaction_receipts(txid, &receipts)
+                        .save_brc20_transaction_receipts(txid, &receipts)
                         .map_err(|e| {
                             anyhow::anyhow!(
                                 "failed to add transaction receipt to state! error: {e}"

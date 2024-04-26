@@ -56,6 +56,12 @@ define_table! { BRC20_EVENTS, &TxidValue, &[u8] }
 define_table! { BRC20_SATPOINT_TO_TRANSFERABLE_ASSETS, &SatPointValue, &[u8] }
 define_multimap_table! { BRC20_ADDRESS_TICKER_TO_TRANSFERABLE_ASSETS, &str, &SatPointValue }
 
+define_table! { BRC21_BALANCES, &str, &[u8] }
+define_table! { BRC21_TOKEN, &str, &[u8] }
+define_table! { BRC21_EVENTS, &TxidValue, &[u8] }
+define_table! { BRC21_SATPOINT_TO_TRANSFERABLE_ASSETS, &SatPointValue, &[u8] }
+define_multimap_table! { BRC21_ADDRESS_TICKER_TO_TRANSFERABLE_ASSETS, &str, &SatPointValue }
+
 fn min_script_tick_id_key(script: &ScriptKey, tick: &Tick) -> String {
     script_tick_key(script, tick)
 }

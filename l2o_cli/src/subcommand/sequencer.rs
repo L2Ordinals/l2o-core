@@ -23,10 +23,10 @@ use l2o_crypto::signature::schnorr::sign_msg;
 use l2o_crypto::standards::l2o_a::proof::L2OAProofData;
 use l2o_ord::hasher::get_block_payload_bytes;
 use l2o_ord::hasher::L2OBlockHasher;
-use l2o_ord::operation::l2o_a::L2OABlockInscriptionV1;
+use l2o_ord::operation::l2o_a::L2OABlockV1;
 use l2o_ord::operation::l2o_a::L2OAHashFunction;
-use l2o_ord::operation::l2o_a::L2OAInscriptionBlock;
 use l2o_ord::operation::l2o_a::L2OAInscriptionBlockParameters;
+use l2o_ord::operation::l2o_a::L2OARawBlock;
 use l2o_rpc_provider::L2OAProvider;
 use l2o_rpc_provider::Provider;
 use serde_json::json;
@@ -43,14 +43,14 @@ async fn execute_single(
     bitcoincore_rpc: Arc<bitcoincore_rpc::Client>,
     rpc: Arc<Provider>,
 ) -> anyhow::Result<()> {
-    let prev_block = rpc.get_last_block_inscription(args.l2oid).await?;
+    let prev_block = rpc.get_last_block_inscription(args.l2id).await?;
     let bitcoin_block_number = prev_block.bitcoin_block_number + 1;
     let bitcoin_block_hash = bitcoincore_rpc.get_block_hash(bitcoin_block_number)?;
     let superchain_root = rpc
         .get_superchainroot_at_block(bitcoin_block_number, L2OAHashFunction::Sha256)
         .await?;
 
-    let mut block = L2OAInscriptionBlock {
+    let mut block = L2OARawBlock {
         l2id: prev_block.l2id as u32,
         block_parameters: L2OAInscriptionBlockParameters {
             state_root: Hash256::rand().to_hex(),
@@ -76,7 +76,7 @@ async fn execute_single(
         .unwrap()
         .to_proof_with_public_inputs_groth16_bn254()?;
 
-    let mut block_inscription = L2OABlockInscriptionV1 {
+    let mut block_inscription = L2OABlockV1 {
         l2id: block.l2id.into(),
         l2_block_number: block.block_parameters.block_number.into(),
 
@@ -145,7 +145,7 @@ pub async fn run(args: &SequencerArgs) -> anyhow::Result<()> {
         bitcoin_rpc: args.bitcoin_rpc.to_string(),
         bitcoin_rpcuser: args.bitcoin_rpcuser.to_string(),
         bitcoin_rpcpassword: args.bitcoin_rpcpassword.to_string(),
-        l2oid: args.l2oid,
+        l2id: args.l2id,
     })
     .await?;
 

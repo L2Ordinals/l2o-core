@@ -28,7 +28,7 @@ use l2o_crypto::signature::schnorr::sign_msg;
 use l2o_crypto::standards::l2o_a::proof::L2OAProofData;
 use l2o_ord::hasher::get_block_payload_bytes;
 use l2o_ord::hasher::L2OBlockHasher;
-use l2o_ord::operation::l2o_a::L2OABlockInscriptionV1;
+use l2o_ord::operation::l2o_a::L2OABlockV1;
 use l2o_ord::operation::l2o_a::L2OAHashFunction;
 use l2o_ord::operation::l2o_a::L2OAInscription;
 use l2o_rpc_provider::L2OAProvider;
@@ -47,8 +47,8 @@ pub async fn run(
     Arc<Client>,
     Arc<Provider>,
 )> {
-    let deploy_json = include_str!("../../../l2o_indexer/assets/deploy.json");
-    let block_json = include_str!("../../../l2o_indexer/assets/block.json");
+    let deploy_json = include_str!("../../../static/deploy.json");
+    let block_json = include_str!("../../../static/block.json");
     let deploy_data = serde_json::from_str::<L2OAInscription>(deploy_json)?;
     let block_data = serde_json::from_str::<L2OAInscription>(block_json)?;
     let mut deploy = match deploy_data {
@@ -83,7 +83,7 @@ pub async fn run(
         .try_as_groth_16_proof_serializable()
         .unwrap()
         .to_proof_with_public_inputs_groth16_bn254()?;
-    let mut block_inscription = L2OABlockInscriptionV1 {
+    let mut block_inscription = L2OABlockV1 {
         l2id: block.l2id.into(),
         l2_block_number: block.block_parameters.block_number.into(),
 

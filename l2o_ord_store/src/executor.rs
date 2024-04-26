@@ -12,10 +12,10 @@ use l2o_ord::operation::brc20::mint::Mint;
 use l2o_ord::operation::brc20::transfer::Transfer;
 use l2o_ord::operation::brc20::BRC20Operation;
 use l2o_ord::operation::brc21::l2deposit::L2Deposit;
-use l2o_ord::operation::brc21::l2withdraw::L2Withdraw;
 use l2o_ord::operation::brc21::BRC21Operation;
-use l2o_ord::operation::l2o_a::block::L2OABlockInscription;
-use l2o_ord::operation::l2o_a::deploy::L2OADeployInscription;
+use l2o_ord::operation::brc21::L2WithdrawV1;
+use l2o_ord::operation::l2o_a::L2OABlockV1;
+use l2o_ord::operation::l2o_a::L2OADeployV1;
 use l2o_ord::operation::l2o_a::L2OAOperation;
 use l2o_ord::operation::Operation;
 use l2o_ord::sat_point::SatPoint;
@@ -75,11 +75,13 @@ impl ExecutionMessage {
             new_satpoint: msg
                 .new_satpoint
                 .ok_or(anyhow::anyhow!("new satpoint cannot be None"))?,
-            from: context.get_script_key_on_satpoint(&msg.old_satpoint, chain)?,
+            from: context.get_brc20_script_key_on_satpoint(&msg.old_satpoint, chain)?,
             to: if msg.sat_in_outputs {
                 Some(
-                    context
-                        .get_script_key_on_satpoint(msg.new_satpoint.as_ref().unwrap(), chain)?,
+                    context.get_brc20_script_key_on_satpoint(
+                        msg.new_satpoint.as_ref().unwrap(),
+                        chain,
+                    )?,
                 )
             } else {
                 None
@@ -179,7 +181,10 @@ impl ExecutionMessage {
             is_self_mint = true;
         }
 
-        if let Some(stored_tick_info) = context.get_token_info(&tick).map_err(Error::LedgerError)? {
+        if let Some(stored_tick_info) = context
+            .get_brc20_token_info(&tick)
+            .map_err(Error::LedgerError)?
+        {
             return Err(Error::BRC2XError(BRC2XError::DuplicateTick(
                 stored_tick_info.tick.to_string(),
             )));
@@ -234,7 +239,7 @@ impl ExecutionMessage {
             deployed_timestamp: context.chain_ctx.blocktime,
         };
         context
-            .insert_token_info(&tick, &new_info)
+            .insert_brc20_token_info(&tick, &new_info)
             .map_err(Error::LedgerError)?;
 
         Ok(Event::Deploy(DeployEvent {
@@ -258,7 +263,7 @@ impl ExecutionMessage {
         let tick = mint.tick.parse::<Tick>()?;
 
         let tick_info = context
-            .get_token_info(&tick)
+            .get_brc20_token_info(&tick)
             .map_err(Error::LedgerError)?
             .ok_or(BRC2XError::TickNotFound(tick.to_string()))?;
 
@@ -312,7 +317,7 @@ impl ExecutionMessage {
 
         // get or initialize user balance.
         let mut balance = context
-            .get_balance(&to_script_key, &tick)
+            .get_brc20_balance(&to_script_key, &tick)
             .map_err(Error::LedgerError)?
             .map_or(Balance::new(&tick), |v| v);
 
@@ -323,13 +328,13 @@ impl ExecutionMessage {
 
         // store to database.
         context
-            .update_token_balance(&to_script_key, balance)
+            .update_brc20_token_balance(&to_script_key, balance)
             .map_err(Error::LedgerError)?;
 
         // update token minted.
         let minted = minted.checked_add(&amt)?.checked_to_u128()?;
         context
-            .update_mint_token_info(&tick, minted, context.chain_ctx.blockheight)
+            .update_brc20_mint_token_info(&tick, minted, context.chain_ctx.blockheight)
             .map_err(Error::LedgerError)?;
 
         Ok(Event::Mint(MintEvent {
@@ -350,7 +355,7 @@ impl ExecutionMessage {
         let tick = transfer.tick.parse::<Tick>()?;
 
         let token_info = context
-            .get_token_info(&tick)
+            .get_brc20_token_info(&tick)
             .map_err(Error::LedgerError)?
             .ok_or(BRC2XError::TickNotFound(tick.to_string()))?;
 
@@ -372,7 +377,7 @@ impl ExecutionMessage {
         }
 
         let mut balance = context
-            .get_balance(&to_script_key, &tick)
+            .get_brc20_balance(&to_script_key, &tick)
             .map_err(Error::LedgerError)?
             .map_or(Balance::new(&tick), |v| v);
 
@@ -390,7 +395,7 @@ impl ExecutionMessage {
 
         let amt = amt.checked_to_u128()?;
         context
-            .update_token_balance(&to_script_key, balance)
+            .update_brc20_token_balance(&to_script_key, balance)
             .map_err(Error::LedgerError)?;
 
         let transferable_asset = TransferableLog {
@@ -402,7 +407,7 @@ impl ExecutionMessage {
         };
 
         context
-            .insert_transferable_asset(msg.new_satpoint, &transferable_asset)
+            .insert_brc20_transferable_asset(msg.new_satpoint, &transferable_asset)
             .map_err(Error::LedgerError)?;
 
         Ok(Event::InscribeTransfer(InscribeTransferEvent {
@@ -413,7 +418,7 @@ impl ExecutionMessage {
 
     fn process_transfer(context: &mut Context, msg: &ExecutionMessage) -> Result<Event, Error> {
         let transferable = context
-            .get_transferable_assets_by_satpoint(&msg.old_satpoint)
+            .get_brc20_transferable_assets_by_satpoint(&msg.old_satpoint)
             .map_err(Error::LedgerError)?
             .ok_or(BRC2XError::TransferableNotFound(msg.inscription_id))?;
 
@@ -428,13 +433,13 @@ impl ExecutionMessage {
         let tick = transferable.tick;
 
         let token_info = context
-            .get_token_info(&tick)
+            .get_brc20_token_info(&tick)
             .map_err(Error::LedgerError)?
             .ok_or(BRC2XError::TickNotFound(tick.to_string()))?;
 
         // update from key balance.
         let mut from_balance = context
-            .get_balance(&msg.from, &tick)
+            .get_brc20_balance(&msg.from, &tick)
             .map_err(Error::LedgerError)?
             .map_or(Balance::new(&tick), |v| v);
 
@@ -448,7 +453,7 @@ impl ExecutionMessage {
         from_balance.transferable_balance = from_transferable;
 
         context
-            .update_token_balance(&msg.from, from_balance)
+            .update_brc20_token_balance(&msg.from, from_balance)
             .map_err(Error::LedgerError)?;
 
         // redirect receiver to sender if transfer to conibase.
@@ -467,7 +472,7 @@ impl ExecutionMessage {
 
         // update to key balance.
         let mut to_balance = context
-            .get_balance(&to_script_key, &tick)
+            .get_brc20_balance(&to_script_key, &tick)
             .map_err(Error::LedgerError)?
             .map_or(Balance::new(&tick), |v| v);
 
@@ -475,11 +480,11 @@ impl ExecutionMessage {
         to_balance.overall_balance = to_overall.checked_add(&amt)?.checked_to_u128()?;
 
         context
-            .update_token_balance(&to_script_key, to_balance)
+            .update_brc20_token_balance(&to_script_key, to_balance)
             .map_err(Error::LedgerError)?;
 
         context
-            .remove_transferable_asset(msg.old_satpoint)
+            .remove_brc20_transferable_asset(msg.old_satpoint)
             .map_err(Error::LedgerError)?;
 
         // update burned supply if transfer to op_return.
@@ -489,7 +494,7 @@ impl ExecutionMessage {
                     .checked_add(&amt)?
                     .checked_to_u128()?;
                 context
-                    .update_burned_token_info(&tick, burned_amt)
+                    .update_brc20_burned_token_info(&tick, burned_amt)
                     .map_err(Error::LedgerError)?;
                 out_msg = Some(format!(
                     "transfer to op_return, burned supply increased: {}",
@@ -517,7 +522,7 @@ impl ExecutionMessage {
     fn process_l2_withdraw(
         context: &mut Context,
         msg: &ExecutionMessage,
-        l2withdraw: L2Withdraw<serde_json::Value>,
+        l2withdraw: L2WithdrawV1,
     ) -> Result<Event, Error> {
         todo!()
     }
@@ -525,7 +530,7 @@ impl ExecutionMessage {
     fn process_l2o_a_deploy(
         context: &mut Context,
         msg: &ExecutionMessage,
-        deploy: L2OADeployInscription<serde_json::Value>,
+        deploy: L2OADeployV1,
     ) -> Result<Event, Error> {
         todo!()
     }
@@ -533,7 +538,7 @@ impl ExecutionMessage {
     fn process_l2o_a_block(
         context: &mut Context,
         msg: &ExecutionMessage,
-        block: L2OABlockInscription<serde_json::Value>,
+        block: L2OABlockV1,
     ) -> Result<Event, Error> {
         todo!()
     }
