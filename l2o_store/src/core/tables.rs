@@ -2,21 +2,19 @@ use l2o_crypto::hash::merkle::store::key::KVQAppendOnlyMerkleKey;
 use l2o_crypto::hash::merkle::store::key::KVQMerkleNodeKey;
 
 use super::table_key::L2TableKey;
-use crate::core::table_key::BRC21TableKey;
 
 pub const TABLE_L2_DEPLOYMENTS: u16 = 1;
 pub const TABLE_L2_LATEST_BLOCK: u16 = 2;
 pub const TABLE_L2_BRC21_DEPOSITS: u16 = 3;
-pub const TABLE_L2_BRC21_BALANCES: u16 = 4;
 
 pub const TABLE_L2_STATE_ROOTS: u16 = 8;
 pub const SUB_TABLE_L2_STATE_ROOTS_SHA256: u8 = 1;
 pub const SUB_TABLE_L2_STATE_ROOTS_KECCACK256: u8 = 2;
 pub const SUB_TABLE_L2_STATE_ROOTS_BLAKE3: u8 = 3;
 pub const SUB_TABLE_L2_STATE_ROOTS_POSEIDON_GOLDILOCKS: u8 = 4;
+pub const SUB_TABLE_L2_BRC21_DEPOSITS_SHA256: u8 = 5;
 
 pub type L2OStateRootsMerkleNodeKey = KVQMerkleNodeKey<TABLE_L2_STATE_ROOTS>;
 pub type L2OBRC21DepositsKey = KVQAppendOnlyMerkleKey<TABLE_L2_BRC21_DEPOSITS>;
-pub type L2OBRC21BalancesKey = BRC21TableKey<TABLE_L2_BRC21_BALANCES>;
 pub type L2ODeploymentsKey = L2TableKey<TABLE_L2_DEPLOYMENTS>;
 pub type L2OLatestBlockKey = L2TableKey<TABLE_L2_LATEST_BLOCK>;

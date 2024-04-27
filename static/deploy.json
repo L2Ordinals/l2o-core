@@ -5,7 +5,8 @@
   "p": "l2o-a",
   "public_key": "600a35d566056af0761c1254cdee719f00f5276c2afe0c76dc92a750941bb807",
   "start_state_root": "8da4ef21b864d2cc526dbdb2a120bd2874c36c9d0a1fb7f8c63d7f7a8b41de8f",
-  "vk": {
+  "proof_type": "Groth16BN128",
+  "verifier_data": {
     "IC": [
       [
         "20330714547333648308739032704291133265526249458927378714792592855495769787244",

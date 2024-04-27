@@ -26,8 +26,11 @@ pub struct Context<'a, 'db, 'txn> {
     pub chain_ctx: ChainContext,
 
     pub kv: &'a mut L2OStoreV1Core<KVQReDBStore<Table<'db, 'txn, &'static [u8], &'static [u8]>>>,
+
     pub height_to_block_header: &'a mut Table<'db, 'txn, u32, &'static HeaderValue>,
     pub height_to_last_sequence_number: &'a mut Table<'db, 'txn, u32, u32>,
+
+    pub brc21_deposits_holding_balances: &'a mut Table<'db, 'txn, &'static [u8], u128>,
 
     pub sat_to_satpoint: &'a mut Table<'db, 'txn, u64, &'static SatPointValue>,
     pub sat_to_sequence_number: &'a mut MultimapTable<'db, 'txn, u64, u32>,

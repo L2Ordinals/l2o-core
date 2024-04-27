@@ -36,6 +36,8 @@ use crate::token_info::TokenInfo;
 define_table! { HEIGHT_TO_BLOCK_HEADER, u32, &HeaderValue }
 define_table! { HEIGHT_TO_LAST_SEQUENCE_NUMBER, u32, u32 }
 
+define_table! { BRC21_DEPOSITS_HOLDING_BALANCES, &[u8], u128 }
+
 define_table! { SAT_TO_SATPOINT, u64, &SatPointValue }
 define_multimap_table! { SAT_TO_SEQUENCE_NUMBER, u64, u32 }
 define_multimap_table! { SATPOINT_TO_SEQUENCE_NUMBER, &SatPointValue, u32 }
@@ -447,4 +449,27 @@ where
         .and_then(|result| result.ok())
         .map(|(number, _id)| number.value() + 1)
         .unwrap_or(0))
+}
+
+pub fn get_brc21_deposits_holding_balance<T>(table: &T, l2id: u64, tick: &Tick) -> Result<u128>
+where
+    T: ReadableTable<&'static [u8], u128>,
+{
+    let mut key = Vec::new();
+    key.extend(l2id.to_be_bytes());
+    key.extend(tick.to_lowercase().as_str().as_bytes());
+    Ok(table.get(&key.as_slice())?.map(|v| v.value()).unwrap())
+}
+
+pub fn update_brc21_deposits_holding_balance(
+    table: &mut Table<'_, '_, &'static [u8], u128>,
+    l2id: u64,
+    tick: &Tick,
+    value: u128,
+) -> Result<()> {
+    let mut key = Vec::new();
+    key.extend(l2id.to_be_bytes());
+    key.extend(tick.to_lowercase().as_str().as_bytes());
+    table.insert(&key.as_slice(), value)?;
+    Ok(())
 }

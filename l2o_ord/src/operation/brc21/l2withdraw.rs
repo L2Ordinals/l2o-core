@@ -9,7 +9,7 @@ where
     for<'de2> Proof: Deserialize<'de2>,
 {
     #[serde(rename = "l2id")]
-    pub l2id: String,
+    pub l2id: u64,
     #[serde(rename = "tick")]
     pub tick: String,
     pub to: String,
@@ -23,7 +23,7 @@ where
     Proof: Serialize,
     for<'de2> Proof: Deserialize<'de2>,
 {
-    pub fn new(l2id: String, tick: String, to: String, amount: String, proof: Proof) -> Self {
+    pub fn new(l2id: u64, tick: String, to: String, amount: String, proof: Proof) -> Self {
         L2Withdraw {
             l2id,
             tick,

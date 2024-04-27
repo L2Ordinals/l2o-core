@@ -37,9 +37,9 @@ pub enum L2OAOperation {
 #[derive(Debug, PartialEq, Clone, Deserialize, Serialize)]
 #[serde(tag = "op")]
 pub enum RawL2OAOperation {
-    #[serde(rename = "deploy")]
+    #[serde(rename = "Deploy")]
     Deploy(L2OADeployV1),
-    #[serde(rename = "block")]
+    #[serde(rename = "Block")]
     Block(L2OABlockV1),
 }
 

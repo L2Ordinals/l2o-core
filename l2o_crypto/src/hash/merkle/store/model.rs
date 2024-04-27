@@ -27,7 +27,7 @@ pub struct KVQMerkleTreeModel<
     S: KVQBinaryStoreReader,
     Hash: Copy + PartialEq + KVQSerializable + Serialize,
     Hasher: GeneralMerkleZeroHasher<Hash>,
-    KVA,
+    KVA: KVQStoreAdapterReader<S, KVQMerkleNodeKey<TABLE_TYPE>, Hash>,
 > where
     for<'de2> Hash: Deserialize<'de2>,
 {
@@ -164,7 +164,7 @@ pub struct KVQAppendOnlyMerkleTreeModel<
     S: KVQBinaryStoreReader,
     Hash: Copy + PartialEq + KVQSerializable + Serialize + ZeroableHash,
     Hasher: GeneralMerkleZeroHasher<Hash>,
-    KVA,
+    KVA: KVQStoreAdapterReader<S, KVQAppendOnlyMerkleKey<TABLE_TYPE>, MerkleProofCore<Hash>>,
 > where
     for<'de2> Hash: Deserialize<'de2>,
 {

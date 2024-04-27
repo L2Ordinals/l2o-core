@@ -15,6 +15,8 @@ use plonky2::hash::hash_types::HashOut;
 use plonky2::hash::poseidon::PoseidonHash;
 use plonky2::plonk::config::Hasher;
 
+use crate::operation::brc21::l2deposit::L2Deposit;
+use crate::operation::brc21::L2WithdrawV1;
 use crate::operation::l2o_a::L2OABlockV1;
 
 pub trait L2OBlockHasher {
@@ -125,6 +127,90 @@ pub fn get_block_payload_bytes(block: &L2OABlockV1) -> Vec<u8> {
     payload_bytes.extend_from_slice(&block.end_withdrawal_state_root.0);
 
     payload_bytes.extend_from_slice(&block.superchain_root.0);
+
+    payload_bytes
+}
+
+pub trait L2ODepositHasher {
+    fn get_l2_deposit_hash(l2deposit: &L2Deposit) -> Hash256;
+}
+
+impl L2ODepositHasher for Blake3Hasher {
+    fn get_l2_deposit_hash(l2deposit: &L2Deposit) -> Hash256 {
+        let payload = get_l2_deposit_payload_bytes(l2deposit);
+        blake3::hash(&payload)
+    }
+}
+
+impl L2ODepositHasher for Keccak256Hasher {
+    fn get_l2_deposit_hash(l2deposit: &L2Deposit) -> Hash256 {
+        let payload = get_l2_deposit_payload_bytes(l2deposit);
+        keccak256::hash(&payload)
+    }
+}
+
+impl L2ODepositHasher for Sha256Hasher {
+    fn get_l2_deposit_hash(l2deposit: &L2Deposit) -> Hash256 {
+        let payload = get_l2_deposit_payload_bytes(l2deposit);
+        sha256::hash(&payload)
+    }
+}
+
+impl L2ODepositHasher for PoseidonHasher {
+    fn get_l2_deposit_hash(_l2deposit: &L2Deposit) -> Hash256 {
+        todo!()
+    }
+}
+
+pub fn get_l2_deposit_payload_bytes(l2deposit: &L2Deposit) -> Vec<u8> {
+    let mut payload_bytes: Vec<u8> = Vec::new();
+
+    payload_bytes.extend_from_slice(&l2deposit.l2id.to_le_bytes());
+    payload_bytes.extend_from_slice(&l2deposit.tick.as_bytes());
+    payload_bytes.extend_from_slice(&l2deposit.to.as_bytes());
+    payload_bytes.extend_from_slice(&l2deposit.amount.as_bytes());
+
+    payload_bytes
+}
+
+pub trait L2OWithdrawHasher {
+    fn get_l2_withdraw_hash(l2withdraw: &L2WithdrawV1) -> Hash256;
+}
+
+impl L2OWithdrawHasher for Blake3Hasher {
+    fn get_l2_withdraw_hash(l2withdraw: &L2WithdrawV1) -> Hash256 {
+        let payload = get_l2_withdraw_payload_bytes(l2withdraw);
+        blake3::hash(&payload)
+    }
+}
+
+impl L2OWithdrawHasher for Keccak256Hasher {
+    fn get_l2_withdraw_hash(l2withdraw: &L2WithdrawV1) -> Hash256 {
+        let payload = get_l2_withdraw_payload_bytes(l2withdraw);
+        keccak256::hash(&payload)
+    }
+}
+
+impl L2OWithdrawHasher for Sha256Hasher {
+    fn get_l2_withdraw_hash(l2withdraw: &L2WithdrawV1) -> Hash256 {
+        let payload = get_l2_withdraw_payload_bytes(l2withdraw);
+        sha256::hash(&payload)
+    }
+}
+
+impl L2OWithdrawHasher for PoseidonHasher {
+    fn get_l2_withdraw_hash(_l2withdraw: &L2WithdrawV1) -> Hash256 {
+        todo!()
+    }
+}
+
+pub fn get_l2_withdraw_payload_bytes(l2withdraw: &L2WithdrawV1) -> Vec<u8> {
+    let mut payload_bytes: Vec<u8> = Vec::new();
+
+    payload_bytes.extend_from_slice(&l2withdraw.l2id.to_le_bytes());
+    payload_bytes.extend_from_slice(&l2withdraw.tick.as_bytes());
+    payload_bytes.extend_from_slice(&l2withdraw.to.as_bytes());
+    payload_bytes.extend_from_slice(&l2withdraw.amount.as_bytes());
 
     payload_bytes
 }

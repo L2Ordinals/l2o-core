@@ -6,6 +6,7 @@ use ark_groth16::Groth16;
 use ark_serialize::CanonicalSerialize;
 use ark_snark::SNARK;
 use bigdecimal::num_bigint::Sign;
+use bitcoin::Address;
 use bitcoin::Txid;
 use bitcoincore_rpc::RpcApi;
 use l2o_common::common::data::hash::Hash256;
@@ -19,6 +20,7 @@ use l2o_ord::decimal::Decimal;
 use l2o_ord::error::BRC2XError;
 use l2o_ord::error::Error;
 use l2o_ord::hasher::L2OBlockHasher;
+use l2o_ord::hasher::L2OWithdrawHasher;
 use l2o_ord::inscription::inscription_id::InscriptionId;
 use l2o_ord::operation::brc20::deploy::Deploy;
 use l2o_ord::operation::brc20::mint::Mint;
@@ -31,6 +33,7 @@ use l2o_ord::operation::l2o_a::L2OABlockV1;
 use l2o_ord::operation::l2o_a::L2OADeployV1;
 use l2o_ord::operation::l2o_a::L2OAOperation;
 use l2o_ord::operation::Operation;
+use l2o_ord::operation::ProtocolType;
 use l2o_ord::sat_point::SatPoint;
 use l2o_ord::BIGDECIMAL_TEN;
 use l2o_ord::MAXIMUM_SUPPLY;
@@ -43,11 +46,14 @@ use crate::ctx::Context;
 use crate::event::DeployEvent;
 use crate::event::Event;
 use crate::event::InscribeTransferEvent;
+use crate::event::L2DepositEvent;
+use crate::event::L2WithdrawEvent;
 use crate::event::MintEvent;
 use crate::event::Receipt;
 use crate::event::TransferEvent;
 use crate::log::TransferableLog;
 use crate::script_key::ScriptKey;
+use crate::script_key::BURN_ADDRESS;
 use crate::tick::Tick;
 use crate::token_info::TokenInfo;
 
@@ -119,7 +125,9 @@ impl ExecutionMessage {
             Operation::BRC20(BRC20Operation::InscribeTransfer(transfer)) => {
                 Self::process_inscribe_transfer(context, msg, transfer.clone())
             }
-            Operation::BRC20(BRC20Operation::Transfer(_)) => Self::process_transfer(context, msg),
+            Operation::BRC20(BRC20Operation::Transfer(transfer)) => {
+                Self::process_transfer(context, msg, transfer.clone())
+            }
             Operation::BRC21(BRC21Operation::Deploy(deploy)) => {
                 Self::process_deploy(context, msg, deploy.clone())
             }
@@ -129,7 +137,9 @@ impl ExecutionMessage {
             Operation::BRC21(BRC21Operation::InscribeTransfer(transfer)) => {
                 Self::process_inscribe_transfer(context, msg, transfer.clone())
             }
-            Operation::BRC21(BRC21Operation::Transfer(_)) => Self::process_transfer(context, msg),
+            Operation::BRC21(BRC21Operation::Transfer(transfer)) => {
+                Self::process_transfer(context, msg, transfer.clone())
+            }
             Operation::BRC21(BRC21Operation::L2Deposit(l2deposit)) => {
                 Self::process_l2_deposit(context, msg, l2deposit.clone())
             }
@@ -170,6 +180,7 @@ impl ExecutionMessage {
     ) -> anyhow::Result<Event> {
         // ignore inscribe inscription to coinbase. let
         let to_script_key = msg.to.clone().ok_or(BRC2XError::InscribeToCoinbase)?;
+        let ptype = msg.op.p_type();
 
         let tick = deploy.tick.parse::<Tick>()?;
         let mut max_supply = deploy.max_supply.clone();
@@ -193,7 +204,7 @@ impl ExecutionMessage {
         }
 
         if let Some(stored_tick_info) = context
-            .get_token_info(&tick, msg.op.p_type())
+            .get_token_info(&tick, ptype)
             .map_err(Error::LedgerError)?
         {
             return Err(Error::BRC2XError(BRC2XError::DuplicateTick(
@@ -250,7 +261,7 @@ impl ExecutionMessage {
             deployed_timestamp: context.chain_ctx.blocktime,
         };
         context
-            .insert_token_info(&tick, &new_info, msg.op.p_type())
+            .insert_token_info(&tick, &new_info, ptype)
             .map_err(Error::LedgerError)?;
 
         Ok(Event::Deploy(DeployEvent {
@@ -270,11 +281,12 @@ impl ExecutionMessage {
     ) -> anyhow::Result<Event> {
         // ignore inscribe inscription to coinbase. let
         let to_script_key = msg.to.clone().ok_or(BRC2XError::InscribeToCoinbase)?;
+        let ptype = msg.op.p_type();
 
         let tick = mint.tick.parse::<Tick>()?;
 
         let tick_info = context
-            .get_token_info(&tick, msg.op.p_type())
+            .get_token_info(&tick, ptype)
             .map_err(Error::LedgerError)?
             .ok_or(BRC2XError::TickNotFound(tick.to_string()))?;
 
@@ -324,7 +336,7 @@ impl ExecutionMessage {
 
         // get or initialize user balance.
         let mut balance = context
-            .get_balance(&to_script_key, &tick, msg.op.p_type())
+            .get_balance(&to_script_key, &tick, ptype)
             .map_err(Error::LedgerError)?
             .map_or(Balance::new(&tick), |v| v);
 
@@ -335,18 +347,13 @@ impl ExecutionMessage {
 
         // store to database.
         context
-            .update_token_balance(&to_script_key, balance, msg.op.p_type())
+            .update_token_balance(&to_script_key, balance, ptype)
             .map_err(Error::LedgerError)?;
 
         // update token minted.
         let minted = minted.checked_add(&amt)?.checked_to_u128()?;
         context
-            .update_mint_token_info(
-                &tick,
-                minted,
-                context.chain_ctx.blockheight,
-                msg.op.p_type(),
-            )
+            .update_mint_token_info(&tick, minted, context.chain_ctx.blockheight, ptype)
             .map_err(Error::LedgerError)?;
 
         Ok(Event::Mint(MintEvent {
@@ -363,11 +370,12 @@ impl ExecutionMessage {
     ) -> anyhow::Result<Event> {
         // ignore inscribe inscription to coinbase. let
         let to_script_key = msg.to.clone().ok_or(BRC2XError::InscribeToCoinbase)?;
+        let ptype = msg.op.p_type();
 
         let tick = transfer.tick.parse::<Tick>()?;
 
         let token_info = context
-            .get_token_info(&tick, msg.op.p_type())
+            .get_token_info(&tick, ptype)
             .map_err(Error::LedgerError)?
             .ok_or(BRC2XError::TickNotFound(tick.to_string()))?;
 
@@ -385,7 +393,7 @@ impl ExecutionMessage {
         }
 
         let mut balance = context
-            .get_balance(&to_script_key, &tick, msg.op.p_type())
+            .get_balance(&to_script_key, &tick, ptype)
             .map_err(Error::LedgerError)?
             .map_or(Balance::new(&tick), |v| v);
 
@@ -404,7 +412,7 @@ impl ExecutionMessage {
 
         let amt = amt.checked_to_u128()?;
         context
-            .update_token_balance(&to_script_key, balance, msg.op.p_type())
+            .update_token_balance(&to_script_key, balance, ptype)
             .map_err(Error::LedgerError)?;
 
         let transferable_asset = TransferableLog {
@@ -416,7 +424,7 @@ impl ExecutionMessage {
         };
 
         context
-            .insert_transferable_asset(msg.new_satpoint, &transferable_asset, msg.op.p_type())
+            .insert_transferable_asset(msg.new_satpoint, &transferable_asset, ptype)
             .map_err(Error::LedgerError)?;
 
         Ok(Event::InscribeTransfer(InscribeTransferEvent {
@@ -425,9 +433,33 @@ impl ExecutionMessage {
         }))
     }
 
-    fn process_transfer(context: &mut Context, msg: &ExecutionMessage) -> anyhow::Result<Event> {
+    fn process_transfer(
+        context: &mut Context,
+        msg: &ExecutionMessage,
+        _transfer: Transfer,
+    ) -> anyhow::Result<Event> {
+        // redirect receiver to sender if transfer to coinbase.
+        let mut out_msg = None;
+
+        let to_script_key = if msg.to.clone().is_none() {
+            out_msg = Some(
+                "redirect receiver to sender, reason: transfer inscription to
+    coinbase"
+                    .to_string(),
+            );
+            msg.from.clone()
+        } else {
+            msg.to.clone().unwrap()
+        };
+        let from_ptype = msg.op.p_type();
+        let is_burn = &to_script_key == &*BURN_ADDRESS;
+        let to_ptype = if from_ptype.is_brc_20() && is_burn {
+            ProtocolType::BRC21
+        } else {
+            from_ptype
+        };
         let transferable = context
-            .get_transferable_assets_by_satpoint(&msg.old_satpoint, msg.op.p_type())
+            .get_transferable_assets_by_satpoint(&msg.old_satpoint, from_ptype)
             .map_err(Error::LedgerError)?
             .ok_or(BRC2XError::TransferableNotFound(msg.inscription_id))?;
 
@@ -443,13 +475,13 @@ impl ExecutionMessage {
         let tick = transferable.tick;
 
         let token_info = context
-            .get_token_info(&tick, msg.op.p_type())
+            .get_token_info(&tick, from_ptype)
             .map_err(Error::LedgerError)?
             .ok_or(BRC2XError::TickNotFound(tick.to_string()))?;
 
         // update from key balance.
         let mut from_balance = context
-            .get_balance(&msg.from, &tick, msg.op.p_type())
+            .get_balance(&msg.from, &tick, from_ptype)
             .map_err(Error::LedgerError)?
             .map_or(Balance::new(&tick), |v| v);
 
@@ -463,26 +495,12 @@ impl ExecutionMessage {
         from_balance.transferable_balance = from_transferable;
 
         context
-            .update_token_balance(&msg.from, from_balance, msg.op.p_type())
+            .update_token_balance(&msg.from, from_balance, from_ptype)
             .map_err(Error::LedgerError)?;
-
-        // redirect receiver to sender if transfer to conibase.
-        let mut out_msg = None;
-
-        let to_script_key = if msg.to.clone().is_none() {
-            out_msg = Some(
-                "redirect receiver to sender, reason: transfer inscription to
-    coinbase"
-                    .to_string(),
-            );
-            msg.from.clone()
-        } else {
-            msg.to.clone().unwrap()
-        };
 
         // update to key balance.
         let mut to_balance = context
-            .get_balance(&to_script_key, &tick, msg.op.p_type())
+            .get_balance(&to_script_key, &tick, to_ptype)
             .map_err(Error::LedgerError)?
             .map_or(Balance::new(&tick), |v| v);
 
@@ -490,11 +508,11 @@ impl ExecutionMessage {
         to_balance.overall_balance = to_overall.checked_add(&amt)?.checked_to_u128()?;
 
         context
-            .update_token_balance(&to_script_key, to_balance, msg.op.p_type())
+            .update_token_balance(&to_script_key, to_balance, to_ptype)
             .map_err(Error::LedgerError)?;
 
         context
-            .remove_transferable_asset(msg.old_satpoint, msg.op.p_type())
+            .remove_transferable_asset(msg.old_satpoint, from_ptype)
             .map_err(Error::LedgerError)?;
 
         // update burned supply if transfer to op_return.
@@ -504,7 +522,7 @@ impl ExecutionMessage {
                     .checked_add(&amt)?
                     .checked_to_u128()?;
                 context
-                    .update_brc20_burned_token_info(&tick, burned_amt)
+                    .update_burned_token_info(&tick, burned_amt, from_ptype)
                     .map_err(Error::LedgerError)?;
                 out_msg = Some(format!(
                     "transfer to op_return, burned supply increased: {}",
@@ -522,19 +540,138 @@ impl ExecutionMessage {
     }
 
     fn process_l2_deposit(
-        _context: &mut Context,
-        _msg: &ExecutionMessage,
-        _l2deposit: L2Deposit,
+        context: &mut Context,
+        msg: &ExecutionMessage,
+        l2deposit: L2Deposit,
     ) -> anyhow::Result<Event> {
-        todo!()
+        let ptype = msg.op.p_type();
+
+        let tick = l2deposit.tick.parse::<Tick>()?;
+
+        let token_info = context
+            .get_token_info(&tick, ptype)
+            .map_err(Error::LedgerError)?
+            .ok_or(BRC2XError::TickNotFound(tick.to_string()))?;
+
+        let base = BIGDECIMAL_TEN.checked_powu(u64::from(token_info.decimal))?;
+
+        let mut amt = Decimal::from_str(&l2deposit.amount)?;
+
+        if amt.scale() > i64::from(token_info.decimal) {
+            return Err(Error::BRC2XError(BRC2XError::AmountOverflow(amt.to_string())).into());
+        }
+
+        amt = amt.checked_mul(&base)?;
+        if amt.sign() == Sign::NoSign || amt > Into::<Decimal>::into(token_info.supply) {
+            return Err(Error::BRC2XError(BRC2XError::AmountOverflow(amt.to_string())).into());
+        }
+
+        // update from key balance.
+        let mut from_balance = context
+            .get_balance(&msg.from, &tick, ptype)
+            .map_err(Error::LedgerError)?
+            .map_or(Balance::new(&tick), |v| v);
+
+        let from_overall = Into::<Decimal>::into(from_balance.overall_balance);
+        let from_transferable = Into::<Decimal>::into(from_balance.transferable_balance);
+
+        let from_overall = from_overall.checked_sub(&amt)?.checked_to_u128()?;
+        let from_transferable = from_transferable.checked_sub(&amt)?.checked_to_u128()?;
+
+        from_balance.overall_balance = from_overall;
+        from_balance.transferable_balance = from_transferable;
+
+        context
+            .update_token_balance(&msg.from, from_balance, ptype)
+            .map_err(Error::LedgerError)?;
+
+        let holding_balance =
+            context.get_brc21_deposits_holding_balance(l2deposit.l2id, tick.clone())?;
+        context.update_brc21_deposits_holding_balance(
+            l2deposit.l2id,
+            &tick,
+            holding_balance.checked_add(amt.checked_to_u128()?).unwrap(),
+        )?;
+        context.kv.append_l2_deposit(l2deposit.clone())?;
+
+        Ok(Event::L2Deposit(L2DepositEvent {
+            l2id: l2deposit.l2id,
+            tick: l2deposit.tick,
+            to: l2deposit.to,
+            amount: l2deposit.amount,
+        }))
     }
 
     fn process_l2_withdraw(
-        _context: &mut Context,
-        _msg: &ExecutionMessage,
-        _l2withdraw: L2WithdrawV1,
+        context: &mut Context,
+        msg: &ExecutionMessage,
+        l2withdraw: L2WithdrawV1,
     ) -> anyhow::Result<Event> {
-        todo!()
+        let to_script_key = ScriptKey::Address(Address::from_str(&l2withdraw.to).unwrap());
+        let ptype = msg.op.p_type();
+
+        let tick = l2withdraw.tick.parse::<Tick>()?;
+
+        let token_info = context
+            .get_token_info(&tick, ptype)
+            .map_err(Error::LedgerError)?
+            .ok_or(BRC2XError::TickNotFound(tick.to_string()))?;
+
+        let base = BIGDECIMAL_TEN.checked_powu(u64::from(token_info.decimal))?;
+
+        let mut amt = Decimal::from_str(&l2withdraw.amount)?;
+
+        if amt.scale() > i64::from(token_info.decimal) {
+            return Err(Error::BRC2XError(BRC2XError::AmountOverflow(amt.to_string())).into());
+        }
+
+        amt = amt.checked_mul(&base)?;
+        if amt.sign() == Sign::NoSign || amt > Into::<Decimal>::into(token_info.supply) {
+            return Err(Error::BRC2XError(BRC2XError::AmountOverflow(amt.to_string())).into());
+        }
+
+        // update from key balance.
+        let mut to_balance = context
+            .get_balance(&to_script_key, &tick, ptype)
+            .map_err(Error::LedgerError)?
+            .map_or(Balance::new(&tick), |v| v);
+
+        let to_overall = Into::<Decimal>::into(to_balance.overall_balance);
+        let to_transferable = Into::<Decimal>::into(to_balance.transferable_balance);
+
+        let to_overall = to_overall.checked_add(&amt)?.checked_to_u128()?;
+        let to_transferable = to_transferable.checked_add(&amt)?.checked_to_u128()?;
+
+        to_balance.overall_balance = to_overall;
+        to_balance.transferable_balance = to_transferable;
+
+        context
+            .update_token_balance(&to_script_key, to_balance, ptype)
+            .map_err(Error::LedgerError)?;
+
+        let holding_balance =
+            context.get_brc21_deposits_holding_balance(l2withdraw.l2id, tick.clone())?;
+        context.update_brc21_deposits_holding_balance(
+            l2withdraw.l2id,
+            &tick,
+            holding_balance.checked_sub(amt.checked_to_u128()?).unwrap(),
+        )?;
+
+        if Sha256Hasher::get_l2_withdraw_hash(&l2withdraw) != l2withdraw.proof.value {
+            anyhow::bail!("proof value mismatch");
+        }
+
+        if !l2withdraw.proof.verify_marked_if::<Sha256Hasher>(false) {
+            // TODO: check if root is valid
+            anyhow::bail!("invalid proof");
+        }
+
+        Ok(Event::L2Withdraw(L2WithdrawEvent {
+            l2id: l2withdraw.l2id,
+            tick: l2withdraw.tick,
+            to: l2withdraw.to,
+            amount: l2withdraw.amount,
+        }))
     }
 
     fn process_l2o_a_deploy(

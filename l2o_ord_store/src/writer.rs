@@ -11,6 +11,7 @@ use crate::table::insert_token_info;
 use crate::table::insert_transferable_asset;
 use crate::table::remove_transferable_asset;
 use crate::table::save_transaction_receipts;
+use crate::table::update_brc21_deposits_holding_balance;
 use crate::table::update_burned_token_info;
 use crate::table::update_mint_token_info;
 use crate::table::update_token_balance;
@@ -256,6 +257,20 @@ impl<'a, 'db, 'txn> Context<'a, 'db, 'txn> {
             self.brc21_satpoint_to_transferable_assets,
             self.brc21_address_ticker_to_transferable_assets,
             satpoint,
+        )
+    }
+
+    pub fn update_brc21_deposits_holding_balance(
+        &mut self,
+        l2id: u64,
+        tick: &Tick,
+        value: u128,
+    ) -> anyhow::Result<()> {
+        update_brc21_deposits_holding_balance(
+            self.brc21_deposits_holding_balances,
+            l2id,
+            tick,
+            value,
         )
     }
 }

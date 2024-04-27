@@ -63,7 +63,7 @@ pub struct TransferEvent {
 
 #[derive(Debug, Clone, PartialEq, Deserialize, Serialize)]
 pub struct L2DepositEvent {
-    pub l2id: u32,
+    pub l2id: u64,
     pub tick: String,
     pub to: String,
     pub amount: String,
@@ -71,7 +71,7 @@ pub struct L2DepositEvent {
 
 #[derive(Debug, Clone, PartialEq, Deserialize, Serialize)]
 pub struct L2WithdrawEvent {
-    pub l2id: u32,
+    pub l2id: u64,
     pub tick: String,
     pub to: String,
     pub amount: String,
@@ -122,7 +122,7 @@ mod tests {
   "inscription_number": 1,
   "old_satpoint": "1111111111111111111111111111111111111111111111111111111111111111:1:1",
   "new_satpoint": "2111111111111111111111111111111111111111111111111111111111111111:1:1",
-  "op": "Deploy",
+  "op": "BRC20Deploy",
   "from": {
     "Address": "bc1qhvd6suvqzjcu9pxjhrwhtrlj85ny3n2mqql5w4"
   },

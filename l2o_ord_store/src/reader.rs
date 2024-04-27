@@ -11,6 +11,7 @@ use crate::log::TransferableLog;
 use crate::script_key::ScriptKey;
 use crate::table::get_balance;
 use crate::table::get_balances;
+use crate::table::get_brc21_deposits_holding_balance;
 use crate::table::get_token_info;
 use crate::table::get_tokens_info;
 use crate::table::get_transaction_receipts;
@@ -302,5 +303,13 @@ impl<'a, 'db, 'txn> Context<'a, 'db, 'txn> {
                 &satpoint.outpoint
             ))
         }
+    }
+
+    pub fn get_brc21_deposits_holding_balance(
+        &mut self,
+        l2id: u64,
+        tick: Tick,
+    ) -> anyhow::Result<u128> {
+        get_brc21_deposits_holding_balance(self.brc21_deposits_holding_balances, l2id, &tick)
     }
 }

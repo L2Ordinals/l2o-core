@@ -1,13 +1,18 @@
 use std::fmt::Display;
 use std::fmt::Formatter;
+use std::str::FromStr;
 
 use bitcoin::address;
 use bitcoin::Address;
 use bitcoin::Script;
 use bitcoin::ScriptHash;
 use l2o_ord::chain::Chain;
+use once_cell::sync::Lazy;
 use serde::Deserialize;
 use serde::Serialize;
+
+pub static BURN_ADDRESS: Lazy<ScriptKey> =
+    Lazy::new(|| ScriptKey::Address(Address::from_str("1111111111111111111114oLvT2").unwrap()));
 
 #[derive(Debug, PartialEq, Eq, Hash, Clone, Serialize, Deserialize)]
 pub enum ScriptKey {
@@ -98,6 +103,18 @@ mod tests {
                     .unwrap(),
                 is_op_return: false,
             },
+        );
+    }
+
+    #[test]
+    fn test_script_key_from_burn_address() {
+        let script = Address::from_str("1111111111111111111114oLvT2")
+            .unwrap()
+            .payload()
+            .script_pubkey();
+        assert_eq!(
+            ScriptKey::from_script(&script, Chain::Mainnet),
+            ScriptKey::Address(Address::from_str("1111111111111111111114oLvT2").unwrap())
         );
     }
 }

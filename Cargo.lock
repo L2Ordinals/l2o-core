@@ -1700,6 +1700,7 @@ dependencies = [
  "l2o_ord",
  "l2o_store",
  "l2o_store_redb",
+ "once_cell",
  "rayon",
  "redb",
  "rmp-serde",

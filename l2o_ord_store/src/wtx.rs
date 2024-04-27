@@ -53,6 +53,7 @@ use crate::table::BRC20_SATPOINT_TO_TRANSFERABLE_ASSETS;
 use crate::table::BRC20_TOKEN;
 use crate::table::BRC21_ADDRESS_TICKER_TO_TRANSFERABLE_ASSETS;
 use crate::table::BRC21_BALANCES;
+use crate::table::BRC21_DEPOSITS_HOLDING_BALANCES;
 use crate::table::BRC21_EVENTS;
 use crate::table::BRC21_SATPOINT_TO_TRANSFERABLE_ASSETS;
 use crate::table::BRC21_TOKEN;
@@ -233,6 +234,9 @@ impl<'a> Wtx for redb::WriteTransaction<'a> {
 
             height_to_block_header: &mut self.open_table(HEIGHT_TO_BLOCK_HEADER)?,
             height_to_last_sequence_number: &mut self.open_table(HEIGHT_TO_LAST_SEQUENCE_NUMBER)?,
+
+            brc21_deposits_holding_balances: &mut self
+                .open_table(BRC21_DEPOSITS_HOLDING_BALANCES)?,
 
             sat_to_satpoint: &mut self.open_table(SAT_TO_SATPOINT)?,
             sat_to_sequence_number: &mut self.open_multimap_table(SAT_TO_SEQUENCE_NUMBER)?,

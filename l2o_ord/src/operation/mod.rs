@@ -1,5 +1,6 @@
 use serde::Deserialize;
 use serde::Serialize;
+use strum::EnumIs;
 
 use crate::operation::brc20::BRC20Operation;
 use crate::operation::brc20::RawBRC20Operation;
@@ -36,7 +37,7 @@ pub enum OperationType {
     L2ODeploy,
 }
 
-#[derive(Debug, Clone, PartialEq, Deserialize, Serialize, strum::Display)]
+#[derive(EnumIs, Debug, Clone, Copy, PartialEq, Deserialize, Serialize, strum::Display)]
 #[strum(serialize_all = "camelCase")]
 pub enum ProtocolType {
     BRC20,

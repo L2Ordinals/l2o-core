@@ -1,7 +1,6 @@
 use kvq::adapters::standard::KVQStandardAdapter;
 use kvq::traits::KVQBinaryStore;
 use kvq::traits::KVQBinaryStoreReader;
-use kvq::traits::KVQPair;
 use kvq::traits::KVQStoreAdapter;
 use kvq::traits::KVQStoreAdapterReader;
 use l2o_common::common::data::hash::Hash256;
@@ -12,13 +11,17 @@ use l2o_crypto::hash::hash_functions::keccak256::Keccak256Hasher;
 use l2o_crypto::hash::hash_functions::poseidon_goldilocks::PoseidonHasher;
 use l2o_crypto::hash::hash_functions::sha256::Sha256Hasher;
 use l2o_crypto::hash::merkle::core::MerkleProofCore;
+use l2o_crypto::hash::merkle::store::key::KVQAppendOnlyMerkleKey;
 use l2o_crypto::hash::merkle::store::key::KVQMerkleNodeKey;
 use l2o_crypto::hash::merkle::store::key::KVQTreeIdentifier;
 use l2o_crypto::hash::merkle::store::key::KVQTreeNodePosition;
+use l2o_crypto::hash::merkle::store::model::KVQAppendOnlyMerkleTreeModel;
 use l2o_crypto::hash::merkle::store::model::KVQMerkleTreeModel;
 use l2o_crypto::hash::traits::L2OHash;
 use l2o_macros::get_state;
 use l2o_macros::set_state;
+use l2o_ord::hasher::L2ODepositHasher;
+use l2o_ord::operation::brc21::l2deposit::L2Deposit;
 use l2o_ord::operation::l2o_a::L2OABlockV1;
 use l2o_ord::operation::l2o_a::L2OADeployV1;
 use l2o_ord::operation::l2o_a::L2OAHashFunction;
@@ -32,13 +35,12 @@ use super::tables::SUB_TABLE_L2_STATE_ROOTS_POSEIDON_GOLDILOCKS;
 use super::tables::SUB_TABLE_L2_STATE_ROOTS_SHA256;
 use super::tables::TABLE_L2_STATE_ROOTS;
 use super::traits::L2OStoreV1;
-use crate::core::tables::L2OBRC21BalancesKey;
+use crate::core::tables::L2OBRC21DepositsKey;
+use crate::core::tables::SUB_TABLE_L2_BRC21_DEPOSITS_SHA256;
+use crate::core::tables::TABLE_L2_BRC21_DEPOSITS;
 use crate::core::traits::L2OStoreReaderV1;
 
 const TREE_HEIGHT: u8 = 32;
-
-pub const BRC20_BURN_ADDRESS: &'static str =
-    "bc1p11111111111111111111111111111111111111111111111111114olvt2";
 
 pub const SHA256_STATE_ROOT_TREE_ID: KVQTreeIdentifier =
     KVQTreeIdentifier::new(SUB_TABLE_L2_STATE_ROOTS_SHA256, 0, 0);
@@ -83,6 +85,17 @@ type PoseidonGoldilocksStateRootTree<S> = KVQMerkleTreeModel<
     GHashOut,
     PoseidonHasher,
     KVQStandardAdapter<S, L2OStateRootsMerkleNodeKey, GHashOut>,
+>;
+
+pub const SHA256_BRC21_DEPOSITS_APPEND_ONLY_TREE_ID: KVQTreeIdentifier =
+    KVQTreeIdentifier::new(SUB_TABLE_L2_BRC21_DEPOSITS_SHA256, 0, 0);
+type Sha256BRC21DepositsAppendOnlyTree<S> = KVQAppendOnlyMerkleTreeModel<
+    TABLE_L2_BRC21_DEPOSITS,
+    TREE_HEIGHT,
+    S,
+    Hash256,
+    Sha256Hasher,
+    KVQStandardAdapter<S, L2OBRC21DepositsKey, MerkleProofCore<Hash256>>,
 >;
 
 pub struct L2OStoreV1Core<S> {
@@ -171,13 +184,6 @@ impl<S: KVQBinaryStoreReader> L2OStoreReaderV1 for L2OStoreV1Core<S> {
             Err(_) => Ok(false),
         }
     }
-
-    fn get_brc21_balance(&self, tick: String, address: String) -> anyhow::Result<u64> {
-        KVQStandardAdapter::<S, L2OBRC21BalancesKey, u64>::get_exact(
-            &self.store,
-            &L2OBRC21BalancesKey::new(tick, address),
-        )
-    }
 }
 
 impl<S: KVQBinaryStore> L2OStoreV1 for L2OStoreV1Core<S> {
@@ -205,29 +211,18 @@ impl<S: KVQBinaryStore> L2OStoreV1 for L2OStoreV1Core<S> {
 
         Ok(())
     }
-    fn transfer_brc21(
-        &mut self,
-        tick: String,
-        from: String,
-        to: String,
-        amount: u64,
-    ) -> anyhow::Result<()> {
-        let from_old_balance = Self::get_brc21_balance(self, tick.clone(), from.clone())?;
-        let to_old_balance = Self::get_brc21_balance(self, tick.clone(), to.clone())?;
-        let mut updates = vec![KVQPair {
-            key: L2OBRC21BalancesKey::new(tick.clone(), to),
-            value: to_old_balance
-                .checked_add(amount)
-                .ok_or(anyhow::anyhow!("Arithmetic: Overflow"))?,
-        }];
-        if from.as_str() != BRC20_BURN_ADDRESS {
-            updates.push(KVQPair {
-                key: L2OBRC21BalancesKey::new(tick.clone(), from),
-                value: from_old_balance
-                    .checked_sub(amount)
-                    .ok_or(anyhow::anyhow!("Arithmetic: Underflow"))?,
-            })
-        }
-        KVQStandardAdapter::<S, L2OBRC21BalancesKey, u64>::set_many(&mut self.store, &updates)
+
+    fn append_l2_deposit(&mut self, l2deposit: L2Deposit) -> anyhow::Result<()> {
+        let hash = Sha256Hasher::get_l2_deposit_hash(&l2deposit);
+        Sha256BRC21DepositsAppendOnlyTree::<S>::append_leaf(
+            &mut self.store,
+            &KVQAppendOnlyMerkleKey::from_identifier_ref(
+                &SHA256_BRC21_DEPOSITS_APPEND_ONLY_TREE_ID,
+                0,
+                l2deposit.tick,
+            ),
+            hash,
+        )?;
+        Ok(())
     }
 }
