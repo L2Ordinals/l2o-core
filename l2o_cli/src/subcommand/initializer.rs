@@ -14,6 +14,7 @@ use bitcoincore_rpc::Auth;
 use bitcoincore_rpc::Client;
 use bitcoincore_rpc::RpcApi;
 use k256::schnorr::SigningKey;
+use l2o_common::common::data::hash::Hash256;
 use l2o_common::common::data::signature::L2OSignature512;
 use l2o_common::InitializerArgs;
 use l2o_crypto::hash::hash_functions::sha256::Sha256Hasher;
@@ -65,14 +66,16 @@ pub async fn run(
         ),
     )?);
     let bitcoin_block_number = bitcoin_rpc.get_block_count()? - 1;
-    let _bitcoin_block_hash = bitcoin_rpc.get_block_hash(bitcoin_block_number)?;
+    let bitcoin_block_hash = bitcoin_rpc.get_block_hash(bitcoin_block_number)?;
+
+    block.bitcoin_block_number = bitcoin_block_number;
+    block.bitcoin_block_hash = Hash256::from_hex(&bitcoin_block_hash.to_string())?;
 
     let rpc = Arc::new(Provider::new(args.indexer_url.clone()));
     let superchain_root = rpc
         .get_superchainroot_at_block(bitcoin_block_number, L2OAHashFunction::Sha256)
         .await?;
-
-    let _block_proof = block.proof.clone().try_as_groth_16_bn_128().unwrap();
+    block.superchain_root = superchain_root;
 
     let block_payload = get_block_payload_bytes(&block);
     let block_hash = Sha256Hasher::get_l2_block_hash(&block);
@@ -96,12 +99,12 @@ pub async fn run(
     deploy_value["p"] = json!("l2o-a");
     deploy_value["op"] = json!("Deploy");
     std::fs::write(
-        "./l2o_indexer/assets/deploy.json",
+        "./static/deploy.json",
         serde_json::to_string_pretty(&deploy_value)?,
     )?;
 
     assert!(Command::new("make")
-        .args(["FILE=./l2o_indexer/assets/deploy.json", "ord-inscribe",])
+        .args(["FILE=./static/deploy.json", "ord-inscribe",])
         .status()
         .is_ok());
 
@@ -135,12 +138,12 @@ pub async fn run(
 
     block_value["proof"] = json!(proof_json);
     std::fs::write(
-        "./l2o_indexer/assets/block.json",
+        "./static/block.json",
         serde_json::to_string_pretty(&block_value)?,
     )?;
 
     assert!(Command::new("make")
-        .args(["FILE=./l2o_indexer/assets/block.json", "ord-inscribe",])
+        .args(["FILE=./static/block.json", "ord-inscribe",])
         .status()
         .is_ok());
 

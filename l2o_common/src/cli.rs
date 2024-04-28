@@ -12,8 +12,6 @@ pub struct IndexerArgs {
     pub bitcoin_rpcpassword: String,
     #[clap(short, env, long, default_value = "db", env)]
     pub db_path: String,
-    #[clap(short, env, long, default_value = "redb", env)]
-    pub redb_path: String,
 }
 
 #[derive(Clone, Args)]

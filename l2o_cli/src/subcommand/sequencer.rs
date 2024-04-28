@@ -62,12 +62,11 @@ async fn execute_single(
         signature: L2OSignature512::from_hex("aa1a18a79d73e2d7d0c636317b9ffc6d9492cdab3cc9872a15bd3c866d2cf132c7bb8bd90eb69e20e88372eab927e9b09897835edd81d3450a458c725ed581c0")?,
     };
 
-    let _proof = block.proof.clone().try_as_groth_16_bn_128().unwrap();
-
     let block_payload = get_block_payload_bytes(&block);
     let block_hash = Sha256Hasher::get_l2_block_hash(&block);
     let signature = sign_msg(signing_key, &block_hash.0)?;
     block.signature = signature;
+
     let public_inputs: [Fr; 2] = block_hash.into();
     let block_circuit = BlockCircuit {
         block_hash: public_inputs,
@@ -89,12 +88,12 @@ async fn execute_single(
     block_value["bitcoin_block_hash"] = json!(block.bitcoin_block_hash.to_hex());
     block_value["superchain_root"] = json!(block.superchain_root.to_hex());
     std::fs::write(
-        "./l2o_indexer/assets/block.json",
+        "./static/block.json",
         serde_json::to_string_pretty(&block_value)?,
     )?;
 
     assert!(Command::new("make")
-        .args(["FILE=./l2o_indexer/assets/block.json", "ord-inscribe",])
+        .args(["FILE=./static/block.json", "ord-inscribe",])
         .status()
         .is_ok());
 

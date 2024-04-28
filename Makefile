@@ -89,7 +89,7 @@ ord-reindex:
 	@ord -r --bitcoin-rpc-user=devnet --bitcoin-rpc-pass=devnet index run
 
 .PHONY: run
-run: run-indexer run-ordhook run-l2o-sequencer
+run: run-indexer run-l2o-sequencer
 
 .PHONY: run-l2o-sequencer
 run-l2o-sequencer:
@@ -101,7 +101,7 @@ run-l2o-initializer:
 
 .PHONY: run-indexer
 run-indexer:
-	@RUST_LOG=${LOG_LEVEL} RUST_BACKTRACE=${TRACE_ENABLED} cargo run --package l2o-cli -- indexer-ord-hook --addr=0.0.0.0:3000
+	@RUST_LOG=${LOG_LEVEL} RUST_BACKTRACE=${TRACE_ENABLED} cargo run --package l2o-cli -- indexer --addr=0.0.0.0:3000
 
 .PHONY: run-ordhook
 run-ordhook:

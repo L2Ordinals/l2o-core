@@ -163,10 +163,11 @@ pub trait Wtx {
         tx: &Transaction,
         txid: Txid,
         ctx: &mut Context<'a, 'db, 'txn>,
-        sender: SyncSender<OutPoint>,
         receiver: &Receiver<TxOut>,
         tx_out_cache: &mut SimpleLru<OutPoint, TxOut>,
         operations: &mut HashMap<Txid, Vec<InscriptionOp>>,
+        reward: &mut u64,
+        lost_sats: &mut u64,
     ) -> anyhow::Result<()>;
 
     fn update_inscription_location<'a, 'db, 'txn>(
@@ -190,8 +191,6 @@ impl<'a> Wtx for redb::WriteTransaction<'a> {
         sender: &SyncSender<OutPoint>,
         receiver: &Receiver<TxOut>,
     ) -> anyhow::Result<()> {
-        // TODO: detect reorg
-
         let mut operations = HashMap::<Txid, Vec<InscriptionOp>>::new();
         let mut tx_out_cache = SimpleLru::<OutPoint, TxOut>::new(10000000);
 
@@ -204,6 +203,7 @@ impl<'a> Wtx for redb::WriteTransaction<'a> {
                 .iter()
                 .map(|(_, txid)| txid)
                 .collect::<HashSet<_>>();
+            tracing::info!("txids: {:?}", txids);
 
             use rayon::prelude::*;
             let tx_outs = block
@@ -228,6 +228,7 @@ impl<'a> Wtx for redb::WriteTransaction<'a> {
                     }
                 })
                 .collect::<Vec<_>>();
+            tracing::info!("tx_outs: {:?}", tx_outs);
 
             for (out_point, value) in tx_outs.into_iter() {
                 if let Some(tx_out) = value {
@@ -285,15 +286,19 @@ impl<'a> Wtx for redb::WriteTransaction<'a> {
 
         let ctx_mut = &mut ctx;
 
+        let mut reward = Height(ctx_mut.chain_ctx.blockheight).subsidy();
+        let mut lost_sats =
+            get_statistic_to_count(ctx_mut.statistic_to_count, &Statistic::LostSats)?;
         for (tx, txid) in block.txdata.iter().skip(1).chain(block.txdata.first()) {
             self.index_envelopes(
                 tx,
                 *txid,
                 ctx_mut,
-                sender.clone(),
                 &receiver,
                 &mut tx_out_cache,
                 &mut operations,
+                &mut reward,
+                &mut lost_sats,
             )?;
         }
 
@@ -402,6 +407,9 @@ impl<'a> Wtx for redb::WriteTransaction<'a> {
             }
         }
 
+        ctx.height_to_block_header
+            .insert(ctx.chain_ctx.blockheight, &block.header.store())?;
+
         Ok(())
     }
 
@@ -410,18 +418,18 @@ impl<'a> Wtx for redb::WriteTransaction<'a> {
         tx: &Transaction,
         txid: Txid,
         ctx: &mut Context,
-        _sender: SyncSender<OutPoint>,
         receiver: &Receiver<TxOut>,
         tx_out_cache: &mut SimpleLru<OutPoint, TxOut>,
         operations: &mut HashMap<Txid, Vec<InscriptionOp>>,
+        reward: &mut u64,
+        lost_sats: &mut u64,
     ) -> anyhow::Result<()> {
         let mut floating_inscriptions = Vec::new();
         let mut id_counter = 0;
         let mut inscribed_offsets = BTreeMap::new();
         let mut total_input_value = 0;
+        let jubilant = ctx.chain_ctx.blockheight >= ctx.chain_ctx.chain.jubilee_height();
         let mut flotsam = vec![];
-        let mut reward = Height(ctx.chain_ctx.blockheight).subsidy();
-        let mut lost_sats = 0;
         let total_output_value = tx.output.iter().map(|txout| txout.value).sum::<Amount>();
 
         let envelopes = ParsedEnvelope::from_transaction(tx);
@@ -555,7 +563,7 @@ impl<'a> Wtx for redb::WriteTransaction<'a> {
                         offset: 0,
                     },
                     origin: Origin::New {
-                        cursed: curse.is_some(),
+                        cursed: curse.is_some() && !jubilant,
                         fee: 0,
                         hidden: inscription.payload.hidden(),
                         parent: inscription.payload.parent(),
@@ -563,7 +571,7 @@ impl<'a> Wtx for redb::WriteTransaction<'a> {
                         reinscription: inscribed_offsets.get(&offset).is_some(),
                         unbound,
                         inscription: inscription.payload.clone(),
-                        vindicated: curse.is_some(),
+                        vindicated: curse.is_some() && jubilant,
                     },
                 });
 
@@ -694,18 +702,18 @@ impl<'a> Wtx for redb::WriteTransaction<'a> {
             for flotsam in inscriptions {
                 let new_satpoint = SatPoint {
                     outpoint: OutPoint::null(),
-                    offset: lost_sats + flotsam.offset - output_value,
+                    offset: *lost_sats + flotsam.offset - output_value,
                 };
                 self.update_inscription_location(flotsam, ctx, new_satpoint, operations)?;
             }
-            lost_sats += reward - output_value;
+            *lost_sats += *reward - output_value;
             Ok(())
         } else {
             flotsam.extend(inscriptions.map(|flotsam| Flotsam {
-                offset: reward + flotsam.offset - output_value,
+                offset: *reward + flotsam.offset - output_value,
                 ..flotsam
             }));
-            reward += total_input_value - output_value;
+            *reward += total_input_value - output_value;
             Ok(())
         }
     }

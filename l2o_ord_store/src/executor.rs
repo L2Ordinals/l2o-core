@@ -684,7 +684,7 @@ impl ExecutionMessage {
             tracing::debug!("l2o {} already deployed", l2id);
             return Ok(Event::L2OADeploy);
         }
-        if deploy.verifier_data.is_groth_16_bn_128() {
+        if !deploy.verifier_data.is_groth_16_bn_128() {
             anyhow::bail!("unsupported verifier type");
         };
         context.kv.report_deploy_inscription(deploy)?;
@@ -757,7 +757,7 @@ impl ExecutionMessage {
             if block.l2_block_number != 0 {
                 anyhow::bail!("genesis block number must be zero");
             }
-            if block.start_state_root != deploy.start_state_root {
+            if block.end_state_root != deploy.start_state_root {
                 anyhow::bail!("genesis block state root must be equal to deploy start state root");
             }
 

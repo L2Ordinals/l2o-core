@@ -13,9 +13,12 @@ use l2o_ord::height::Height;
 use l2o_ord_store::ctx::ChainContext;
 use l2o_ord_store::reorg::ReorgError;
 use l2o_ord_store::rtx::Rtx;
+use l2o_ord_store::table::HEIGHT_TO_BLOCK_HEADER;
 use l2o_ord_store::wtx::BlockData;
 use l2o_ord_store::wtx::Wtx;
 use redb::Database;
+use redb::ReadableTable;
+use tokio::task::spawn_blocking;
 
 pub mod fetcher;
 pub mod rpc_server;
@@ -43,9 +46,9 @@ impl Clone for Indexer {
 }
 
 impl Indexer {
-    pub fn new(args: IndexerArgs) -> anyhow::Result<Self> {
+    pub async fn new(args: IndexerArgs) -> anyhow::Result<Self> {
         let addr: SocketAddr = args.addr.parse()?;
-        let db = Arc::new(Database::create(&args.redb_path)?);
+        let db = Arc::new(Database::create(&args.db_path)?);
         let bitcoin_rpc_auth = format!(
             "Basic {}",
             &base64::engine::general_purpose::STANDARD.encode(format!(
@@ -60,43 +63,63 @@ impl Indexer {
                 args.bitcoin_rpcpassword.to_string(),
             ),
         )?);
-        let http = Arc::new(reqwest::blocking::Client::new());
+        let indexer = spawn_blocking(move || {
+            let http = Arc::new(reqwest::blocking::Client::new());
 
-        let indexer = Indexer {
-            addr,
-            http,
-            db,
-            bitcoin_rpc_url: Box::leak(args.bitcoin_rpc.into_boxed_str()),
-            bitcoin_rpc_auth: Box::leak(bitcoin_rpc_auth.into_boxed_str()),
-            bitcoin_rpc,
-        };
+            let indexer = Indexer {
+                addr,
+                http,
+                db,
+                bitcoin_rpc_url: Box::leak(args.bitcoin_rpc.into_boxed_str()),
+                bitcoin_rpc_auth: Box::leak(bitcoin_rpc_auth.into_boxed_str()),
+                bitcoin_rpc,
+            };
 
-        indexer.clone().spawn_indexer();
+            indexer
+        })
+        .await?;
+
+        let indexerc = indexer.clone();
+
+        spawn_blocking(move || {
+            indexerc.spawn_indexer();
+        })
+        .await?;
 
         Ok(indexer)
     }
 
     pub fn spawn_indexer(self) {
+        tracing::info!("spawning indexer...");
         std::thread::spawn(move || -> anyhow::Result<()> {
             let (sender, receiver) = self.spawn_fetcher()?;
 
             loop {
                 let db_block_height =
                     self.db
-                        .begin_read()
+                        .begin_write()
                         .map_err(anyhow::Error::from)
-                        .and_then(|x| {
-                            x.block_height()
-                                .map(|y| y.unwrap_or(Height(0)))
-                                .map_err(anyhow::Error::from)
+                        .and_then(|wtx| {
+                            let res = {
+                                let table = wtx.open_table(HEIGHT_TO_BLOCK_HEADER)?;
+                                let value = table
+                                    .range(0..)?
+                                    .next_back()
+                                    .and_then(|result| result.ok())
+                                    .map(|(height, _header)| Height(height.value() + 1));
+                                value
+                            };
+                            wtx.commit()?;
+                            Ok(res.unwrap_or(Height(0)))
                         });
+
                 let rpc_block_count = self.bitcoin_rpc.get_block_count();
 
                 match (&db_block_height, &rpc_block_count) {
                     (Ok(db_block_height), Ok(rpc_block_count))
                         if u64::from(db_block_height.n() + 1) <= *rpc_block_count => {}
                     _ => {
-                        thread::sleep(Duration::from_secs(600));
+                        thread::sleep(Duration::from_secs(1));
                         continue;
                     }
                 }
@@ -146,7 +169,7 @@ impl Indexer {
                 {
                     tracing::error!("index error: {}", err);
                 }
-                thread::sleep(Duration::from_secs(3));
+                thread::sleep(Duration::from_secs(1));
             }
         });
     }

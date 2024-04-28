@@ -117,6 +117,7 @@ impl Indexer {
     }
 
     pub fn spawn_fetcher(&self) -> anyhow::Result<(SyncSender<OutPoint>, Receiver<TxOut>)> {
+        tracing::info!("spawning fetcher...");
         // Not sure if any block has more than 20k inputs, but none so far after first
         // inscription block
         const CHANNEL_BUFFER_SIZE: usize = 20_000;

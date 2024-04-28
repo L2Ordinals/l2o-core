@@ -311,6 +311,10 @@ impl<'a> Rtx for redb::ReadTransaction<'a> {
         block: &BlockData,
         height: u32,
     ) -> anyhow::Result<()> {
+        if height == 0 {
+            return Ok(());
+        }
+
         let bitcoin_prev_blockhash = block.header.prev_blockhash;
 
         match self.block_hash(height.checked_sub(1))? {
