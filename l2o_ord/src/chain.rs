@@ -3,6 +3,7 @@ use std::fmt::Display;
 use std::fmt::Formatter;
 use std::path::Path;
 use std::path::PathBuf;
+use std::str::FromStr;
 
 use bitcoin::constants::SUBSIDY_HALVING_INTERVAL;
 use bitcoin::Address;
@@ -127,5 +128,19 @@ impl Display for Chain {
                 Self::Testnet => "testnet",
             }
         )
+    }
+}
+
+impl FromStr for Chain {
+    type Err = anyhow::Error;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        match s {
+            "mainnet" => Ok(Self::Mainnet),
+            "regtest" => Ok(Self::Regtest),
+            "signet" => Ok(Self::Signet),
+            "testnet" => Ok(Self::Testnet),
+            _ => Err(anyhow::anyhow!("unsupported chain")),
+        }
     }
 }

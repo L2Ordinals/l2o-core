@@ -3,6 +3,10 @@ mod circuits;
 mod error;
 mod subcommand;
 
+use shadow_rs::shadow;
+
+shadow!(build);
+
 use clap::Parser;
 use error::Result;
 

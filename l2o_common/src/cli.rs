@@ -4,6 +4,8 @@ use clap::Args;
 pub struct IndexerArgs {
     #[clap(short, env, long, default_value = "0.0.0.0:3000", env)]
     pub addr: String,
+    #[clap(env, long, default_value = "regtest", env)]
+    pub network: String,
     #[clap(env, long, default_value = "http://localhost:18443", env)]
     pub bitcoin_rpc: String,
     #[clap(env, long, default_value = "devnet", env)]

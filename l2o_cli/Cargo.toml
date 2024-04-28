@@ -1,4 +1,5 @@
 [package]
+build   = "build.rs"
 edition = "2021"
 name    = "l2o-cli"
 version = "0.1.0"
@@ -25,6 +26,10 @@ l2o_crypto            = { path = "../l2o_crypto" }
 l2o_ord               = { path = "../l2o_ord" }
 l2o_rpc_provider      = { path = "../l2o_rpc_provider" }
 serde_json            = { workspace = true }
+shadow-rs             = { workspace = true }
 thiserror             = { workspace = true }
 tokio                 = { workspace = true }
 tracing               = { workspace = true }
+
+[build-dependencies]
+shadow-rs = { workspace = true }

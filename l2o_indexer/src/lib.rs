@@ -27,6 +27,7 @@ pub struct Indexer {
     addr: SocketAddr,
     http: Arc<reqwest::blocking::Client>,
     db: Arc<Database>,
+    chain: Chain,
     bitcoin_rpc_url: &'static str,
     bitcoin_rpc_auth: &'static str,
     bitcoin_rpc: Arc<Client>,
@@ -38,6 +39,7 @@ impl Clone for Indexer {
             addr: self.addr,
             http: Arc::clone(&self.http),
             db: Arc::clone(&self.db),
+            chain: self.chain.clone(),
             bitcoin_rpc_url: self.bitcoin_rpc_url,
             bitcoin_rpc_auth: self.bitcoin_rpc_auth,
             bitcoin_rpc: Arc::clone(&self.bitcoin_rpc),
@@ -63,6 +65,7 @@ impl Indexer {
                 args.bitcoin_rpcpassword.to_string(),
             ),
         )?);
+        let chain = args.network.parse()?;
         let indexer = spawn_blocking(move || {
             let http = Arc::new(reqwest::blocking::Client::new());
 
@@ -70,6 +73,7 @@ impl Indexer {
                 addr,
                 http,
                 db,
+                chain,
                 bitcoin_rpc_url: Box::leak(args.bitcoin_rpc.into_boxed_str()),
                 bitcoin_rpc_auth: Box::leak(bitcoin_rpc_auth.into_boxed_str()),
                 bitcoin_rpc,
@@ -152,7 +156,7 @@ impl Indexer {
 
                         let wxn = self.db.begin_write()?;
                         let chain_ctx = ChainContext {
-                            chain: Chain::Regtest,
+                            chain: self.chain,
                             blockheight: height.n(),
                             blocktime: block_data.header.time,
                             bitcoin_rpc: Arc::clone(&self.bitcoin_rpc),
