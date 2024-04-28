@@ -12,6 +12,6 @@ l2o_common  = { path = "../l2o_common" }
 l2o_crypto  = { path = "../l2o_crypto" }
 l2o_macros  = { path = "../l2o_macros" }
 l2o_ord     = { path = "../l2o_ord" }
+l2o_rpc     = { path = "../l2o_rpc" }
 reqwest     = { workspace = true }
-serde       = { workspace = true }
 serde_json  = { workspace = true }

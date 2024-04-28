@@ -5,8 +5,8 @@ use serde::Deserializer;
 use serde::Serialize;
 use serde::Serializer;
 
-use crate::rpc::request::Id;
-use crate::rpc::request::Version;
+use crate::request::Id;
+use crate::request::Version;
 
 /// Response of a _single_ rpc call
 #[derive(Debug, PartialEq, Eq, Clone, Serialize, Deserialize)]

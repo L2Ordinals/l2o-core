@@ -2,15 +2,16 @@ use std::fmt::Display;
 use std::fmt::Formatter;
 use std::str::FromStr;
 
-use l2o_ord::error::BRC2XError;
-use l2o_ord::MAX_TICK_BYTE_COUNT;
-use l2o_ord::ORIGINAL_TICK_LENGTH;
-use l2o_ord::SELF_ISSUANCE_TICK_LENGTH;
 use serde::de;
 use serde::Deserialize;
 use serde::Deserializer;
 use serde::Serialize;
 use serde::Serializer;
+
+use crate::error::BRC2XError;
+use crate::MAX_TICK_BYTE_COUNT;
+use crate::ORIGINAL_TICK_LENGTH;
+use crate::SELF_ISSUANCE_TICK_LENGTH;
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
 pub struct Tick(Box<[u8]>);

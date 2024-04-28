@@ -9,6 +9,9 @@ use l2o_macros::define_multimap_table;
 use l2o_macros::define_table;
 use l2o_ord::inscription::inscription_id::InscriptionId;
 use l2o_ord::sat_point::SatPoint;
+use l2o_ord::script_key::ScriptKey;
+use l2o_ord::tick::LowerTick;
+use l2o_ord::tick::Tick;
 use redb::MultimapTable;
 use redb::MultimapTableDefinition;
 use redb::ReadableMultimapTable;
@@ -27,10 +30,7 @@ use crate::entry::SatPointValue;
 use crate::entry::TxidValue;
 use crate::event::Receipt;
 use crate::log::TransferableLog;
-use crate::script_key::ScriptKey;
 use crate::statistic::Statistic;
-use crate::tick::LowerTick;
-use crate::tick::Tick;
 use crate::token_info::TokenInfo;
 
 define_table! { HEIGHT_TO_BLOCK_HEADER, u32, &HeaderValue }

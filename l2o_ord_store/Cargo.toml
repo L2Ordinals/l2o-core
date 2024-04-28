@@ -14,14 +14,12 @@ ark-snark       = { workspace = true }
 bigdecimal      = { workspace = true }
 bitcoin         = { workspace = true }
 bitcoincore-rpc = { workspace = true }
-hex             = { workspace = true }
 l2o_common      = { path = "../l2o_common" }
 l2o_crypto      = { path = "../l2o_crypto" }
 l2o_macros      = { path = "../l2o_macros" }
 l2o_ord         = { path = "../l2o_ord" }
 l2o_store       = { path = "../l2o_store" }
 l2o_store_redb  = { path = "../l2o_store_redb" }
-once_cell       = { workspace = true }
 rayon           = { workspace = true }
 redb            = { workspace = true }
 rmp-serde       = { workspace = true }

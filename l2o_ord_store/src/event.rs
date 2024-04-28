@@ -2,11 +2,10 @@ use l2o_ord::error::BRC2XError;
 use l2o_ord::inscription::inscription_id::InscriptionId;
 use l2o_ord::operation::OperationType;
 use l2o_ord::sat_point::SatPoint;
+use l2o_ord::script_key::ScriptKey;
+use l2o_ord::tick::Tick;
 use serde::Deserialize;
 use serde::Serialize;
-
-use crate::script_key::ScriptKey;
-use crate::tick::Tick;
 
 #[derive(Debug, Clone, PartialEq, Deserialize, Serialize)]
 pub struct Receipt {

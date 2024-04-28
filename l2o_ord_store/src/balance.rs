@@ -1,7 +1,6 @@
+use l2o_ord::tick::Tick;
 use serde::Deserialize;
 use serde::Serialize;
-
-use crate::tick::Tick;
 
 #[derive(Debug, Deserialize, Serialize, Clone, PartialEq, Eq)]
 pub struct Balance {

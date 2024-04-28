@@ -35,6 +35,9 @@ use l2o_ord::operation::l2o_a::L2OAOperation;
 use l2o_ord::operation::Operation;
 use l2o_ord::operation::ProtocolType;
 use l2o_ord::sat_point::SatPoint;
+use l2o_ord::script_key::ScriptKey;
+use l2o_ord::script_key::BURN_ADDRESS;
+use l2o_ord::tick::Tick;
 use l2o_ord::BIGDECIMAL_TEN;
 use l2o_ord::MAXIMUM_SUPPLY;
 use l2o_ord::MAX_DECIMAL_WIDTH;
@@ -52,9 +55,6 @@ use crate::event::MintEvent;
 use crate::event::Receipt;
 use crate::event::TransferEvent;
 use crate::log::TransferableLog;
-use crate::script_key::ScriptKey;
-use crate::script_key::BURN_ADDRESS;
-use crate::tick::Tick;
 use crate::token_info::TokenInfo;
 
 #[derive(Debug, Clone, PartialEq)]

@@ -1,17 +1,25 @@
+use std::sync::Arc;
+
 use bitcoin::block::Header;
 use bitcoin::BlockHash;
 use bitcoin::OutPoint;
 use bitcoin::TxOut;
 use bitcoin::Txid;
+use bitcoincore_rpc::Client;
+use bitcoincore_rpc::RpcApi;
 use l2o_ord::height::Height;
 use l2o_ord::sat_point::SatPoint;
+use l2o_ord::script_key::ScriptKey;
+use l2o_ord::tick::Tick;
 use redb::ReadableTable;
 
 use crate::balance::Balance;
 use crate::entry::Entry;
 use crate::event::Receipt;
 use crate::log::TransferableLog;
-use crate::script_key::ScriptKey;
+use crate::reorg::ReorgError;
+use crate::reorg::MAX_SAVEPOINTS;
+use crate::reorg::SAVEPOINT_INTERVAL;
 use crate::table::get_balance;
 use crate::table::get_balances;
 use crate::table::get_token_info;
@@ -33,8 +41,8 @@ use crate::table::BRC21_SATPOINT_TO_TRANSFERABLE_ASSETS;
 use crate::table::BRC21_TOKEN;
 use crate::table::HEIGHT_TO_BLOCK_HEADER;
 use crate::table::OUTPOINT_TO_ENTRY;
-use crate::tick::Tick;
 use crate::token_info::TokenInfo;
+use crate::wtx::BlockData;
 
 pub trait Rtx {
     fn block_height(&self) -> anyhow::Result<Option<Height>>;
@@ -98,6 +106,12 @@ pub trait Rtx {
         &self,
         outpoint: OutPoint,
     ) -> anyhow::Result<Vec<(SatPoint, TransferableLog)>>;
+    fn detect_reorg(
+        &self,
+        client: Arc<Client>,
+        block: &BlockData,
+        height: u32,
+    ) -> anyhow::Result<()>;
 }
 
 impl<'a> Rtx for redb::ReadTransaction<'a> {
@@ -289,5 +303,36 @@ impl<'a> Rtx for redb::ReadTransaction<'a> {
     ) -> anyhow::Result<Vec<(SatPoint, TransferableLog)>> {
         let satpoint_to_sequence_number = self.open_table(BRC21_SATPOINT_TO_TRANSFERABLE_ASSETS)?;
         get_transferable_assets_by_outpoint(&satpoint_to_sequence_number, outpoint)
+    }
+
+    fn detect_reorg(
+        &self,
+        client: Arc<Client>,
+        block: &BlockData,
+        height: u32,
+    ) -> anyhow::Result<()> {
+        let bitcoin_prev_blockhash = block.header.prev_blockhash;
+
+        match self.block_hash(height.checked_sub(1))? {
+            Some(index_prev_blockhash) if index_prev_blockhash == bitcoin_prev_blockhash => Ok(()),
+            Some(index_prev_blockhash) if index_prev_blockhash != bitcoin_prev_blockhash => {
+                let max_recoverable_reorg_depth =
+                    (MAX_SAVEPOINTS - 1) * SAVEPOINT_INTERVAL + height % SAVEPOINT_INTERVAL;
+
+                for depth in 1..max_recoverable_reorg_depth {
+                    let index_block_hash = self.block_hash(height.checked_sub(depth))?;
+                    let bitcoin_block_hash = client
+                        .get_block_hash(u64::from(height.saturating_sub(depth)))
+                        .ok();
+
+                    if index_block_hash == bitcoin_block_hash {
+                        return Err(anyhow::anyhow!(ReorgError::Recoverable { height, depth }));
+                    }
+                }
+
+                Err(anyhow::anyhow!(ReorgError::Unrecoverable))
+            }
+            _ => Ok(()),
+        }
     }
 }

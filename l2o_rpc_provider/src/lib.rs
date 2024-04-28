@@ -5,15 +5,12 @@ use l2o_macros::rpc_call;
 use l2o_ord::operation::l2o_a::L2OABlockV1;
 use l2o_ord::operation::l2o_a::L2OADeployV1;
 use l2o_ord::operation::l2o_a::L2OAHashFunction;
+use l2o_rpc::request::Id;
+use l2o_rpc::request::RequestParams;
+use l2o_rpc::request::RpcRequest;
+use l2o_rpc::request::Version;
 use reqwest::Client;
 use serde_json::Value;
-
-use crate::rpc::request::Id;
-use crate::rpc::request::RequestParams;
-use crate::rpc::request::RpcRequest;
-use crate::rpc::request::Version;
-
-pub mod rpc;
 
 #[async_trait]
 pub trait L2OAProvider {

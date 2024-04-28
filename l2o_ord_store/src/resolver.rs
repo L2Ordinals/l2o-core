@@ -83,10 +83,10 @@ mod tests {
     use l2o_ord::operation::brc20::deploy::Deploy;
     use l2o_ord::operation::brc20::transfer::Transfer;
     use l2o_ord::sat_point::SatPoint;
+    use l2o_ord::script_key::ScriptKey;
+    use l2o_ord::tick::Tick;
 
     use super::*;
-    use crate::script_key::ScriptKey;
-    use crate::tick::Tick;
 
     fn create_inscription(str: &str) -> Inscription {
         Inscription::new(

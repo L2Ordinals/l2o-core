@@ -6,10 +6,11 @@ use bitcoin::address;
 use bitcoin::Address;
 use bitcoin::Script;
 use bitcoin::ScriptHash;
-use l2o_ord::chain::Chain;
 use once_cell::sync::Lazy;
 use serde::Deserialize;
 use serde::Serialize;
+
+use crate::chain::Chain;
 
 pub static BURN_ADDRESS: Lazy<ScriptKey> =
     Lazy::new(|| ScriptKey::Address(Address::from_str("1111111111111111111114oLvT2").unwrap()));

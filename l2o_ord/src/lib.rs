@@ -17,9 +17,11 @@ pub mod operation;
 pub mod rarity;
 pub mod sat;
 pub mod sat_point;
+pub mod script_key;
 pub mod serde_helpers;
 pub mod tag;
 pub mod test_helpers;
+pub mod tick;
 
 pub const CYCLE_EPOCHS: u32 = 6;
 pub const COIN_VALUE: u64 = 100_000_000;

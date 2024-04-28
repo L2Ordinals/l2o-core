@@ -142,6 +142,7 @@ checksum = "1f3a13b34da09176a8baba701233fdffbaa7c1b1192ce031a3da4e55ce1f1a56"
 dependencies = [
  "ark-ec",
  "ark-ff",
+ "ark-r1cs-std",
  "ark-relations",
  "ark-serialize",
  "ark-snark",
@@ -151,6 +152,7 @@ dependencies = [
  "digest",
  "rayon",
  "sha2",
+ "tracing",
 ]
 
 [[package]]
@@ -243,6 +245,23 @@ dependencies = [
  "derivative",
  "hashbrown 0.13.2",
  "rayon",
+]
+
+[[package]]
+name = "ark-r1cs-std"
+version = "0.4.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "de1d1472e5cb020cb3405ce2567c91c8d43f21b674aef37b0202f5c3304761db"
+dependencies = [
+ "ark-ec",
+ "ark-ff",
+ "ark-relations",
+ "ark-std",
+ "derivative",
+ "num-bigint",
+ "num-integer",
+ "num-traits",
+ "tracing",
 ]
 
 [[package]]
@@ -897,6 +916,12 @@ dependencies = [
  "crypto-common",
  "subtle",
 ]
+
+[[package]]
+name = "dotenv"
+version = "0.15.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "77c90badedccf4105eca100756a0b1289e191f6fcbdadd3cee1d2f614f97da8f"
 
 [[package]]
 name = "ecdsa"
@@ -1572,6 +1597,34 @@ dependencies = [
 ]
 
 [[package]]
+name = "l2o-cli"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "ark-bn254",
+ "ark-crypto-primitives",
+ "ark-ff",
+ "ark-groth16",
+ "ark-r1cs-std",
+ "ark-relations",
+ "ark-std",
+ "bitcoincore-rpc",
+ "clap",
+ "dotenv",
+ "hex",
+ "k256",
+ "l2o-indexer",
+ "l2o_common",
+ "l2o_crypto",
+ "l2o_ord",
+ "l2o_rpc_provider",
+ "serde_json",
+ "thiserror",
+ "tokio",
+ "tracing",
+]
+
+[[package]]
 name = "l2o-indexer"
 version = "0.1.0"
 dependencies = [
@@ -1589,7 +1642,7 @@ dependencies = [
  "l2o_macros",
  "l2o_ord",
  "l2o_ord_store",
- "l2o_rpc_provider",
+ "l2o_rpc",
  "l2o_store",
  "l2o_store_redb",
  "redb",
@@ -1664,6 +1717,7 @@ dependencies = [
  "ciborium",
  "clap",
  "derive_more",
+ "hex",
  "http 0.2.12",
  "kvq",
  "l2o_common",
@@ -1693,20 +1747,28 @@ dependencies = [
  "bigdecimal",
  "bitcoin",
  "bitcoincore-rpc",
- "hex",
  "l2o_common",
  "l2o_crypto",
  "l2o_macros",
  "l2o_ord",
  "l2o_store",
  "l2o_store_redb",
- "once_cell",
  "rayon",
  "redb",
  "rmp-serde",
  "serde",
  "serde_json",
  "tracing",
+]
+
+[[package]]
+name = "l2o_rpc"
+version = "0.1.0"
+dependencies = [
+ "bitcoin",
+ "l2o_ord",
+ "serde",
+ "serde_json",
 ]
 
 [[package]]
@@ -1719,8 +1781,8 @@ dependencies = [
  "l2o_crypto",
  "l2o_macros",
  "l2o_ord",
+ "l2o_rpc",
  "reqwest",
- "serde",
  "serde_json",
 ]
 
@@ -1734,8 +1796,6 @@ dependencies = [
  "l2o_crypto",
  "l2o_macros",
  "l2o_ord",
- "serde",
- "serde_json",
 ]
 
 [[package]]

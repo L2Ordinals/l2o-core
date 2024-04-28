@@ -3,12 +3,13 @@ use bitcoin::Txid;
 use l2o_ord::chain::Chain;
 use l2o_ord::operation::ProtocolType;
 use l2o_ord::sat_point::SatPoint;
+use l2o_ord::script_key::ScriptKey;
+use l2o_ord::tick::Tick;
 
 use crate::balance::Balance;
 use crate::ctx::Context;
 use crate::event::Receipt;
 use crate::log::TransferableLog;
-use crate::script_key::ScriptKey;
 use crate::table::get_balance;
 use crate::table::get_balances;
 use crate::table::get_brc21_deposits_holding_balance;
@@ -20,7 +21,6 @@ use crate::table::get_transferable_assets_by_account_ticker;
 use crate::table::get_transferable_assets_by_outpoint;
 use crate::table::get_transferable_assets_by_satpoint;
 use crate::table::get_txout_by_outpoint;
-use crate::tick::Tick;
 use crate::token_info::TokenInfo;
 
 impl<'a, 'db, 'txn> Context<'a, 'db, 'txn> {

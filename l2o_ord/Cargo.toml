@@ -13,6 +13,7 @@ brotli      = { workspace = true }
 ciborium    = { workspace = true }
 clap        = { workspace = true }
 derive_more = { workspace = true }
+hex         = { workspace = true }
 http        = { workspace = true }
 kvq         = { path = "../kvq" }
 l2o_common  = { path = "../l2o_common" }

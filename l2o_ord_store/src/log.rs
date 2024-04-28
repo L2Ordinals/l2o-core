@@ -1,9 +1,8 @@
 use l2o_ord::inscription::inscription_id::InscriptionId;
+use l2o_ord::script_key::ScriptKey;
+use l2o_ord::tick::Tick;
 use serde::Deserialize;
 use serde::Serialize;
-
-use crate::script_key::ScriptKey;
-use crate::tick::Tick;
 
 #[derive(Debug, PartialEq, Clone, Serialize, Deserialize)]
 pub struct TransferableLog {

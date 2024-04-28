@@ -4,6 +4,7 @@ use std::collections::HashSet;
 use std::collections::VecDeque;
 use std::sync::mpsc::Receiver;
 use std::sync::mpsc::SyncSender;
+use std::sync::Arc;
 
 use bitcoin::block::Header;
 use bitcoin::consensus::Encodable;
@@ -14,6 +15,8 @@ use bitcoin::OutPoint;
 use bitcoin::Transaction;
 use bitcoin::TxOut;
 use bitcoin::Txid;
+use bitcoincore_rpc::Client;
+use bitcoincore_rpc::RpcApi;
 use l2o_ord::action::Action;
 use l2o_ord::height::Height;
 use l2o_ord::inscription::envelope::ParsedEnvelope;
@@ -39,6 +42,9 @@ use crate::executor::ExecutionMessage;
 use crate::executor::Message;
 use crate::log::TransferableLog;
 use crate::lru::SimpleLru;
+use crate::reorg::CHAIN_TIP_DISTANCE;
+use crate::reorg::MAX_SAVEPOINTS;
+use crate::reorg::SAVEPOINT_INTERVAL;
 use crate::statistic::Statistic;
 use crate::table::get_next_sequence_number;
 use crate::table::get_statistic_to_count;
@@ -170,6 +176,10 @@ pub trait Wtx {
         new_satpoint: SatPoint,
         operations: &mut HashMap<Txid, Vec<InscriptionOp>>,
     ) -> anyhow::Result<()>;
+
+    fn update_savepoints(&self, client: Arc<Client>, height: u32) -> anyhow::Result<()>;
+
+    fn handle_reorg(&mut self, height: u32, depth: u32) -> anyhow::Result<()>;
 }
 
 impl<'a> Wtx for redb::WriteTransaction<'a> {
@@ -912,6 +922,34 @@ impl<'a> Wtx for redb::WriteTransaction<'a> {
         ctx.sequence_number_to_satpoint
             .insert(sequence_number, &satpoint)?;
 
+        Ok(())
+    }
+
+    fn update_savepoints(&self, client: Arc<Client>, height: u32) -> anyhow::Result<()> {
+        if (height < SAVEPOINT_INTERVAL || height % SAVEPOINT_INTERVAL == 0)
+            && u32::try_from(client.get_blockchain_info()?.headers)
+                .unwrap()
+                .saturating_sub(height)
+                <= CHAIN_TIP_DISTANCE
+        {
+            let savepoints = self.list_persistent_savepoints()?.collect::<Vec<u64>>();
+
+            if savepoints.len() >= usize::try_from(MAX_SAVEPOINTS).unwrap() {
+                self.delete_persistent_savepoint(savepoints.into_iter().min().unwrap())?;
+            }
+
+            tracing::debug!("creating savepoint at height {}", height);
+            self.persistent_savepoint()?;
+        }
+
+        Ok(())
+    }
+
+    fn handle_reorg(&mut self, _height: u32, _depth: u32) -> anyhow::Result<()> {
+        let oldest_savepoint =
+            self.get_persistent_savepoint(self.list_persistent_savepoints()?.min().unwrap())?;
+
+        self.restore_savepoint(&oldest_savepoint)?;
         Ok(())
     }
 }
