@@ -103,7 +103,7 @@ impl Indexer {
                     self.db
                         .begin_write()
                         .map_err(anyhow::Error::from)
-                        .and_then(|wtx| {
+                        .and_then(|mut wtx| {
                             let res = {
                                 let table = wtx.open_table(HEIGHT_TO_BLOCK_HEADER)?;
                                 let value = table
@@ -113,6 +113,7 @@ impl Indexer {
                                     .map(|(height, _header)| Height(height.value() + 1));
                                 value
                             };
+                            wtx.set_durability(redb::Durability::Immediate);
                             wtx.commit()?;
                             Ok(res.unwrap_or(Height(0)))
                         });
@@ -123,7 +124,7 @@ impl Indexer {
                     (Ok(db_block_height), Ok(rpc_block_count))
                         if u64::from(db_block_height.n() + 1) <= *rpc_block_count => {}
                     _ => {
-                        thread::sleep(Duration::from_secs(1));
+                        thread::sleep(Duration::from_millis(10));
                         continue;
                     }
                 }
@@ -146,15 +147,19 @@ impl Indexer {
                                     }
                                     Some(&ReorgError::Recoverable { height, depth }) => {
                                         let mut wxn = self.db.begin_write()?;
+                                        wxn.set_durability(redb::Durability::Immediate);
                                         wxn.handle_reorg(height, depth)?;
                                         wxn.commit()?;
+
+                                        return Ok(());
                                     }
                                     _ => return Err(err),
                                 }
                             }
                         }
 
-                        let wxn = self.db.begin_write()?;
+                        let mut wxn = self.db.begin_write()?;
+                        wxn.set_durability(redb::Durability::Immediate);
                         let chain_ctx = ChainContext {
                             chain: self.chain,
                             blockheight: height.n(),
@@ -165,15 +170,22 @@ impl Indexer {
                         wxn.index_block(chain_ctx, block_data, &sender, &receiver)?;
                         wxn.commit()?;
 
-                        let wxn = self.db.begin_write()?;
-                        wxn.update_savepoints(self.bitcoin_rpc.clone(), height.n())?;
+                        let mut wxn = self.db.begin_write()?;
+                        wxn.set_durability(redb::Durability::Immediate);
+                        wxn.delete_oldest_savepoint(self.bitcoin_rpc.clone(), height.n())?;
+                        wxn.commit()?;
+
+                        let mut wxn = self.db.begin_write()?;
+                        wxn.set_durability(redb::Durability::Immediate);
+                        wxn.persistent_savepoint()?;
+
                         wxn.commit()?;
                         Ok(())
                     })
                 {
                     tracing::error!("index error: {}", err);
                 }
-                thread::sleep(Duration::from_secs(1));
+                thread::sleep(Duration::from_millis(10));
             }
         });
     }

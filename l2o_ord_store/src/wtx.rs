@@ -178,7 +178,7 @@ pub trait Wtx {
         operations: &mut HashMap<Txid, Vec<InscriptionOp>>,
     ) -> anyhow::Result<()>;
 
-    fn update_savepoints(&self, client: Arc<Client>, height: u32) -> anyhow::Result<()>;
+    fn delete_oldest_savepoint(&self, client: Arc<Client>, height: u32) -> anyhow::Result<()>;
 
     fn handle_reorg(&mut self, height: u32, depth: u32) -> anyhow::Result<()>;
 }
@@ -191,6 +191,7 @@ impl<'a> Wtx for redb::WriteTransaction<'a> {
         sender: &SyncSender<OutPoint>,
         receiver: &Receiver<TxOut>,
     ) -> anyhow::Result<()> {
+        tracing::info!("indexing block: {}", chain_ctx.blockheight);
         let mut operations = HashMap::<Txid, Vec<InscriptionOp>>::new();
         let mut tx_out_cache = SimpleLru::<OutPoint, TxOut>::new(10000000);
 
@@ -933,7 +934,7 @@ impl<'a> Wtx for redb::WriteTransaction<'a> {
         Ok(())
     }
 
-    fn update_savepoints(&self, client: Arc<Client>, height: u32) -> anyhow::Result<()> {
+    fn delete_oldest_savepoint(&self, client: Arc<Client>, height: u32) -> anyhow::Result<()> {
         if (height < SAVEPOINT_INTERVAL || height % SAVEPOINT_INTERVAL == 0)
             && u32::try_from(client.get_blockchain_info()?.headers)
                 .unwrap()
@@ -945,17 +946,15 @@ impl<'a> Wtx for redb::WriteTransaction<'a> {
             if savepoints.len() >= usize::try_from(MAX_SAVEPOINTS).unwrap() {
                 self.delete_persistent_savepoint(savepoints.into_iter().min().unwrap())?;
             }
-
-            tracing::debug!("creating savepoint at height {}", height);
-            self.persistent_savepoint()?;
         }
 
         Ok(())
     }
 
     fn handle_reorg(&mut self, _height: u32, _depth: u32) -> anyhow::Result<()> {
+        tracing::info!("handling reorg");
         let oldest_savepoint =
-            self.get_persistent_savepoint(self.list_persistent_savepoints()?.min().unwrap())?;
+            self.get_persistent_savepoint(dbg!(self.list_persistent_savepoints()?.min().unwrap()))?;
 
         self.restore_savepoint(&oldest_savepoint)?;
         Ok(())
