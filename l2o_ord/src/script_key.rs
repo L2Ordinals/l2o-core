@@ -16,10 +16,12 @@ pub static BURN_ADDRESS: Lazy<ScriptKey> =
     Lazy::new(|| ScriptKey::Address(Address::from_str("1111111111111111111114oLvT2").unwrap()));
 
 #[derive(Debug, PartialEq, Eq, Hash, Clone, Serialize, Deserialize)]
+#[serde(untagged)]
 pub enum ScriptKey {
     Address(Address<address::NetworkUnchecked>),
     ScriptHash {
         script_hash: ScriptHash,
+        #[serde(skip)]
         is_op_return: bool,
     },
 }
@@ -60,6 +62,7 @@ impl Display for ScriptKey {
         )
     }
 }
+
 #[cfg(test)]
 mod tests {
     use std::str::FromStr;

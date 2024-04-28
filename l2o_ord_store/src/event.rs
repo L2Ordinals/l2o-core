@@ -6,6 +6,8 @@ use l2o_ord::script_key::ScriptKey;
 use l2o_ord::tick::Tick;
 use serde::Deserialize;
 use serde::Serialize;
+use serde_with::serde_as;
+use serde_with::DisplayFromStr;
 
 #[derive(Debug, Clone, PartialEq, Deserialize, Serialize)]
 pub struct Receipt {
@@ -31,31 +33,40 @@ pub enum Event {
     L2OABlock,
 }
 
+#[serde_as]
 #[derive(Debug, Clone, PartialEq, Deserialize, Serialize)]
 pub struct DeployEvent {
+    #[serde_as(as = "DisplayFromStr")]
     pub supply: u128,
+    #[serde_as(as = "DisplayFromStr")]
     pub limit_per_mint: u128,
     pub decimal: u8,
     pub tick: Tick,
     pub self_mint: bool,
 }
 
+#[serde_as]
 #[derive(Debug, Clone, PartialEq, Deserialize, Serialize)]
 pub struct MintEvent {
     pub tick: Tick,
+    #[serde_as(as = "DisplayFromStr")]
     pub amount: u128,
     pub msg: Option<String>,
 }
 
+#[serde_as]
 #[derive(Debug, Clone, PartialEq, Deserialize, Serialize)]
 pub struct InscribeTransferEvent {
     pub tick: Tick,
+    #[serde_as(as = "DisplayFromStr")]
     pub amount: u128,
 }
 
+#[serde_as]
 #[derive(Debug, Clone, PartialEq, Deserialize, Serialize)]
 pub struct TransferEvent {
     pub tick: Tick,
+    #[serde_as(as = "DisplayFromStr")]
     pub amount: u128,
     pub msg: Option<String>,
 }

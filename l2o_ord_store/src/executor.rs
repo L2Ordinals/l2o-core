@@ -181,6 +181,7 @@ impl ExecutionMessage {
         // ignore inscribe inscription to coinbase. let
         let to_script_key = msg.to.clone().ok_or(BRC2XError::InscribeToCoinbase)?;
         let ptype = msg.op.p_type();
+        tracing::info!("processing {} deploy", ptype);
 
         let tick = deploy.tick.parse::<Tick>()?;
         let mut max_supply = deploy.max_supply.clone();
@@ -283,6 +284,8 @@ impl ExecutionMessage {
         let to_script_key = msg.to.clone().ok_or(BRC2XError::InscribeToCoinbase)?;
         let ptype = msg.op.p_type();
 
+        tracing::info!("processing {} mint", ptype);
+
         let tick = mint.tick.parse::<Tick>()?;
 
         let tick_info = context
@@ -372,6 +375,8 @@ impl ExecutionMessage {
         let to_script_key = msg.to.clone().ok_or(BRC2XError::InscribeToCoinbase)?;
         let ptype = msg.op.p_type();
 
+        tracing::info!("processing {} inscribe transfer", ptype);
+
         let tick = transfer.tick.parse::<Tick>()?;
 
         let token_info = context
@@ -458,6 +463,9 @@ impl ExecutionMessage {
         } else {
             from_ptype
         };
+
+        tracing::info!("processing {} -> {} transfer", from_ptype, to_ptype);
+
         let transferable = context
             .get_transferable_assets_by_satpoint(&msg.old_satpoint, from_ptype)
             .map_err(Error::LedgerError)?
@@ -546,6 +554,8 @@ impl ExecutionMessage {
     ) -> anyhow::Result<Event> {
         let ptype = msg.op.p_type();
 
+        tracing::info!("processing l2deposit");
+
         let tick = l2deposit.tick.parse::<Tick>()?;
 
         let token_info = context
@@ -609,6 +619,8 @@ impl ExecutionMessage {
     ) -> anyhow::Result<Event> {
         let to_script_key = ScriptKey::Address(Address::from_str(&l2withdraw.to).unwrap());
         let ptype = msg.op.p_type();
+
+        tracing::info!("processing l2withdraw");
 
         let tick = l2withdraw.tick.parse::<Tick>()?;
 

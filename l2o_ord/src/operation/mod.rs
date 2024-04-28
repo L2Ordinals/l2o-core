@@ -21,7 +21,6 @@ pub enum Operation {
 }
 
 #[derive(Debug, Clone, PartialEq, Deserialize, Serialize, strum::Display)]
-#[strum(serialize_all = "camelCase")]
 pub enum OperationType {
     BRC20Deploy,
     BRC20Mint,
@@ -38,7 +37,6 @@ pub enum OperationType {
 }
 
 #[derive(EnumIs, Debug, Clone, Copy, PartialEq, Deserialize, Serialize, strum::Display)]
-#[strum(serialize_all = "camelCase")]
 pub enum ProtocolType {
     BRC20,
     BRC21,

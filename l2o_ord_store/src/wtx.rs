@@ -37,7 +37,6 @@ use crate::ctx::Context;
 use crate::entry::Entry;
 use crate::entry::InscriptionEntry;
 use crate::entry::SatPointValue;
-use crate::executor;
 use crate::executor::ExecutionMessage;
 use crate::executor::Message;
 use crate::log::TransferableLog;
@@ -126,7 +125,7 @@ enum Origin {
     New {
         cursed: bool,
         fee: u64,
-        hidden: bool,
+        // hidden: bool,
         parent: Option<InscriptionId>,
         pointer: Option<u64>,
         reinscription: bool,
@@ -369,7 +368,7 @@ impl<'a> Wtx for redb::WriteTransaction<'a> {
                             }
                         }
                     }
-                    Ok::<Vec<executor::Message>, anyhow::Error>(messages)
+                    Ok::<_, anyhow::Error>(messages)
                 }?;
 
                 {
@@ -566,7 +565,7 @@ impl<'a> Wtx for redb::WriteTransaction<'a> {
                     origin: Origin::New {
                         cursed: curse.is_some() && !jubilant,
                         fee: 0,
-                        hidden: inscription.payload.hidden(),
+                        // hidden: inscription.payload.hidden(),
                         parent: inscription.payload.parent(),
                         pointer: inscription.payload.pointer(),
                         reinscription: inscribed_offsets.get(&offset).is_some(),
@@ -743,7 +742,7 @@ impl<'a> Wtx for redb::WriteTransaction<'a> {
             Origin::New {
                 cursed,
                 fee,
-                hidden: _,
+                // hidden: _,
                 parent,
                 pointer: _,
                 reinscription,
@@ -907,7 +906,7 @@ impl<'a> Wtx for redb::WriteTransaction<'a> {
                     Origin::New {
                         cursed,
                         fee: _,
-                        hidden: _,
+                        // hidden: _,
                         pointer: _,
                         reinscription: _,
                         unbound,
@@ -954,7 +953,7 @@ impl<'a> Wtx for redb::WriteTransaction<'a> {
     fn handle_reorg(&mut self, _height: u32, _depth: u32) -> anyhow::Result<()> {
         tracing::info!("handling reorg");
         let oldest_savepoint =
-            self.get_persistent_savepoint(dbg!(self.list_persistent_savepoints()?.min().unwrap()))?;
+            self.get_persistent_savepoint(self.list_persistent_savepoints()?.min().unwrap())?;
 
         self.restore_savepoint(&oldest_savepoint)?;
         Ok(())
