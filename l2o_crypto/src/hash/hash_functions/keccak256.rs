@@ -2,11 +2,8 @@ use l2o_common::common::data::hash::Hash256;
 use sha3::Digest;
 use sha3::Keccak256;
 
-use super::block_hasher::get_block_payload_bytes;
 use crate::hash::merkle::traits::MerkleHasher;
 use crate::hash::merkle::traits::MerkleHasherWithMarkedLeaf;
-use crate::hash::traits::L2OBlockHasher;
-use crate::standards::l2o_a::L2OBlockInscriptionV1;
 
 pub struct Keccak256Hasher;
 impl MerkleHasher<Hash256> for Keccak256Hasher {
@@ -31,12 +28,8 @@ impl MerkleHasherWithMarkedLeaf<Hash256> for Keccak256Hasher {
     }
 }
 
-impl L2OBlockHasher for Keccak256Hasher {
-    fn get_l2_block_hash(block: &L2OBlockInscriptionV1) -> Hash256 {
-        let payload = get_block_payload_bytes(block);
-        let mut hasher = Keccak256::new();
-        hasher.update(&payload);
-        let result: [u8; 32] = hasher.finalize().into();
-        Hash256(result)
-    }
+pub fn hash(data: &[u8]) -> Hash256 {
+    let mut hasher = Keccak256::new();
+    hasher.update(data);
+    Hash256(hasher.finalize().into())
 }

@@ -77,7 +77,7 @@ services:
   #       ipv4_address: 172.16.238.13
   #   restart: always
 
-  indexer-ord-hook:
+  indexer:
     build:
       context: .
       dockerfile: Dockerfile
@@ -87,7 +87,7 @@ services:
     ports:
       - 3000:3000
     command:
-      - "indexer-ord-hook"
+      - "indexer"
       - "--addr=0.0.0.0:3000"
       - "--bitcoin-rpc=http://172.16.238.11:18443"
       - "--bitcoin-rpcuser=devnet"
@@ -101,21 +101,21 @@ services:
     restart: always
     profiles: [full]
 
-  ordhook:
-    image: hirosystems/ordhook:latest
-    command:
-      - "service"
-      - "start"
-      - "--post-to=http://172.16.238.14:3000/api/events"
-      - "--config-path=./Ordhook.toml"
-    volumes:
-      - "./ordhook-data:/workspace/ordhook-data"
-      - "./Ordhook.toml:/workspace/Ordhook.toml"
-    networks:
-      testing_net:
-        ipv4_address: 172.16.238.15
-    restart: always
-    profiles: [full]
+  # ordhook:
+  #   image: hirosystems/ordhook:latest
+  #   command:
+  #     - "service"
+  #     - "start"
+  #     - "--post-to=http://172.16.238.14:3000/api/events"
+  #     - "--config-path=./Ordhook.toml"
+  #   volumes:
+  #     - "./ordhook-data:/workspace/ordhook-data"
+  #     - "./Ordhook.toml:/workspace/Ordhook.toml"
+  #   networks:
+  #     testing_net:
+  #       ipv4_address: 172.16.238.15
+  #   restart: always
+  #   profiles: [full]
 
 networks:
   testing_net:

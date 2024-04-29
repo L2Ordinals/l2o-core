@@ -6,7 +6,6 @@ use plonky2::hash::hash_types::HashOut;
 
 use crate::fields::goldilocks::hash::WHashOut;
 use crate::fields::goldilocks::hash::Wrapper;
-use crate::standards::l2o_a::L2OBlockInscriptionV1;
 
 pub trait ZeroableHash: Sized + Copy + Clone {
     fn get_zero_value() -> Self;
@@ -79,10 +78,6 @@ impl L2OHash for HashOut<GoldilocksField> {
             elements: [d, c, b, a],
         }
     }
-}
-
-pub trait L2OBlockHasher {
-    fn get_l2_block_hash(block: &L2OBlockInscriptionV1) -> Hash256;
 }
 
 #[cfg(test)]

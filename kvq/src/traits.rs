@@ -1,6 +1,7 @@
 use serde::Deserialize;
 use serde::Serialize;
 use serde_with::serde_as;
+
 pub struct KVQPair<K, V> {
     pub key: K,
     pub value: V,
@@ -62,19 +63,9 @@ pub fn unwrap_kv_result<T>(item_opt: Option<T>) -> anyhow::Result<T> {
     }
 }
 
-pub trait KVQStoreAdapter<S, K: KVQSerializable, V: KVQSerializable> {
+pub trait KVQStoreAdapterReader<S, K: KVQSerializable, V: KVQSerializable> {
     fn get_exact(s: &S, key: &K) -> anyhow::Result<V>;
     fn get_many_exact(s: &S, keys: &[K]) -> anyhow::Result<Vec<V>>;
-
-    fn set(s: &mut S, key: K, value: V) -> anyhow::Result<()>;
-    fn set_ref(s: &mut S, key: &K, value: &V) -> anyhow::Result<()>;
-    fn set_many_ref<'a>(s: &mut S, items: &[KVQPair<&'a K, &'a V>]) -> anyhow::Result<()>;
-    fn set_many(s: &mut S, items: &[KVQPair<K, V>]) -> anyhow::Result<()>;
-
-    fn delete(s: &mut S, key: &K) -> anyhow::Result<bool>;
-    fn delete_many(s: &mut S, keys: &[K]) -> anyhow::Result<Vec<bool>>;
-    //fn delete_many_sized<const SIZE: usize>(s: &mut S, keys: &[K; SIZE]) ->
-    // anyhow::Result<[bool; SIZE]>;
 
     fn get_leq(s: &S, key: &K, fuzzy_bytes: usize) -> anyhow::Result<Option<V>>;
     fn get_leq_kv(s: &S, key: &K, fuzzy_bytes: usize) -> anyhow::Result<Option<KVQPair<K, V>>>;
@@ -99,6 +90,21 @@ pub trait KVQStoreAdapter<S, K: KVQSerializable, V: KVQSerializable> {
         unwrap_kv_vec_result(results)
     }
 }
+
+pub trait KVQStoreAdapter<S, K: KVQSerializable, V: KVQSerializable>:
+    KVQStoreAdapterReader<S, K, V>
+{
+    fn set(s: &mut S, key: K, value: V) -> anyhow::Result<()>;
+    fn set_ref(s: &mut S, key: &K, value: &V) -> anyhow::Result<()>;
+    fn set_many_ref<'a>(s: &mut S, items: &[KVQPair<&'a K, &'a V>]) -> anyhow::Result<()>;
+    fn set_many(s: &mut S, items: &[KVQPair<K, V>]) -> anyhow::Result<()>;
+
+    fn delete(s: &mut S, key: &K) -> anyhow::Result<bool>;
+    fn delete_many(s: &mut S, keys: &[K]) -> anyhow::Result<Vec<bool>>;
+    //fn delete_many_sized<const SIZE: usize>(s: &mut S, keys: &[K; SIZE]) ->
+    // anyhow::Result<[bool; SIZE]>;
+}
+
 pub trait KVQStoreAdapterWithHelpers<S, K: KVQSerializable, V: KVQSerializable>:
     KVQStoreAdapter<S, K, V>
 {
@@ -126,20 +132,9 @@ pub trait KVQStoreAdapterWithHelpers<S, K: KVQSerializable, V: KVQSerializable>:
 //pub type KVQStoreAdapter<K: KVQSerializable, V: KVQSerializable> =
 // KVQStoreAdapter<KVQBinaryStore, K, V>;
 
-pub trait KVQBinaryStore {
+pub trait KVQBinaryStoreReader {
     fn get_exact(&self, key: &Vec<u8>) -> anyhow::Result<Vec<u8>>;
     fn get_many_exact(&self, keys: &[Vec<u8>]) -> anyhow::Result<Vec<Vec<u8>>>;
-
-    fn set(&mut self, key: Vec<u8>, value: Vec<u8>) -> anyhow::Result<()>;
-    fn set_ref(&mut self, key: &Vec<u8>, value: &Vec<u8>) -> anyhow::Result<()>;
-    fn set_many_ref<'a>(
-        &mut self,
-        items: &[KVQPair<&'a Vec<u8>, &'a Vec<u8>>],
-    ) -> anyhow::Result<()>;
-    fn set_many_vec(&mut self, items: Vec<KVQPair<Vec<u8>, Vec<u8>>>) -> anyhow::Result<()>;
-
-    fn delete(&mut self, key: &Vec<u8>) -> anyhow::Result<bool>;
-    fn delete_many(&mut self, keys: &[Vec<u8>]) -> anyhow::Result<Vec<bool>>;
 
     fn get_leq(&self, key: &Vec<u8>, fuzzy_bytes: usize) -> anyhow::Result<Option<Vec<u8>>>;
     fn get_leq_kv(
@@ -180,4 +175,17 @@ pub trait KVQBinaryStore {
     ) -> anyhow::Result<Vec<KVQPair<Vec<u8>, Vec<u8>>>> {
         unwrap_kv_vec_result(self.get_many_leq_kv(keys, fuzzy_bytes)?)
     }
+}
+
+pub trait KVQBinaryStore: KVQBinaryStoreReader {
+    fn set(&mut self, key: Vec<u8>, value: Vec<u8>) -> anyhow::Result<()>;
+    fn set_ref(&mut self, key: &Vec<u8>, value: &Vec<u8>) -> anyhow::Result<()>;
+    fn set_many_ref<'a>(
+        &mut self,
+        items: &[KVQPair<&'a Vec<u8>, &'a Vec<u8>>],
+    ) -> anyhow::Result<()>;
+    fn set_many_vec(&mut self, items: Vec<KVQPair<Vec<u8>, Vec<u8>>>) -> anyhow::Result<()>;
+
+    fn delete(&mut self, key: &Vec<u8>) -> anyhow::Result<bool>;
+    fn delete_many(&mut self, keys: &[Vec<u8>]) -> anyhow::Result<Vec<bool>>;
 }

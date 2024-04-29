@@ -13,14 +13,6 @@ use serde_with::serde_as;
 #[derive(Serialize, Deserialize, PartialEq, Clone, Eq, Copy, Hash, Debug)]
 pub struct Hash256(#[serde_as(as = "serde_with::hex::Hex")] pub [u8; 32]);
 
-#[derive(Clone, Debug, PartialEq, Hash, Eq, Serialize, Deserialize)]
-pub struct MerkleProofCommonHash256 {
-    pub root: Hash256,
-    pub value: Hash256,
-    pub index: u64,
-    pub siblings: Vec<Hash256>,
-}
-
 impl Hash256 {
     pub fn from_hex(s: &str) -> crate::Result<Self> {
         let bytes = hex::decode(s.trim_start_matches("0x"))?;
@@ -67,34 +59,34 @@ impl L2OHash for Hash256 {
     }
 }
 
-impl Into<[u32; 8]> for &Hash256 {
-    fn into(self) -> [u32; 8] {
+impl From<&Hash256> for [u32; 8] {
+    fn from(value: &Hash256) -> Self {
         let mut result = [0u32; 8];
         for i in 0..8 {
             result[7 - i] = u32::from_be_bytes([
-                self.0[i * 4],
-                self.0[i * 4 + 1],
-                self.0[i * 4 + 2],
-                self.0[i * 4 + 3],
+                value.0[i * 4],
+                value.0[i * 4 + 1],
+                value.0[i * 4 + 2],
+                value.0[i * 4 + 3],
             ]);
         }
         result
     }
 }
 
-impl Into<[u64; 4]> for &Hash256 {
-    fn into(self) -> [u64; 4] {
+impl From<&Hash256> for [u64; 4] {
+    fn from(value: &Hash256) -> Self {
         let mut result = [0u64; 4];
         for i in 0..4 {
             result[3 - i] = u64::from_be_bytes([
-                self.0[i * 8],
-                self.0[i * 8 + 1],
-                self.0[i * 8 + 2],
-                self.0[i * 8 + 3],
-                self.0[i * 8 + 4],
-                self.0[i * 8 + 5],
-                self.0[i * 8 + 6],
-                self.0[i * 8 + 7],
+                value.0[i * 8],
+                value.0[i * 8 + 1],
+                value.0[i * 8 + 2],
+                value.0[i * 8 + 3],
+                value.0[i * 8 + 4],
+                value.0[i * 8 + 5],
+                value.0[i * 8 + 6],
+                value.0[i * 8 + 7],
             ]);
         }
         result

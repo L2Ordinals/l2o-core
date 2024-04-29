@@ -89,7 +89,7 @@ ord-reindex:
 	@ord -r --bitcoin-rpc-user=devnet --bitcoin-rpc-pass=devnet index run
 
 .PHONY: run
-run: run-indexer-ordhook run-ordhook run-l2o-sequencer
+run: run-indexer run-l2o-sequencer
 
 .PHONY: run-l2o-sequencer
 run-l2o-sequencer:
@@ -99,48 +99,104 @@ run-l2o-sequencer:
 run-l2o-initializer:
 	@RUST_LOG=${LOG_LEVEL} RUST_BACKTRACE=${TRACE_ENABLED} cargo run --package l2o-cli -- initializer
 
-.PHONY: run-indexer-ordhook
-run-indexer-ordhook:
-	@RUST_LOG=${LOG_LEVEL} RUST_BACKTRACE=${TRACE_ENABLED} cargo run --package l2o-cli -- indexer-ord-hook --addr=0.0.0.0:3000
+.PHONY: run-indexer
+run-indexer:
+	@RUST_LOG=${LOG_LEVEL} RUST_BACKTRACE=${TRACE_ENABLED} cargo run --package l2o-cli -- indexer --addr=0.0.0.0:3000
 
 .PHONY: run-ordhook
 run-ordhook:
 	@ordhook service start --post-to=http://localhost:3000/api/events --config-path=./Ordhook.toml
 
-.PHONY: l2o-last-block
-l2o-last-block:
+.PHONY: l2o_getLastBlockInscription
+l2o_getLastBlockInscription:
 	curl http://localhost:3000 \
   	-X POST \
   	-H "Content-Type: application/json" \
 		--data '{"method":"l2o_getLastBlockInscription","params":1,"id":1,"jsonrpc":"2.0"}' | jq
 
-.PHONY: l2o-deploy-info
-l2o-deploy-info:
+.PHONY: l2o_getDeployInscription
+l2o_getDeployInscription:
 	curl http://localhost:3000 \
 		-X POST \
 		-H "Content-Type: application/json" \
 		--data '{"method":"l2o_getDeployInscription","params":1,"id":1,"jsonrpc":"2.0"}' | jq
 
-.PHONY: l2o-superchain-root
-l2o-superchain-root:
+.PHONY: l2o_getSuperchainStateRootAtBlock
+l2o_getSuperchainStateRootAtBlock:
 	curl http://localhost:3000 \
 		-X POST \
 		-H "Content-Type: application/json" \
 		--data '{"method":"l2o_getSuperchainStateRootAtBlock","params":[1,"Sha256"],"id":1,"jsonrpc":"2.0"}' | jq
 
-.PHONY: l2o-state-root
-l2o-state-root:
+.PHONY: l2o_getStateRootAtBlock
+l2o_getStateRootAtBlock:
 	curl http://localhost:3000 \
 		-X POST \
 		-H "Content-Type: application/json" \
 		--data '{"method":"l2o_getStateRootAtBlock","params":[1,0,"Sha256"],"id":1,"jsonrpc":"2.0"}' | jq
 
-.PHONY: l2o-merkle-proof-state-root
-l2o-merkle-proof-state-root:
+.PHONY: l2o_getMerkleProofStateRootAtBlock
+l2o_getMerkleProofStateRootAtBlock:
 	curl http://localhost:3000 \
 		-X POST \
 		-H "Content-Type: application/json" \
-		--data '{"method":"l2o_getMerkleProofStateRootAtBlock","params":[1,0,"Sha256"],"id":1,"jsonrpc":"2.0"}' | jq
+		--data '{"method":"l2o_getMerkleProofStateRootAtBlock","params":[1,110,"Sha256"],"id":1,"jsonrpc":"2.0"}' | jq
+
+.PHONY: brc20_getTickInfo
+brc20_getTickInfo:
+	curl http://localhost:3000 \
+		-X POST \
+		-H "Content-Type: application/json" \
+		--data '{"method":"brc20_getTickInfo","params":"ordi","id":1,"jsonrpc":"2.0"}' | jq
+
+.PHONY: brc20_getAllTickInfo
+brc20_getAllTickInfo:
+	curl http://localhost:3000 \
+		-X POST \
+		-H "Content-Type: application/json" \
+		--data '{"method":"brc20_getAllTickInfo","params":null,"id":1,"jsonrpc":"2.0"}' | jq
+
+.PHONY: brc20_getBalanceByAddress
+brc20_getBalanceByAddress:
+	curl http://localhost:3000 \
+		-X POST \
+		-H "Content-Type: application/json" \
+		--data '{"method":"brc20_getBalanceByAddress","params":["ordi","bcrt1p6dul6e287x08zl453gp58sgmjj8zqk0urs565ttau90djgtdepws0tny39"],"id":1,"jsonrpc":"2.0"}' | jq
+
+.PHONY: brc20_getAllBalanceByAddress
+brc20_getAllBalanceByAddress:
+	curl http://localhost:3000 \
+		-X POST \
+		-H "Content-Type: application/json" \
+		--data '{"method":"brc20_getAllBalanceByAddress","params":"bcrt1p6dul6e287x08zl453gp58sgmjj8zqk0urs565ttau90djgtdepws0tny39","id":1,"jsonrpc":"2.0"}' | jq
+
+.PHONY: brc21_getTickInfo
+brc21_getTickInfo:
+	curl http://localhost:3000 \
+		-X POST \
+		-H "Content-Type: application/json" \
+		--data '{"method":"brc21_getTickInfo","params":"ordi","id":1,"jsonrpc":"2.0"}' | jq
+
+.PHONY: brc21_getAllTickInfo
+brc21_getAllTickInfo:
+	curl http://localhost:3000 \
+		-X POST \
+		-H "Content-Type: application/json" \
+		--data '{"method":"brc21_getAllTickInfo","params":null,"id":1,"jsonrpc":"2.0"}' | jq
+
+.PHONY: brc21_getBalanceByAddress
+brc21_getBalanceByAddress:
+	curl http://localhost:3000 \
+		-X POST \
+		-H "Content-Type: application/json" \
+		--data '{"method":"brc21_getBalanceByAddress","params":["ordi","bcrt1p6dul6e287x08zl453gp58sgmjj8zqk0urs565ttau90djgtdepws0tny39"],"id":1,"jsonrpc":"2.0"}' | jq
+
+.PHONY: brc21_getAllBalanceByAddress
+brc21_getAllBalanceByAddress:
+	curl http://localhost:3000 \
+		-X POST \
+		-H "Content-Type: application/json" \
+		--data '{"method":"brc21_getAllBalanceByAddress","params":"bcrt1p6dul6e287x08zl453gp58sgmjj8zqk0urs565ttau90djgtdepws0tny39","id":1,"jsonrpc":"2.0"}' | jq
 
 .PHONY: image
 image:
@@ -149,3 +205,7 @@ image:
 		-c 512 \
 		-t l2ordinals/l2o:latest \
 		-f Dockerfile .
+
+.PHONY: dedup
+dedup:
+	@cargo machete --fix

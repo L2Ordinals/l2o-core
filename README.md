@@ -35,7 +35,6 @@
 
 - bitcoin-cli
 - ord
-- ordhook
 
 ## Getting Started
 
@@ -51,12 +50,7 @@ make ord-init
 
 Start the indexer service
 ```bash
-make run-indexer-ordhook 
-```
-
-Start the ordhook service
-```bash
-make run-ordhook
+make TRACE_ENABLED=0 run-indexer 
 ```
 
 Start the mock l2 sequencer which keeps generating groth16 proofs

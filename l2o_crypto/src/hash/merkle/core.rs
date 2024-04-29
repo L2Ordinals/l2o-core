@@ -1,16 +1,20 @@
+use kvq::traits::KVQSerializable;
 use l2o_common::common::data::hash::Hash256;
-use l2o_common::common::data::hash::MerkleProofCommonHash256;
 use plonky2::field::goldilocks_field::GoldilocksField;
 use plonky2::hash::hash_types::HashOut;
 use serde::Deserialize;
 use serde::Serialize;
 
-use super::traits::MerkleHasher;
-use super::traits::MerkleHasherWithMarkedLeaf;
+use crate::hash::merkle::traits::GeneralMerkleZeroHasher;
 use crate::hash::traits::L2OHash;
 
 #[derive(Clone, Debug, PartialEq, Eq, Hash, Serialize, Deserialize)]
-pub struct MerkleProofCore<Hash: PartialEq + Copy> {
+#[serde(bound = "Hash: Serialize, for<'de2> Hash: Deserialize<'de2>")]
+pub struct MerkleProofCore<Hash>
+where
+    Hash: PartialEq + Copy + Serialize,
+    for<'de2> Hash: Deserialize<'de2>,
+{
     pub root: Hash,
     pub value: Hash,
 
@@ -18,83 +22,40 @@ pub struct MerkleProofCore<Hash: PartialEq + Copy> {
     pub siblings: Vec<Hash>,
 }
 
-impl Into<MerkleProofCommonHash256> for MerkleProofCore<Hash256> {
-    fn into(self) -> MerkleProofCommonHash256 {
-        MerkleProofCommonHash256 {
-            root: self.root,
-            value: self.value,
-            index: self.index,
-            siblings: self.siblings,
-        }
-    }
-}
-impl From<MerkleProofCommonHash256> for MerkleProofCore<Hash256> {
-    fn from(proof: MerkleProofCommonHash256) -> Self {
-        MerkleProofCore {
-            root: proof.root,
-            value: proof.value,
-            index: proof.index,
-            siblings: proof.siblings,
-        }
-    }
-}
+pub type MerkleProofHash256 = MerkleProofCore<Hash256>;
 
-impl Into<MerkleProofCommonHash256> for MerkleProofCore<HashOut<GoldilocksField>> {
-    fn into(self) -> MerkleProofCommonHash256 {
-        MerkleProofCommonHash256 {
-            root: self.root.to_hash_256(),
-            value: self.value.to_hash_256(),
-            index: self.index,
-            siblings: self.siblings.into_iter().map(|f| f.to_hash_256()).collect(),
+impl From<&MerkleProofCore<HashOut<GoldilocksField>>> for MerkleProofCore<Hash256> {
+    fn from(proof: &MerkleProofCore<HashOut<GoldilocksField>>) -> MerkleProofCore<Hash256> {
+        MerkleProofCore {
+            root: proof.root.to_hash_256(),
+            value: proof.value.to_hash_256(),
+            index: proof.index,
+            siblings: proof.siblings.iter().map(|x| x.to_hash_256()).collect(),
         }
     }
 }
-impl From<MerkleProofCommonHash256> for MerkleProofCore<HashOut<GoldilocksField>> {
-    fn from(proof: MerkleProofCommonHash256) -> Self {
+impl From<&MerkleProofCore<Hash256>> for MerkleProofCore<HashOut<GoldilocksField>> {
+    fn from(proof: &MerkleProofCore<Hash256>) -> Self {
         MerkleProofCore {
             root: HashOut::<GoldilocksField>::from_hash_256(&proof.root),
             value: HashOut::<GoldilocksField>::from_hash_256(&proof.value),
             index: proof.index,
             siblings: proof
                 .siblings
-                .into_iter()
-                .map(|f| HashOut::<GoldilocksField>::from_hash_256(&f))
+                .iter()
+                .map(|x| HashOut::<GoldilocksField>::from_hash_256(x))
                 .collect(),
         }
     }
 }
 
-impl Into<MerkleProofCore<Hash256>> for MerkleProofCore<HashOut<GoldilocksField>> {
-    fn into(self) -> MerkleProofCore<Hash256> {
-        MerkleProofCore {
-            root: self.root.to_hash_256(),
-            value: self.value.to_hash_256(),
-            index: self.index,
-            siblings: self.siblings.into_iter().map(|x| x.to_hash_256()).collect(),
-        }
-    }
-}
-impl From<MerkleProofCore<Hash256>> for MerkleProofCore<HashOut<GoldilocksField>> {
-    fn from(proof: MerkleProofCore<Hash256>) -> Self {
-        MerkleProofCore {
-            root: HashOut::<GoldilocksField>::from_hash_256(&proof.root),
-            value: HashOut::<GoldilocksField>::from_hash_256(&proof.value),
-            index: proof.index,
-            siblings: proof
-                .siblings
-                .into_iter()
-                .map(|x| HashOut::<GoldilocksField>::from_hash_256(&x))
-                .collect(),
-        }
-    }
-}
-
-impl<Hash: PartialEq + Copy> MerkleProofCore<Hash> {
-    pub fn verify<Hasher: MerkleHasher<Hash>>(&self) -> bool {
-        verify_merkle_proof_core::<Hash, Hasher>(&self)
-    }
-    pub fn verify_marked<Hasher: MerkleHasherWithMarkedLeaf<Hash>>(&self) -> bool {
-        verify_merkle_proof_marked_leaves_core::<Hash, Hasher>(&self)
+impl<Hash> MerkleProofCore<Hash>
+where
+    Hash: PartialEq + Copy + Serialize,
+    for<'de2> Hash: Deserialize<'de2>,
+{
+    pub fn verify_marked_if<Hasher: GeneralMerkleZeroHasher<Hash>>(&self, marked: bool) -> bool {
+        verify_merkle_proof_core_marked_if::<Hash, Hasher>(&self, marked)
     }
 }
 
@@ -119,28 +80,25 @@ pub struct DeltaMerkleProofCore<Hash: PartialEq + Copy> {
     pub siblings: Vec<Hash>,
 }
 impl<Hash: PartialEq + Copy> DeltaMerkleProofCore<Hash> {
-    pub fn verify<Hasher: MerkleHasher<Hash>>(&self) -> bool {
-        verify_delta_merkle_proof_core::<Hash, Hasher>(&self)
-    }
-    pub fn verify_marked<Hasher: MerkleHasherWithMarkedLeaf<Hash>>(&self) -> bool {
-        verify_delta_merkle_proof_marked_leaves_core::<Hash, Hasher>(&self)
+    pub fn verify_marked_if<Hasher: GeneralMerkleZeroHasher<Hash>>(&self, marked: bool) -> bool {
+        verify_delta_merkle_proof_core_marked_if::<Hash, Hasher>(&self, marked)
     }
 }
 
-impl Into<DeltaMerkleProofCore<Hash256>> for DeltaMerkleProofCore<HashOut<GoldilocksField>> {
-    fn into(self) -> DeltaMerkleProofCore<Hash256> {
+impl From<&DeltaMerkleProofCore<HashOut<GoldilocksField>>> for DeltaMerkleProofCore<Hash256> {
+    fn from(proof: &DeltaMerkleProofCore<HashOut<GoldilocksField>>) -> Self {
         DeltaMerkleProofCore {
-            old_root: self.old_root.to_hash_256(),
-            new_root: self.new_root.to_hash_256(),
-            old_value: self.old_value.to_hash_256(),
-            new_value: self.new_value.to_hash_256(),
-            index: self.index,
-            siblings: self.siblings.into_iter().map(|x| x.to_hash_256()).collect(),
+            old_root: proof.old_root.to_hash_256(),
+            new_root: proof.new_root.to_hash_256(),
+            old_value: proof.old_value.to_hash_256(),
+            new_value: proof.new_value.to_hash_256(),
+            index: proof.index,
+            siblings: proof.siblings.iter().map(|x| x.to_hash_256()).collect(),
         }
     }
 }
-impl From<DeltaMerkleProofCore<Hash256>> for DeltaMerkleProofCore<HashOut<GoldilocksField>> {
-    fn from(proof: DeltaMerkleProofCore<Hash256>) -> Self {
+impl From<&DeltaMerkleProofCore<Hash256>> for DeltaMerkleProofCore<HashOut<GoldilocksField>> {
+    fn from(proof: &DeltaMerkleProofCore<Hash256>) -> Self {
         DeltaMerkleProofCore {
             old_root: HashOut::<GoldilocksField>::from_hash_256(&proof.old_root),
             new_root: HashOut::<GoldilocksField>::from_hash_256(&proof.new_root),
@@ -149,153 +107,98 @@ impl From<DeltaMerkleProofCore<Hash256>> for DeltaMerkleProofCore<HashOut<Goldil
             index: proof.index,
             siblings: proof
                 .siblings
-                .into_iter()
-                .map(|x| HashOut::<GoldilocksField>::from_hash_256(&x))
+                .iter()
+                .map(|x| HashOut::<GoldilocksField>::from_hash_256(x))
                 .collect(),
         }
     }
 }
-pub fn verify_merkle_proof_core<Hash: PartialEq + Copy, Hasher: MerkleHasher<Hash>>(
+pub fn verify_merkle_proof_core_marked_if<Hash, Hasher: GeneralMerkleZeroHasher<Hash>>(
     proof: &MerkleProofCore<Hash>,
-) -> bool {
-    let mut current = proof.value;
-    for (i, sibling) in proof.siblings.iter().enumerate() {
-        if proof.index & (1 << i) == 0 {
-            current = Hasher::two_to_one(&current, sibling);
-        } else {
-            current = Hasher::two_to_one(sibling, &current);
-        }
-    }
-    current == proof.root
-}
-pub fn verify_delta_merkle_proof_core<Hash: PartialEq + Copy, Hasher: MerkleHasher<Hash>>(
-    proof: &DeltaMerkleProofCore<Hash>,
-) -> bool {
-    let mut current = proof.old_value;
-    for (i, sibling) in proof.siblings.iter().enumerate() {
-        if proof.index & (1 << i) == 0 {
-            current = Hasher::two_to_one(&current, sibling);
-        } else {
-            current = Hasher::two_to_one(sibling, &current);
-        }
-    }
-    if current != proof.old_root {
-        return false;
-    }
-    current = proof.new_value;
-    for (i, sibling) in proof.siblings.iter().enumerate() {
-        if proof.index & (1 << i) == 0 {
-            current = Hasher::two_to_one(&current, sibling);
-        } else {
-            current = Hasher::two_to_one(sibling, &current);
-        }
-    }
-    current == proof.new_root
+    marked: bool,
+) -> bool
+where
+    Hash: PartialEq + Copy + Serialize,
+    for<'de2> Hash: Deserialize<'de2>,
+{
+    proof.root
+        == calc_merkle_root_marked_if::<Hash, Hasher>(
+            proof.value,
+            &proof.siblings,
+            proof.index,
+            marked,
+        )
 }
 
-pub fn verify_merkle_proof_marked_leaves_core<
+pub fn verify_delta_merkle_proof_core_marked_if<
     Hash: PartialEq + Copy,
-    Hasher: MerkleHasherWithMarkedLeaf<Hash>,
->(
-    proof: &MerkleProofCore<Hash>,
-) -> bool {
-    let mut current = proof.value;
-    for (i, sibling) in proof.siblings.iter().enumerate() {
-        if i == 0 {
-            if proof.index & (1 << i) == 0 {
-                current = Hasher::two_to_one_marked_leaf(&current, sibling);
-            } else {
-                current = Hasher::two_to_one_marked_leaf(sibling, &current);
-            }
-        } else {
-            if proof.index & (1 << i) == 0 {
-                current = Hasher::two_to_one(&current, sibling);
-            } else {
-                current = Hasher::two_to_one(sibling, &current);
-            }
-        }
-    }
-    current == proof.root
-}
-pub fn verify_delta_merkle_proof_marked_leaves_core<
-    Hash: PartialEq + Copy,
-    Hasher: MerkleHasherWithMarkedLeaf<Hash>,
+    Hasher: GeneralMerkleZeroHasher<Hash>,
 >(
     proof: &DeltaMerkleProofCore<Hash>,
+    marked: bool,
 ) -> bool {
-    let mut current = proof.old_value;
-    for (i, sibling) in proof.siblings.iter().enumerate() {
-        if i == 0 {
-            if proof.index & (1 << i) == 0 {
-                current = Hasher::two_to_one_marked_leaf(&current, sibling);
-            } else {
-                current = Hasher::two_to_one_marked_leaf(sibling, &current);
-            }
-        } else {
-            if proof.index & (1 << i) == 0 {
-                current = Hasher::two_to_one(&current, sibling);
-            } else {
-                current = Hasher::two_to_one(sibling, &current);
-            }
-        }
-    }
-    if current != proof.old_root {
-        return false;
-    }
-    current = proof.new_value;
-    for (i, sibling) in proof.siblings.iter().enumerate() {
-        if i == 0 {
-            if proof.index & (1 << i) == 0 {
-                current = Hasher::two_to_one_marked_leaf(&current, sibling);
-            } else {
-                current = Hasher::two_to_one_marked_leaf(sibling, &current);
-            }
-        } else {
-            if proof.index & (1 << i) == 0 {
-                current = Hasher::two_to_one(&current, sibling);
-            } else {
-                current = Hasher::two_to_one(sibling, &current);
-            }
-        }
-    }
-    current == proof.new_root
+    proof.old_root
+        == calc_merkle_root_marked_if::<Hash, Hasher>(
+            proof.old_value,
+            &proof.siblings,
+            proof.index,
+            marked,
+        )
+        && proof.new_root
+            == calc_merkle_root_marked_if::<Hash, Hasher>(
+                proof.new_value,
+                &proof.siblings,
+                proof.index,
+                marked,
+            )
 }
 
-pub fn calc_merkle_root_from_leaves<Hash: PartialEq + Copy, Hasher: MerkleHasher<Hash>>(
-    leaves: Vec<Hash>,
-) -> Hash {
-    let mut current_leaves: Vec<Hash> = leaves
-        .chunks_exact(2)
-        .map(|chunk| Hasher::two_to_one(&chunk[0], &chunk[1]))
-        .collect();
-    let height = (current_leaves.len() as f64).log2().ceil() as usize;
-    for _ in 1..height {
-        let next_leaves = current_leaves
-            .chunks_exact(2)
-            .map(|chunk| Hasher::two_to_one(&chunk[0], &chunk[1]))
-            .collect();
-        current_leaves = next_leaves;
+pub fn calc_merkle_path<Hash: PartialEq + Copy, Hasher: GeneralMerkleZeroHasher<Hash>>(
+    value: Hash,
+    siblings: &[Hash],
+    index: u64,
+) -> Vec<Hash> {
+    let mut current = value;
+    let mut merkle_path = vec![current];
+    for (i, sibling) in siblings.iter().enumerate() {
+        if index & (1 << i) == 0 {
+            current = Hasher::two_to_one(&current, &sibling);
+        } else {
+            current = Hasher::two_to_one(&sibling, &current);
+        }
+        merkle_path.push(current);
     }
-    current_leaves[0]
+    merkle_path
 }
 
-pub fn calc_merkle_root_from_marked_leaves<
-    Hash: PartialEq + Copy,
-    Hasher: MerkleHasherWithMarkedLeaf<Hash>,
->(
-    leaves: Vec<Hash>,
+pub fn calc_merkle_root_marked_if<Hash: PartialEq + Copy, Hasher: GeneralMerkleZeroHasher<Hash>>(
+    value: Hash,
+    siblings: &[Hash],
+    index: u64,
+    marked: bool,
 ) -> Hash {
-    let mut current_leaves: Vec<Hash> = leaves
-        .chunks_exact(2)
-        .map(|chunk| Hasher::two_to_one_marked_leaf(&chunk[0], &chunk[1]))
-        .collect();
-    let height = (current_leaves.len() as f64).log2().ceil() as usize;
-    for _ in 1..height {
-        let next_leaves = current_leaves
-            .chunks_exact(2)
-            .map(|chunk| Hasher::two_to_one(&chunk[0], &chunk[1]))
-            .collect();
-        current_leaves = next_leaves;
+    let mut current = value;
+    for (i, sibling) in siblings.iter().enumerate() {
+        let marked = i == 0 && marked;
+        if index & (1 << i) == 0 {
+            current = Hasher::two_to_one_marked_if(&current, &sibling, marked);
+        } else {
+            current = Hasher::two_to_one_marked_if(&sibling, &current, marked);
+        }
     }
-    current_leaves[0]
+    current
+}
+
+impl<Hash> KVQSerializable for MerkleProofCore<Hash>
+where
+    Hash: PartialEq + Copy + Serialize,
+    for<'de2> Hash: Deserialize<'de2>,
+{
+    fn to_bytes(&self) -> anyhow::Result<Vec<u8>> {
+        Ok(serde_json::to_vec(self)?)
+    }
+
+    fn from_bytes(bytes: &[u8]) -> anyhow::Result<Self> {
+        Ok(serde_json::from_slice(bytes)?)
+    }
 }

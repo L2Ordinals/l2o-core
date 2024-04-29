@@ -1,4 +1,5 @@
 [package]
+build   = "build.rs"
 edition = "2021"
 name    = "l2o-cli"
 version = "0.1.0"
@@ -14,23 +15,21 @@ ark-groth16           = { workspace = true }
 ark-r1cs-std          = { workspace = true }
 ark-relations         = { workspace = true }
 ark-std               = { workspace = true }
-bitcoin               = { workspace = true }
 bitcoincore-rpc       = { workspace = true }
-bitcoincore-rpc-json  = { workspace = true }
 clap                  = { workspace = true }
 dotenv                = { workspace = true }
 hex                   = { workspace = true }
 k256                  = { workspace = true }
-l2o-indexer-ordhook   = { path = "../l2o_indexer_ordhook" }
+l2o-indexer           = { path = "../l2o_indexer" }
 l2o_common            = { path = "../l2o_common" }
 l2o_crypto            = { path = "../l2o_crypto" }
+l2o_ord               = { path = "../l2o_ord" }
 l2o_rpc_provider      = { path = "../l2o_rpc_provider" }
-once_cell             = { workspace = true }
-rand_core             = { workspace = true }
-reqwest               = { workspace = true }
 serde_json            = { workspace = true }
+shadow-rs             = { workspace = true }
 thiserror             = { workspace = true }
 tokio                 = { workspace = true }
 tracing               = { workspace = true }
-tracing-log           = { workspace = true }
-tracing-subscriber    = { workspace = true }
+
+[build-dependencies]
+shadow-rs = { workspace = true }

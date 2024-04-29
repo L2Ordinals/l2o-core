@@ -181,6 +181,7 @@ pub fn print_hash256_zero_hashes() {
 }
 
 fn main() {
+    l2o_common::logger::setup_logger();
     print_hash256_zero_hashes();
     print_goldilocks_zero_hashes()
 }

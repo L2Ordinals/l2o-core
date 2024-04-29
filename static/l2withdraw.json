@@ -1,0 +1,8 @@
+{
+  "p": "brc-21",
+  "op": "l2withdraw",
+  "tick": "ordi",
+  "amt": "1000",
+  "to": "bc1pueurdpxv9yyeajpfsssntu8z57phy7uuue4ste6d0c6xutqm3jdsz595le",
+  "proof": {}
+}

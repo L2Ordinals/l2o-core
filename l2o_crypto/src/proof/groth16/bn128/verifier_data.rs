@@ -224,9 +224,8 @@ mod tests {
 
     #[test]
     fn test_serialize_verify() {
-        let vk_json = include_str!("../../../../../l2o_indexer_ordhook/assets/example_vkey.json");
-        let proof_json =
-            include_str!("../../../../../l2o_indexer_ordhook/assets/example_proof.json");
+        let vk_json = include_str!("../../../../../static/example_vkey.json");
+        let proof_json = include_str!("../../../../../static/example_proof.json");
         let p: VerifyingKey<Bn254> = serde_json::from_str::<Groth16VerifierSerializable>(vk_json)
             .unwrap()
             .to_vk()

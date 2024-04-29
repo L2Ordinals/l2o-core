@@ -5,19 +5,21 @@ use l2o_crypto::hash::hash_functions::sha256::Sha256Hasher;
 use l2o_crypto::hash::merkle::store::key::KVQMerkleNodeKey;
 use l2o_crypto::hash::merkle::store::model::KVQMerkleTreeModel;
 
+pub const TREE_HEIGHT: u8 = 30;
 type DemoModel<const TABLE_TYPE: u16> = KVQMerkleTreeModel<
     TABLE_TYPE,
+    TREE_HEIGHT,
     false,
     KVQSimpleMemoryBackingStore,
-    KVQStandardAdapter<KVQSimpleMemoryBackingStore, KVQMerkleNodeKey<TABLE_TYPE>, Hash256>,
     Hash256,
     Sha256Hasher,
+    KVQStandardAdapter<KVQSimpleMemoryBackingStore, KVQMerkleNodeKey<TABLE_TYPE>, Hash256>,
 >;
 
 fn main() {
+    l2o_common::logger::setup_logger();
     const TABLE_TYPE: u16 = 1;
 
-    const HEIGHT: usize = 30;
     let mut store = KVQSimpleMemoryBackingStore::new();
     let r = DemoModel::<TABLE_TYPE>::set_leaf(
         &mut store,
@@ -25,14 +27,14 @@ fn main() {
             tree_id: 0,
             primary_id: 0,
             secondary_id: 0,
-            level: HEIGHT as u8,
+            level: TREE_HEIGHT,
             index: 3,
             checkpoint_id: 0,
         },
         Hash256::rand(),
     )
     .unwrap();
-    tracing::info!("verify: {}", r.verify::<Sha256Hasher>());
+    tracing::info!("verify: {}", r.verify_marked_if::<Sha256Hasher>(false));
 
     tracing::info!("delta: {}", serde_json::to_string(&r).unwrap());
 }

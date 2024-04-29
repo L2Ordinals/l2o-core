@@ -1,0 +1,30 @@
+[package]
+edition = "2021"
+name    = "l2o-indexer"
+version = "0.1.0"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+anyhow           = { workspace = true }
+base64           = { workspace = true }
+bitcoin          = { workspace = true }
+bitcoincore-rpc  = { workspace = true }
+bytes            = { workspace = true }
+hex              = { workspace = true }
+http-body-util   = { workspace = true }
+hyper            = { workspace = true }
+hyper-util       = { workspace = true }
+jsonrpc-core     = { workspace = true }
+l2o_common       = { path = "../l2o_common" }
+l2o_macros       = { path = "../l2o_macros" }
+l2o_ord          = { path = "../l2o_ord" }
+l2o_ord_store    = { path = "../l2o_ord_store" }
+l2o_rpc          = { path = "../l2o_rpc" }
+l2o_store        = { path = "../l2o_store" }
+l2o_store_redb   = { path = "../l2o_store_redb" }
+redb             = { workspace = true }
+reqwest          = { workspace = true }
+serde_json       = { workspace = true }
+tokio            = { workspace = true }
+tracing          = { workspace = true }

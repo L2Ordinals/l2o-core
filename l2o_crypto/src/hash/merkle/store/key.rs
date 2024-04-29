@@ -8,8 +8,11 @@ pub struct KVQTreeNodePosition {
 }
 
 impl KVQTreeNodePosition {
-    pub fn new(level: u8, index: u64) -> Self {
+    pub const fn new(level: u8, index: u64) -> Self {
         Self { level, index }
+    }
+    pub const fn root() -> Self {
+        Self { level: 0, index: 0 }
     }
     pub fn new_u8_f<F: PrimeField64>(level: u8, index: F) -> Self {
         Self {
@@ -32,7 +35,7 @@ pub struct KVQTreeIdentifier {
     pub secondary_id: u32,
 }
 impl KVQTreeIdentifier {
-    pub fn new(tree_id: u8, primary_id: u64, secondary_id: u32) -> Self {
+    pub const fn new(tree_id: u8, primary_id: u64, secondary_id: u32) -> Self {
         Self {
             tree_id,
             primary_id,
@@ -130,7 +133,8 @@ impl<const TABLE_TYPE: u16> KVQSerializable for KVQMerkleNodeKey<TABLE_TYPE> {
     }
 }
 impl<const TABLE_TYPE: u16> KVQMerkleNodeKey<TABLE_TYPE> {
-    pub fn new(
+    #[inline]
+    pub const fn new(
         tree_id: u8,
         primary_id: u64,
         secondary_id: u32,
@@ -147,16 +151,18 @@ impl<const TABLE_TYPE: u16> KVQMerkleNodeKey<TABLE_TYPE> {
             checkpoint_id,
         }
     }
-    pub fn from_position(
+    #[inline]
+    pub const fn from_position(
         tree_id: u8,
         primary_id: u64,
         secondary_id: u32,
         checkpoint_id: u64,
         position: KVQTreeNodePosition,
     ) -> Self {
-        Self::from_position_ptr(tree_id, primary_id, secondary_id, checkpoint_id, &position)
+        Self::from_position_ref(tree_id, primary_id, secondary_id, checkpoint_id, &position)
     }
-    pub fn from_position_ptr(
+    #[inline]
+    pub const fn from_position_ref(
         tree_id: u8,
         primary_id: u64,
         secondary_id: u32,
@@ -172,7 +178,8 @@ impl<const TABLE_TYPE: u16> KVQMerkleNodeKey<TABLE_TYPE> {
             checkpoint_id,
         }
     }
-    pub fn from_identifier_position_ptr(
+    #[inline]
+    pub const fn from_identifier_position_ref(
         identifier: &KVQTreeIdentifier,
         checkpoint_id: u64,
         position: &KVQTreeNodePosition,
@@ -186,7 +193,8 @@ impl<const TABLE_TYPE: u16> KVQMerkleNodeKey<TABLE_TYPE> {
             checkpoint_id,
         }
     }
-    pub fn from_identifier_position(
+    #[inline]
+    pub const fn from_identifier_position(
         identifier: &KVQTreeIdentifier,
         checkpoint_id: u64,
         position: KVQTreeNodePosition,
@@ -198,6 +206,71 @@ impl<const TABLE_TYPE: u16> KVQMerkleNodeKey<TABLE_TYPE> {
             level: position.level,
             index: position.index,
             checkpoint_id,
+        }
+    }
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, Hash)]
+pub struct KVQAppendOnlyMerkleKey<const TABLE_TYPE: u16> {
+    pub tree_id: u8,
+    pub primary_id: u64,
+    pub secondary_id: u32,
+    pub checkpoint_id: u64,
+    pub tick: String,
+}
+impl<const TABLE_TYPE: u16> KVQSerializable for KVQAppendOnlyMerkleKey<TABLE_TYPE> {
+    fn to_bytes(&self) -> anyhow::Result<Vec<u8>> {
+        let mut result: Vec<u8> = Vec::with_capacity(32);
+        result.push(((TABLE_TYPE & 0xFF00) >> 8) as u8); // 1
+        result.push((TABLE_TYPE & 0xFF) as u8); // 2
+        result.push(self.tree_id); // 3
+        result.extend_from_slice(&self.primary_id.to_be_bytes()); // 11
+        result.extend_from_slice(&self.secondary_id.to_be_bytes()); // 15
+        result.extend_from_slice(&self.checkpoint_id.to_be_bytes()); // 23
+        result.extend_from_slice(self.tick.as_bytes());
+        Ok(result)
+    }
+
+    fn from_bytes(bytes: &[u8]) -> anyhow::Result<Self> {
+        Ok(Self {
+            tree_id: bytes[2],
+            primary_id: u64::from_be_bytes(bytes[3..11].try_into()?),
+            secondary_id: u32::from_be_bytes(bytes[11..15].try_into()?),
+            checkpoint_id: u64::from_be_bytes(bytes[15..23].try_into()?),
+            tick: String::from_utf8(bytes[23..].to_vec())?,
+        })
+    }
+}
+
+impl<const TABLE_TYPE: u16> KVQAppendOnlyMerkleKey<TABLE_TYPE> {
+    #[inline]
+    pub const fn new(
+        tree_id: u8,
+        primary_id: u64,
+        secondary_id: u32,
+        checkpoint_id: u64,
+        tick: String,
+    ) -> Self {
+        Self {
+            tree_id,
+            primary_id,
+            secondary_id,
+            checkpoint_id,
+            tick,
+        }
+    }
+    #[inline]
+    pub const fn from_identifier_ref(
+        identifier: &KVQTreeIdentifier,
+        checkpoint_id: u64,
+        tick: String,
+    ) -> Self {
+        Self {
+            tree_id: identifier.tree_id,
+            primary_id: identifier.primary_id,
+            secondary_id: identifier.secondary_id,
+            checkpoint_id,
+            tick,
         }
     }
 }
